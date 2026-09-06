@@ -23,7 +23,11 @@ function LoginForm() {
 
   const roleParam = searchParams?.get('role')?.toUpperCase();
   const initialRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' =
-    roleParam === 'ADMIN' ? 'ADMIN' : roleParam === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+    roleParam === 'ADMIN' || callbackUrl.startsWith('/admin')
+      ? 'ADMIN'
+      : roleParam === 'INSTRUCTOR'
+      ? 'INSTRUCTOR'
+      : 'STUDENT';
 
   const [roleTab, setRoleTab] = useState<'STUDENT' | 'INSTRUCTOR' | 'ADMIN'>(initialRole);
   const [identifier, setIdentifier] = useState('');
@@ -33,9 +37,9 @@ function LoginForm() {
   const [errorMessage, setErrorMessage] = useState(
     initialError === 'unauthorized_admin'
       ? 'Administrator privileges required to view that page.'
-      : initialError === 'unauthorized_instructor'
+      : initialError === 'unauthorized_instructor' && initialRole === 'INSTRUCTOR'
       ? 'Instructor privileges required to view that page.'
-      : initialError === 'unauthorized_student'
+      : initialError === 'unauthorized_student' && initialRole === 'STUDENT'
       ? 'Student access required to view that page.'
       : ''
   );
@@ -77,15 +81,30 @@ function LoginForm() {
       setIdentifier('');
       setPassword('');
 
-      if (callbackUrl) {
-        router.push(callbackUrl);
-      } else if (userRole === 'ADMIN') {
-        router.push('/admin');
+      // Smart role-based destination resolution to prevent redirect loops
+      let destination = '/';
+      if (userRole === 'ADMIN') {
+        if (callbackUrl && (callbackUrl.startsWith('/admin') || callbackUrl.startsWith('/instructor') || callbackUrl.startsWith('/student'))) {
+          destination = callbackUrl;
+        } else {
+          destination = '/admin';
+        }
       } else if (userRole === 'INSTRUCTOR') {
-        router.push('/instructor');
+        if (callbackUrl && callbackUrl.startsWith('/instructor')) {
+          destination = callbackUrl;
+        } else {
+          destination = '/instructor';
+        }
       } else {
-        router.push('/student');
+        if (callbackUrl && callbackUrl.startsWith('/student')) {
+          destination = callbackUrl;
+        } else {
+          destination = '/student';
+        }
       }
+
+      setLoading(false);
+      router.push(destination);
       router.refresh();
     } catch (err: any) {
       setErrorMessage(err.message || 'Login failed. Please verify credentials.');

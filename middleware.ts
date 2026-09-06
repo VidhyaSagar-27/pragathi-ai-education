@@ -28,26 +28,29 @@ export function middleware(request: NextRequest) {
     if (!validSession || payload?.role !== 'ADMIN') {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
+      loginUrl.searchParams.set('role', 'admin');
       loginUrl.searchParams.set('error', 'unauthorized_admin');
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  // Protect Instructor routes
+  // Protect Instructor routes (Admins have full faculty management authority)
   if (pathname.startsWith('/instructor')) {
-    if (!validSession || payload?.role !== 'INSTRUCTOR') {
+    if (!validSession || (payload?.role !== 'INSTRUCTOR' && payload?.role !== 'ADMIN')) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
+      loginUrl.searchParams.set('role', 'instructor');
       loginUrl.searchParams.set('error', 'unauthorized_instructor');
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  // Protect Student routes
+  // Protect Student routes (Admins can preview and audit student portal)
   if (pathname.startsWith('/student')) {
-    if (!validSession || payload?.role !== 'STUDENT') {
+    if (!validSession || (payload?.role !== 'STUDENT' && payload?.role !== 'ADMIN')) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
+      loginUrl.searchParams.set('role', 'student');
       loginUrl.searchParams.set('error', 'unauthorized_student');
       return NextResponse.redirect(loginUrl);
     }

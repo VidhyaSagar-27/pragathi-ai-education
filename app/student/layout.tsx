@@ -34,10 +34,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         return res.json();
       })
       .then((data) => {
-        if (data?.authenticated && data.user.role === 'STUDENT') {
+        if (data?.authenticated && (data.user.role === 'STUDENT' || data.user.role === 'ADMIN')) {
           setStudentUser(data.user);
         } else if (data?.authenticated && data.user.role !== 'STUDENT') {
-          router.push(data.user.role === 'ADMIN' ? '/admin' : '/instructor');
+          router.push('/instructor');
         }
       })
       .catch(() => router.push('/login'));

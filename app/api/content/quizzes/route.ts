@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { Quiz, QuizQuestion } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
   const quizId = searchParams.get('id');
 
   const db = await getDb();
-  let quizzes = db.quizzes;
+  let quizzes = db.quizzes || [];
 
   if (session?.role === 'STUDENT' || !session) {
     quizzes = quizzes.filter((q) => q.isPublished);
@@ -34,10 +35,10 @@ export async function GET(req: NextRequest) {
         ...singleQuiz,
         questions: singleQuiz.questions.map(({ correctOptionIndex, explanation, ...q }) => q),
       };
-      return NextResponse.json({ quiz: sanitizedQuiz });
+      return NextResponse.json({ quiz: sanitizedQuiz }, { headers: noCacheHeaders });
     }
 
-    return NextResponse.json({ quiz: singleQuiz });
+    return NextResponse.json({ quiz: singleQuiz }, { headers: noCacheHeaders });
   }
 
   // If student listing quizzes, sanitize questions
@@ -46,10 +47,10 @@ export async function GET(req: NextRequest) {
       ...q,
       questions: q.questions.map(({ correctOptionIndex, explanation, ...rest }) => rest),
     }));
-    return NextResponse.json({ quizzes: sanitizedQuizzes });
+    return NextResponse.json({ quizzes: sanitizedQuizzes }, { headers: noCacheHeaders });
   }
 
-  return NextResponse.json({ quizzes });
+  return NextResponse.json({ quizzes }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

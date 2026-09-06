@@ -17,6 +17,7 @@ import {
   Sliders,
   Image,
   Bell,
+  RotateCw,
 } from 'lucide-react';
 
 export default function AdminOverviewPage() {
@@ -51,15 +52,29 @@ export default function AdminOverviewPage() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/admin/overview')
+  const fetchOverview = (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    fetch(`/api/admin/overview?_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((res) => {
         if (res.stats) setData(res);
         setLoading(false);
+        setRefreshing(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchOverview();
+
+    const onFocus = () => fetchOverview();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   if (loading) {
@@ -90,13 +105,25 @@ export default function AdminOverviewPage() {
           </p>
         </div>
 
-        <Link
-          href="/admin/registrations"
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit"
-        >
-          <UserCheck className="w-4 h-4 text-teal-400" />
-          <span>Review Applications ({stats.pendingRegistrations})</span>
-        </Link>
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            onClick={() => fetchOverview(true)}
+            disabled={refreshing}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs"
+            title="Refresh Live Data"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-teal-600 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Updating...' : 'Refresh'}</span>
+          </button>
+
+          <Link
+            href="/admin/registrations"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit"
+          >
+            <UserCheck className="w-4 h-4 text-teal-400" />
+            <span>Review Applications ({stats.pendingRegistrations})</span>
+          </Link>
+        </div>
       </div>
 
       {/* 8 Real Statistics Cards (Starts at 0, no fake statistics!) */}

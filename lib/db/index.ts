@@ -192,6 +192,12 @@ export function getDatabaseUrl(): string | undefined {
   return undefined;
 }
 
+export const noCacheHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
+
 function getSqlClient() {
   const databaseUrl = getDatabaseUrl();
   if (!databaseUrl) {
@@ -203,7 +209,11 @@ function getSqlClient() {
   if (process.env.VERCEL !== '1' && (process.env.NODE_ENV !== 'production' || process.platform === 'win32')) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
-  return neon(databaseUrl);
+  return neon(databaseUrl, {
+    fetchOptions: {
+      cache: 'no-store',
+    },
+  });
 }
 
 function getInitialDatabase(): DatabaseSchema {

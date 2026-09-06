@@ -10,7 +10,7 @@ export default function AdminMessagesPage() {
 
   const loadMessages = () => {
     setLoading(true);
-    fetch('/api/admin/messages')
+    fetch(`/api/admin/messages?_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         setMessages(d.messages || []);
@@ -21,20 +21,27 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     loadMessages();
+    const onFocus = () => loadMessages();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleToggleRead = async (msg: ContactMessage) => {
-    await fetch('/api/admin/messages', {
+    const nextRead = !msg.isRead;
+    setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, isRead: nextRead } : m));
+    await fetch(`/api/admin/messages?_t=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: msg.id, isRead: !msg.isRead }),
+      body: JSON.stringify({ id: msg.id, isRead: nextRead }),
+      cache: 'no-store',
     });
     loadMessages();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this message?')) return;
-    await fetch(`/api/admin/messages?id=${id}`, { method: 'DELETE' });
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    await fetch(`/api/admin/messages?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
     loadMessages();
   };
 

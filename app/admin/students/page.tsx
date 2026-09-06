@@ -29,7 +29,7 @@ export default function AdminStudentsPage() {
 
   const loadStudents = () => {
     setLoading(true);
-    fetch('/api/admin/users?role=STUDENT')
+    fetch(`/api/admin/users?role=STUDENT&_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         setStudents(d.users || []);
@@ -40,6 +40,9 @@ export default function AdminStudentsPage() {
 
   useEffect(() => {
     loadStudents();
+    const onFocus = () => loadStudents();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleOpenAdd = () => {
@@ -116,17 +119,20 @@ export default function AdminStudentsPage() {
 
   const handleToggleStatus = async (stu: User) => {
     const newStatus = stu.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    await fetch('/api/admin/users', {
+    setStudents((prev) => prev.map((s) => s.id === stu.id ? { ...s, status: newStatus } : s));
+    await fetch(`/api/admin/users?_t=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: stu.id, status: newStatus }),
+      cache: 'no-store',
     });
     loadStudents();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this student account?')) return;
-    await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' });
+    setStudents((prev) => prev.filter((s) => s.id !== id));
+    await fetch(`/api/admin/users?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
     loadStudents();
   };
 

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { StudyMaterial } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   const moduleId = searchParams.get('moduleId');
 
   const db = await getDb();
-  let materials = db.materials;
+  let materials = db.materials || [];
 
   // If student, filter only published materials
   if (session?.role === 'STUDENT' || !session) {
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     materials = materials.filter((m) => m.moduleId === Number(moduleId));
   }
 
-  return NextResponse.json({ materials });
+  return NextResponse.json({ materials }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { User, StudentRegistration } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
   const db = await getDb();
-  return NextResponse.json({ registrations: db.registrations });
+  return NextResponse.json({ registrations: db.registrations || [] }, { headers: noCacheHeaders });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -113,16 +114,26 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400, headers: noCacheHeaders });
 
   await updateDb((dbState) => {
-    dbState.registrations = dbState.registrations.filter((r) => r.id !== id);
+    const reg = (dbState.registrations || []).find((r) => r.id === id);
+    dbState.registrations = (dbState.registrations || []).filter((r) => r.id !== id);
+    if (reg) {
+      dbState.users = (dbState.users || []).filter(
+        (u) =>
+          u.role !== 'STUDENT' ||
+          (u.email.toLowerCase() !== (reg.email || '').toLowerCase() &&
+           u.phone !== reg.mobileNumber &&
+           u.name.toLowerCase() !== reg.studentName.toLowerCase())
+      );
+    }
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true }, { headers: noCacheHeaders });
 }

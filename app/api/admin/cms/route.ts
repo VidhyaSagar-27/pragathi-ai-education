@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { ActivityItem, GalleryItem, AchievementItem, TestimonialItem } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const db = await getDb();
-  return NextResponse.json({
-    activities: db.activities,
-    gallery: db.gallery,
-    achievements: db.achievements,
-    testimonials: db.testimonials,
-  });
+  return NextResponse.json(
+    {
+      activities: db.activities || [],
+      gallery: db.gallery || [],
+      achievements: db.achievements || [],
+      testimonials: db.testimonials || [],
+    },
+    { headers: noCacheHeaders }
+  );
 }
 
 export async function POST(req: NextRequest) {

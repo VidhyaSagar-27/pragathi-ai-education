@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { Assignment } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   const moduleId = searchParams.get('moduleId');
 
   const db = await getDb();
-  let assignments = db.assignments;
+  let assignments = db.assignments || [];
 
   if (session?.role === 'STUDENT' || !session) {
     assignments = assignments.filter((a) => a.isPublished);
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     assignments = assignments.filter((a) => a.moduleId === Number(moduleId));
   }
 
-  return NextResponse.json({ assignments });
+  return NextResponse.json({ assignments }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

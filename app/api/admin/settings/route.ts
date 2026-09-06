@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const db = await getDb();
-  return NextResponse.json({ settings: db.settings });
+  return NextResponse.json({ settings: db.settings }, { headers: noCacheHeaders });
 }
 
 export async function PATCH(req: NextRequest) {

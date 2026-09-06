@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { Announcement } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
   const db = await getDb();
-  let announcements = db.announcements;
+  let announcements = db.announcements || [];
 
   if (session?.role === 'STUDENT') {
     announcements = announcements.filter((a) => a.targetRole === 'ALL' || a.targetRole === 'STUDENT');
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     announcements = announcements.filter((a) => a.targetRole === 'ALL' || a.targetRole === 'INSTRUCTOR');
   }
 
-  return NextResponse.json({ announcements });
+  return NextResponse.json({ announcements }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

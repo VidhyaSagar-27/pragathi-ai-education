@@ -17,7 +17,7 @@ export default function AdminRegistrationsPage() {
 
   const loadRegistrations = () => {
     setLoading(true);
-    fetch('/api/admin/registrations')
+    fetch(`/api/admin/registrations?_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         setRegistrations(d.registrations || []);
@@ -28,6 +28,9 @@ export default function AdminRegistrationsPage() {
 
   useEffect(() => {
     loadRegistrations();
+    const onFocus = () => loadRegistrations();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleOpenApprove = (reg: StudentRegistration) => {
@@ -66,17 +69,20 @@ export default function AdminRegistrationsPage() {
 
   const handleReject = async (id: string) => {
     if (!confirm('Reject this student application?')) return;
-    await fetch('/api/admin/registrations', {
+    setRegistrations((prev) => prev.map((r) => r.id === id ? { ...r, status: 'REJECTED' } : r));
+    await fetch(`/api/admin/registrations?_t=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action: 'REJECT' }),
+      cache: 'no-store',
     });
     loadRegistrations();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this registration record?')) return;
-    await fetch(`/api/admin/registrations?id=${id}`, { method: 'DELETE' });
+    setRegistrations((prev) => prev.filter((r) => r.id !== id));
+    await fetch(`/api/admin/registrations?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
     loadRegistrations();
   };
 

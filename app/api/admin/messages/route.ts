@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
   const db = await getDb();
-  return NextResponse.json({ messages: db.messages });
+  return NextResponse.json({ messages: db.messages || [] }, { headers: noCacheHeaders });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -47,11 +48,11 @@ export async function DELETE(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400, headers: noCacheHeaders });
 
   await updateDb((dbState) => {
-    dbState.messages = dbState.messages.filter((m) => m.id !== id);
+    dbState.messages = (dbState.messages || []).filter((m) => m.id !== id);
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true }, { headers: noCacheHeaders });
 }

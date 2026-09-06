@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { User, UserRole, UserStatus } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
   const { searchParams } = new URL(req.url);
   const role = searchParams.get('role');
 
   const db = await getDb();
-  let users = db.users;
+  let users = db.users || [];
 
   if (role) {
     users = users.filter((u) => u.role === role);
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   // Sanitize passwordHash before returning
   const safeUsers = users.map(({ passwordHash, ...safe }) => safe);
-  return NextResponse.json({ users: safeUsers });
+  return NextResponse.json({ users: safeUsers }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {
@@ -163,11 +164,20 @@ export async function DELETE(req: NextRequest) {
     }
 
     await updateDb((dbState) => {
-      dbState.users = dbState.users.filter((u) => u.id !== id);
+      const userToDelete = dbState.users.find((u) => u.id === id);
+      dbState.users = (dbState.users || []).filter((u) => u.id !== id);
+      if (userToDelete && userToDelete.role === 'STUDENT') {
+        dbState.registrations = (dbState.registrations || []).filter(
+          (r) =>
+            r.email?.toLowerCase() !== userToDelete.email.toLowerCase() &&
+            (!userToDelete.phone || r.mobileNumber !== userToDelete.phone)
+        );
+        dbState.quizSubmissions = (dbState.quizSubmissions || []).filter((q) => q.studentId !== id);
+      }
     });
 
-    return NextResponse.json({ success: true, message: 'User deleted successfully' });
+    return NextResponse.json({ success: true, message: 'User deleted successfully' }, { headers: noCacheHeaders });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500, headers: noCacheHeaders });
   }
 }

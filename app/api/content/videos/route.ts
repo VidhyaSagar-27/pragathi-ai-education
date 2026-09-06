@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb } from '@/lib/db';
+import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
 import { VideoItem } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   const moduleId = searchParams.get('moduleId');
 
   const db = await getDb();
-  let videos = db.videos;
+  let videos = db.videos || [];
 
   if (session?.role === 'STUDENT' || !session) {
     videos = videos.filter((v) => v.isPublished);
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     videos = videos.filter((v) => v.moduleId === Number(moduleId));
   }
 
-  return NextResponse.json({ videos });
+  return NextResponse.json({ videos }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

@@ -10,14 +10,22 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/admin/settings')
+  const loadSettings = () => {
+    setLoading(true);
+    fetch(`/api/admin/settings?_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         setSettings(d.settings);
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadSettings();
+    const onFocus = () => loadSettings();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {

@@ -10,7 +10,7 @@ export default function AdminPartnershipsPage() {
 
   const loadPartnerships = () => {
     setLoading(true);
-    fetch('/api/admin/partnerships')
+    fetch(`/api/admin/partnerships?_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         setPartnerships(d.partnerships || []);
@@ -21,20 +21,26 @@ export default function AdminPartnershipsPage() {
 
   useEffect(() => {
     loadPartnerships();
+    const onFocus = () => loadPartnerships();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleUpdateStatus = async (id: string, status: string) => {
-    await fetch('/api/admin/partnerships', {
+    setPartnerships((prev) => prev.map((p) => p.id === id ? { ...p, status: status as any } : p));
+    await fetch(`/api/admin/partnerships?_t=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
+      cache: 'no-store',
     });
     loadPartnerships();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this partnership record?')) return;
-    await fetch(`/api/admin/partnerships?id=${id}`, { method: 'DELETE' });
+    setPartnerships((prev) => prev.filter((p) => p.id !== id));
+    await fetch(`/api/admin/partnerships?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
     loadPartnerships();
   };
 

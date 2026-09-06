@@ -1,12 +1,28 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { getDatabaseUrl } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const hasDbUrl = Boolean(process.env.DATABASE_URL);
-  const hasAdminPassword = Boolean(process.env.ADMIN_INITIAL_PASSWORD);
+  const resolvedUrl = getDatabaseUrl();
+  const hasDbUrl = Boolean(resolvedUrl);
+  const hasAdminPassword = Boolean(
+    process.env.ADMIN_INITIAL_PASSWORD ||
+    process.env.admin_initial_password ||
+    process.env.ADMIN_PASSWORD
+  );
   const isVercel = Boolean(process.env.VERCEL);
+
+  // Collect variable key names only (never print values) to diagnose naming discrepancies
+  const envKeyNames = Object.keys(process.env)
+    .filter(
+      (k) =>
+        !k.startsWith('npm_') &&
+        !k.startsWith('AWS_') &&
+        !['PATH', 'HOSTNAME', 'USER', 'HOME', 'PWD', 'SHLVL', 'LANG', '_'].includes(k)
+    )
+    .sort();
 
   let dbStatus = 'untested';
   let dbError: string | null = null;
@@ -14,7 +30,7 @@ export async function GET() {
 
   if (hasDbUrl) {
     try {
-      const sql = neon(process.env.DATABASE_URL!);
+      const sql = neon(resolvedUrl!);
       const rows = await sql`SELECT id FROM app_database WHERE id = 1`;
       rowCount = rows.length;
       dbStatus = 'connected';
@@ -30,9 +46,10 @@ export async function GET() {
       isVercel,
       hasDatabaseUrl: hasDbUrl,
       hasAdminInitialPassword: hasAdminPassword,
-      databaseUrlPrefix: process.env.DATABASE_URL
-        ? process.env.DATABASE_URL.substring(0, 15) + '...'
+      databaseUrlPrefix: resolvedUrl
+        ? resolvedUrl.substring(0, 15) + '...'
         : 'MISSING',
+      detectedEnvironmentKeyNames: envKeyNames,
     },
     database: {
       status: dbStatus,

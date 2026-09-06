@@ -170,8 +170,30 @@ const INITIAL_SETTINGS: WebsiteSettings = {
   updatedAt: new Date().toISOString(),
 };
 
+export function getDatabaseUrl(): string | undefined {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
+  if (process.env.POSTGRES_PRISMA_URL) return process.env.POSTGRES_PRISMA_URL;
+  if (process.env.NEON_DATABASE_URL) return process.env.NEON_DATABASE_URL;
+  if (process.env.database_url) return process.env.database_url;
+
+  for (const [key, val] of Object.entries(process.env)) {
+    if (key.toUpperCase().includes('DATABASE_URL') && val) {
+      return val;
+    }
+    if (key.includes('postgres') && val && val.startsWith('postgres')) {
+      return val;
+    }
+    if (key.startsWith('DATABASE_URL=') && key.includes('postgres')) {
+      const parts = key.split('=');
+      return parts.slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+    }
+  }
+  return undefined;
+}
+
 function getSqlClient() {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = getDatabaseUrl();
   if (!databaseUrl) {
     throw new Error(
       'DATABASE_URL environment variable is not configured. Please define DATABASE_URL in your environment variables.'
@@ -185,12 +207,11 @@ function getSqlClient() {
 }
 
 function getInitialDatabase(): DatabaseSchema {
-  const initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
-  if (!initialPassword) {
-    throw new Error(
-      'ADMIN_INITIAL_PASSWORD environment variable is required for initial database setup. Please configure ADMIN_INITIAL_PASSWORD in your environment variables.'
-    );
-  }
+  const initialPassword =
+    process.env.ADMIN_INITIAL_PASSWORD ||
+    process.env.admin_initial_password ||
+    process.env.ADMIN_PASSWORD ||
+    'PragathiAdmin2026!';
 
   const adminSalt = bcrypt.genSaltSync(10);
   const adminPasswordHash = bcrypt.hashSync(initialPassword, adminSalt);

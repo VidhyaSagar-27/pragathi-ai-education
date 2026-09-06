@@ -281,3 +281,14 @@ export async function updateDb(
   await saveDatabase(dataToSave);
   return dataToSave;
 }
+
+export function getFallbackPublicData() {
+  return {
+    settings: INITIAL_SETTINGS,
+    modules: INITIAL_MODULES,
+    activities: [],
+    gallery: [],
+    achievements: [],
+    testimonials: [],
+  };
+}

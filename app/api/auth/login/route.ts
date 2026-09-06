@@ -107,10 +107,13 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
+    const message = error?.message?.includes('DATABASE_URL')
+      ? 'Database configuration error: DATABASE_URL is not configured in Vercel environment variables.'
+      : 'An unexpected error occurred during login';
     return NextResponse.json(
-      { error: 'An unexpected error occurred during login' },
+      { error: message },
       { status: 500 }
     );
   }

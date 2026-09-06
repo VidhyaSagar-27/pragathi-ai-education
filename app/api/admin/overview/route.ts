@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  const db = getDb();
+  const db = await getDb();
 
   const totalStudents = db.users.filter((u) => u.role === 'STUDENT').length;
   const totalInstructors = db.users.filter((u) => u.role === 'INSTRUCTOR').length;

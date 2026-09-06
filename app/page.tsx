@@ -4,8 +4,8 @@ import HomeClient from './HomeClient';
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
-  const db = getDb();
+export default async function HomePage() {
+  const db = await getDb();
 
   const publicData = {
     settings: db.settings,

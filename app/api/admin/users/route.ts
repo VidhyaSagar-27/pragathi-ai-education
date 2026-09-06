@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const role = searchParams.get('role');
 
-  const db = getDb();
+  const db = await getDb();
   let users = db.users;
 
   if (role) {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-    const db = getDb();
+    const db = await getDb();
 
     if (db.users.some((u) => u.email.toLowerCase() === cleanEmail)) {
       return NextResponse.json(
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.users.push(newUser);
     });
 
@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest) {
 
     let updatedUser: User | null = null;
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       const index = dbState.users.findIndex((u) => u.id === id);
       if (index === -1) return;
 
@@ -162,7 +162,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.users = dbState.users.filter((u) => u.id !== id);
     });
 

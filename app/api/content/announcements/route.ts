@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
-  const db = getDb();
+  const db = await getDb();
   let announcements = db.announcements;
 
   if (session?.role === 'STUDENT') {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.announcements.unshift(newAnnouncement);
     });
 
@@ -63,7 +63,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.announcements = dbState.announcements.filter((a) => a.id !== id);
   });
 

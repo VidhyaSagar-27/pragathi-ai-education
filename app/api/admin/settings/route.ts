@@ -5,7 +5,7 @@ import { getDb, updateDb } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   return NextResponse.json({ settings: db.settings });
 }
 
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.settings = {
         ...dbState.settings,
         ...body,
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest) {
       };
     });
 
-    const db = getDb();
+    const db = await getDb();
     return NextResponse.json({ success: true, settings: db.settings });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });

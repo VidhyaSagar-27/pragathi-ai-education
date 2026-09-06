@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const cleanIdentifier = rawIdentifier.toLowerCase();
     const numericDigits = rawIdentifier.replace(/\D/g, '');
 
-    const db = getDb();
+    const db = await getDb();
     const matchedUsers = db.users.filter((u) => {
       // 1. Match by email
       if (u.email.toLowerCase() === cleanIdentifier) return true;

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  const db = getDb();
+  const db = await getDb();
   return NextResponse.json({ partnerships: db.partnerships });
 }
 
@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       const item = dbState.partnerships.find((p) => p.id === id);
       if (item) {
         if (status) item.status = status;
@@ -50,7 +50,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.partnerships = dbState.partnerships.filter((p) => p.id !== id);
   });
 

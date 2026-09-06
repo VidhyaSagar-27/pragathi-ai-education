@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  const db = getDb();
+  const db = await getDb();
   return NextResponse.json({ registrations: db.registrations });
 }
 
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const db = getDb();
+    const db = await getDb();
     const reg = db.registrations.find((r) => r.id === id);
     if (!reg) {
       return NextResponse.json({ error: 'Registration application not found' }, { status: 404 });
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
 
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         const item = dbState.registrations.find((r) => r.id === id);
         if (item) item.status = 'APPROVED';
         dbState.users.push(newStudentUser);
@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest) {
         },
       });
     } else {
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         const item = dbState.registrations.find((r) => r.id === id);
         if (item) item.status = 'REJECTED';
       });
@@ -120,7 +120,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.registrations = dbState.registrations.filter((r) => r.id !== id);
   });
 

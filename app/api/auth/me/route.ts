@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
   }
 
-  const db = getDb();
+  const db = await getDb();
   const user = db.users.find((u) => u.id === session.userId && u.status === 'ACTIVE');
 
   if (!user) {

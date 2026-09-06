@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    updateDb((db) => {
+    await updateDb((db) => {
       db.messages.unshift(newMessage);
     });
 

@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import {
   DatabaseSchema,
@@ -21,9 +20,6 @@ import {
   Announcement,
   CertificateItem,
 } from './types';
-
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DB_DIR, 'db.json');
 
 const INITIAL_MODULES: ModuleItem[] = [
   {
@@ -174,10 +170,30 @@ const INITIAL_SETTINGS: WebsiteSettings = {
   updatedAt: new Date().toISOString(),
 };
 
+function getSqlClient() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      'DATABASE_URL environment variable is not configured. Please define DATABASE_URL in your environment variables.'
+    );
+  }
+  // Enable system CA fallback for local Windows development environments
+  if (process.env.VERCEL !== '1' && (process.env.NODE_ENV !== 'production' || process.platform === 'win32')) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+  return neon(databaseUrl);
+}
+
 function getInitialDatabase(): DatabaseSchema {
-  // Master Administrator credentials seed: admin@pragathiai.com / PragathiAdmin2026!
+  const initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
+  if (!initialPassword) {
+    throw new Error(
+      'ADMIN_INITIAL_PASSWORD environment variable is required for initial database setup. Please configure ADMIN_INITIAL_PASSWORD in your environment variables.'
+    );
+  }
+
   const adminSalt = bcrypt.genSaltSync(10);
-  const adminPasswordHash = bcrypt.hashSync('PragathiAdmin2026!', adminSalt);
+  const adminPasswordHash = bcrypt.hashSync(initialPassword, adminSalt);
 
   const masterAdmin: User = {
     id: 'usr_admin_master',
@@ -212,60 +228,56 @@ function getInitialDatabase(): DatabaseSchema {
   };
 }
 
-let cachedDb: DatabaseSchema | null = null;
+async function saveDatabase(data: DatabaseSchema): Promise<void> {
+  const sql = getSqlClient();
+  const jsonStr = JSON.stringify(data);
+  await sql`
+    INSERT INTO app_database (id, data, updated_at)
+    VALUES (1, ${jsonStr}::jsonb, NOW())
+    ON CONFLICT (id) DO UPDATE
+    SET data = EXCLUDED.data, updated_at = NOW()
+  `;
+}
 
-function ensureDbExists(): DatabaseSchema {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
+export async function getDb(): Promise<DatabaseSchema> {
+  const sql = getSqlClient();
+  const rows = await sql`SELECT data FROM app_database WHERE id = 1 LIMIT 1`;
 
-  if (!fs.existsSync(DB_FILE)) {
-    const initialData = getInitialDatabase();
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-    cachedDb = initialData;
-    return initialData;
-  }
-
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(raw) as DatabaseSchema;
-    // ensure required keys exist
-    if (!parsed.modules || parsed.modules.length === 0) {
-      parsed.modules = INITIAL_MODULES;
-      saveDatabase(parsed);
+  if (rows && rows.length > 0) {
+    let rawData = rows[0].data;
+    if (typeof rawData === 'string') {
+      rawData = JSON.parse(rawData);
     }
-    if (!parsed.settings) {
-      parsed.settings = INITIAL_SETTINGS;
-      saveDatabase(parsed);
+    const db = rawData as DatabaseSchema;
+
+    // ensure required modules and settings exist
+    let needsUpdate = false;
+    if (!db.modules || db.modules.length === 0) {
+      db.modules = INITIAL_MODULES;
+      needsUpdate = true;
     }
-    cachedDb = parsed;
-    return parsed;
-  } catch (err) {
-    console.error('Error reading database file, re-initializing...', err);
-    const initialData = getInitialDatabase();
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-    cachedDb = initialData;
-    return initialData;
+    if (!db.settings) {
+      db.settings = INITIAL_SETTINGS;
+      needsUpdate = true;
+    }
+    if (needsUpdate) {
+      await saveDatabase(db);
+    }
+    return db;
   }
+
+  // Row does not exist: initialize with master admin and default data
+  const initialData = getInitialDatabase();
+  await saveDatabase(initialData);
+  return initialData;
 }
 
-function saveDatabase(data: DatabaseSchema): void {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
-  const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-  fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tempFile, DB_FILE);
-  cachedDb = data;
-}
-
-export function getDb(): DatabaseSchema {
-  return ensureDbExists();
-}
-
-export function updateDb(updater: (db: DatabaseSchema) => void): DatabaseSchema {
-  const db = ensureDbExists();
-  updater(db);
-  saveDatabase(db);
-  return db;
+export async function updateDb(
+  updater: (db: DatabaseSchema) => void | DatabaseSchema | Promise<void | DatabaseSchema>
+): Promise<DatabaseSchema> {
+  const db = await getDb();
+  const result = await updater(db);
+  const dataToSave = (result && typeof result === 'object') ? result : db;
+  await saveDatabase(dataToSave);
+  return dataToSave;
 }

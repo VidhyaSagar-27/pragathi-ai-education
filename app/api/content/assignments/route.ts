@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const moduleId = searchParams.get('moduleId');
 
-  const db = getDb();
+  const db = await getDb();
   let assignments = db.assignments;
 
   if (session?.role === 'STUDENT' || !session) {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.assignments.unshift(newAssignment);
     });
 
@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       const asg = dbState.assignments.find((a) => a.id === id);
       if (asg) {
         if (title) asg.title = String(title).trim();
@@ -106,7 +106,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.assignments = dbState.assignments.filter((a) => a.id !== id);
   });
 

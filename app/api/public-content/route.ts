@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const db = getDb();
+  const db = await getDb();
   return NextResponse.json({
     settings: db.settings,
     modules: db.modules,

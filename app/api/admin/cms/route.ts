@@ -6,7 +6,7 @@ import { ActivityItem, GalleryItem, AchievementItem, TestimonialItem } from '@/l
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   return NextResponse.json({
     activities: db.activities,
     gallery: db.gallery,
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         isPublished: data.isPublished !== undefined ? Boolean(data.isPublished) : true,
         createdAt: new Date().toISOString(),
       };
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         dbState.activities.unshift(newActivity);
       });
       return NextResponse.json({ success: true, item: newActivity });
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         isPublished: data.isPublished !== undefined ? Boolean(data.isPublished) : true,
         createdAt: new Date().toISOString(),
       };
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         dbState.gallery.unshift(newGalleryItem);
       });
       return NextResponse.json({ success: true, item: newGalleryItem });
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         isPublished: data.isPublished !== undefined ? Boolean(data.isPublished) : true,
         createdAt: new Date().toISOString(),
       };
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         dbState.achievements.unshift(newAchievement);
       });
       return NextResponse.json({ success: true, item: newAchievement });
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         isPublished: data.isPublished !== undefined ? Boolean(data.isPublished) : true,
         createdAt: new Date().toISOString(),
       };
-      updateDb((dbState) => {
+      await updateDb((dbState) => {
         dbState.testimonials.unshift(newTestimonial);
       });
       return NextResponse.json({ success: true, item: newTestimonial });
@@ -114,7 +114,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Type and ID required' }, { status: 400 });
   }
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     if (type === 'activity') dbState.activities = dbState.activities.filter((i) => i.id !== id);
     if (type === 'gallery') dbState.gallery = dbState.gallery.filter((i) => i.id !== id);
     if (type === 'achievement') dbState.achievements = dbState.achievements.filter((i) => i.id !== id);

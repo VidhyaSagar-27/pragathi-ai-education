@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const moduleId = searchParams.get('moduleId');
   const quizId = searchParams.get('id');
 
-  const db = getDb();
+  const db = await getDb();
   let quizzes = db.quizzes;
 
   if (session?.role === 'STUDENT' || !session) {
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.quizzes.unshift(newQuiz);
     });
 
@@ -137,7 +137,7 @@ export async function PATCH(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       const quiz = dbState.quizzes.find((q) => q.id === id);
       if (quiz) {
         if (title) quiz.title = String(title).trim();
@@ -182,7 +182,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.quizzes = dbState.quizzes.filter((q) => q.id !== id);
   });
 

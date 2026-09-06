@@ -18,10 +18,10 @@ import {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '';
-  const initialError = searchParams.get('error') || '';
+  const callbackUrl = searchParams?.get('callbackUrl') || '';
+  const initialError = searchParams?.get('error') || '';
 
-  const roleParam = searchParams.get('role')?.toUpperCase();
+  const roleParam = searchParams?.get('role')?.toUpperCase();
   const initialRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' =
     roleParam === 'ADMIN' ? 'ADMIN' : roleParam === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
 

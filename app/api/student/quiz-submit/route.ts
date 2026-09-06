@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Quiz ID and answers required' }, { status: 400 });
     }
 
-    const db = getDb();
+    const db = await getDb();
     const quiz = db.quizzes.find((q) => q.id === quizId && q.isPublished);
 
     if (!quiz) {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       // Remove any previous attempt for this quiz if present or prepend new
       dbState.quizSubmissions.unshift(submission);
     });

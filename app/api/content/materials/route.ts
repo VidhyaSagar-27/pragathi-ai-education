@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const moduleId = searchParams.get('moduleId');
 
-  const db = getDb();
+  const db = await getDb();
   let materials = db.materials;
 
   // If student, filter only published materials
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       dbState.materials.unshift(newMaterial);
     });
 
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-    updateDb((dbState) => {
+    await updateDb((dbState) => {
       const mat = dbState.materials.find((m) => m.id === id);
       if (mat) {
         if (title) mat.title = String(title).trim();
@@ -104,7 +104,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-  updateDb((dbState) => {
+  await updateDb((dbState) => {
     dbState.materials = dbState.materials.filter((m) => m.id !== id);
   });
 

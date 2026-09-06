@@ -26,7 +26,7 @@ export async function getCurrentUser(): Promise<User | null> {
   const session = await getServerSession();
   if (!session) return null;
 
-  const db = getDb();
+  const db = await getDb();
   const user = db.users.find((u) => u.id === session.userId && u.status === 'ACTIVE');
   return user || null;
 }

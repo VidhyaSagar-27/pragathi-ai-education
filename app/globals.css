@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-teal-100 selection:text-teal-900;
+  }
+
+  /* Suppress accidental text-editor blinking carets when clicking static text */
+  *:not(input):not(textarea):not([contenteditable="true"]) {
+    caret-color: transparent !important;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    caret-color: auto !important;
+  }
+
+  /* Prevent text editing cursors on interactive UI elements */
+  button,
+  [role="button"],
+  a,
+  .badge-pill {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+@layer utilities {
+  .glass-nav {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+  }
+
+  .glass-card-dark {
+    background: rgba(15, 30, 54, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-navy via-brand-purple to-brand-teal;
+  }
+
+  .text-gradient-teal {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-600;
+  }
+
+  .bg-grid-pattern {
+    background-size: 32px 32px;
+    background-image: 
+      linear-gradient(to right, rgba(15, 30, 54, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 30, 54, 0.03) 1px, transparent 1px);
+  }
+}
+
+/* Professional Subtle Keyframe Animations */
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(1.04); }
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

@@ -22,15 +22,19 @@ export default function Footer({ settings }: FooterProps) {
   const instaUrl = settings?.instagramUrl || 'https://instagram.com/pragathi_ai';
 
   const quickLinks = [
-    { label: 'Home', href: '#hero' },
-    { label: 'About', href: '#about' },
-    { label: 'Program', href: '#program' },
-    { label: 'Syllabus', href: '#syllabus' },
-    { label: 'Activities', href: '#activities' },
-    { label: 'Gallery', href: '#gallery' },
-    { label: 'School Partnership', href: '#partnership' },
+    { label: 'Home', href: '/' },
+    { label: 'About Us', href: '/about' },
+    { label: '7-Module Curriculum', href: '/curriculum' },
+    { label: 'AI Playground', href: '/playground' },
+    { label: 'Student Activities', href: '/activities' },
+    { label: 'Achievements & Honors', href: '/achievements' },
+    { label: 'Media Gallery', href: '/gallery' },
+    { label: 'School Partnership', href: '/partnerships' },
+    { label: 'Student Registration', href: '/register' },
+    { label: 'Retrieve Password', href: '/register?tab=status' },
+    { label: 'Verify Certificate', href: '/verify-certificate' },
     { label: 'Portal Login', href: '/login' },
-    { label: 'Contact', href: '#contact' },
+    { label: 'Contact & Support', href: '/contact' },
   ];
 
   return (
@@ -64,15 +68,15 @@ export default function Footer({ settings }: FooterProps) {
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">
               Quick Links
             </h4>
-            <ul className="space-y-2">
+            <ul className="space-y-1.5">
               {quickLinks.map((link) => (
                 <li key={link.label}>
-                  <a
+                  <Link
                     href={link.href}
-                    className="text-sm text-slate-300 hover:text-teal-400 transition-colors inline-flex items-center"
+                    className="text-xs text-slate-300 hover:text-teal-400 transition-colors inline-flex items-center"
                   >
                     <span>{link.label}</span>
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>

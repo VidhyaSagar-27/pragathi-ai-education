@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -23,11 +23,12 @@ interface ChatMessage {
 }
 
 const QUICK_SUGGESTIONS = [
+  'How to get my Login Password?',
   'Explain the 7 Modules Syllabus',
-  'What is Module 4 Machine Learning?',
-  'How do Exams & Scorecards work?',
-  'How to update Student Photo?',
-  'How to install Mobile App?',
+  'How does the AI Playground work?',
+  'Show Python Perceptron Code',
+  'What are Transformers & Attention?',
+  'How to Bring AI to My School?',
 ];
 
 export default function AiChatbot() {
@@ -38,7 +39,7 @@ export default function AiChatbot() {
     {
       id: 'init-1',
       sender: 'ai',
-      text: "Hello! I am **PRAGATHI AI Tutor**, your super-intelligent academic assistant. Ask me anything about our 7-module AI syllabus, multi-mode exams, assignments, student profile, or mobile installation!",
+      text: "Hello! I am **PRAGATHI AI Tutor**, your super-intelligent guide. Ask me anything about our 7-module AI curriculum, admissions, password lookup, AI playground simulators, Python code, robotics, or any feature across the whole website!",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);

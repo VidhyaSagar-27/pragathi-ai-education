@@ -1,5 +1,8 @@
 import { getDb, saveDb } from '@/lib/db';
 import { NotificationLog } from '@/lib/db/types';
+import { sendAutomatedWhatsAppMessage } from './whatsapp';
+
+export { sendAutomatedWhatsAppMessage } from './whatsapp';
 
 export interface SendNotificationParams {
   type: 'EMAIL' | 'SMS' | 'OTP' | 'WHATSAPP';
@@ -14,6 +17,20 @@ export async function dispatchNotification({
   subject,
   message,
 }: SendNotificationParams): Promise<{ success: boolean; logId: string; status: 'SENT' | 'SIMULATED' }> {
+  // If WhatsApp, dispatch through automated WhatsApp engine
+  if (type === 'WHATSAPP') {
+    const waResult = await sendAutomatedWhatsAppMessage({
+      recipientMobile: recipient,
+      message,
+      templateName: subject,
+    });
+    return {
+      success: waResult.success,
+      logId: waResult.messageId,
+      status: waResult.status === 'SENT' ? 'SENT' : 'SIMULATED',
+    };
+  }
+
   const logId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   let status: 'SENT' | 'SIMULATED' = 'SIMULATED';
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { Menu, X, ArrowRight, UserCheck, ShieldCheck, GraduationCap, Sparkles, Search } from 'lucide-react';
 
 interface NavbarProps {
@@ -10,53 +11,18 @@ interface NavbarProps {
 }
 
 export default function Navbar({ onOpenRegister }: NavbarProps) {
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<{ role: string; name: string } | null>(null);
 
-  const [activeSection, setActiveSection] = useState('#hero');
-
   useEffect(() => {
-    const sectionIds = [
-      'hero',
-      'about',
-      'program',
-      'syllabus',
-      'activities',
-      'gallery',
-      'achievements',
-      'partnership',
-      'contact',
-    ];
-
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
-
-      // Check sections from bottom up to find currently active viewport section
-      const scrollPosition = window.scrollY + 130;
-
-      for (let i = sectionIds.length - 1; i >= 0; i--) {
-        const id = sectionIds[i];
-        const el = document.getElementById(id);
-        if (el) {
-          const top = el.offsetTop;
-          if (scrollPosition >= top) {
-            setActiveSection(`#${id}`);
-            return;
-          }
-        }
-      }
-
-      setActiveSection('#hero');
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-
-    // Check initial hash in URL if present
-    if (window.location.hash) {
-      setActiveSection(window.location.hash);
-    }
 
     // Check user session
     fetch('/api/auth/me')
@@ -72,31 +38,17 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
   }, []);
 
   const navLinks = [
-    { label: 'Home', href: '#hero' },
-    { label: 'About', href: '#about' },
-    { label: 'Program', href: '#program' },
-    { label: 'Syllabus', href: '#syllabus' },
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Curriculum', href: '/curriculum' },
     { label: 'AI Playground', href: '/playground' },
-    { label: 'Activities', href: '#activities' },
-    { label: 'Achievements', href: '#achievements' },
-    { label: 'School Partnership', href: '#partnership' },
+    { label: 'Activities', href: '/activities' },
+    { label: 'Achievements', href: '/achievements' },
+    { label: 'Gallery', href: '/gallery' },
+    { label: 'School Partnership', href: '/partnerships' },
     { label: 'Verify Credential', href: '/verify-certificate' },
-    { label: 'Contact', href: '#contact' },
+    { label: 'Contact', href: '/contact' },
   ];
-
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    if (href.startsWith('#')) {
-      e.preventDefault();
-      setActiveSection(href);
-      const target = document.querySelector(href);
-      if (target) {
-        const navHeight = 90;
-        const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navHeight;
-        window.scrollTo({ top: targetPosition, behavior: 'smooth' });
-        window.history.pushState(null, '', href);
-      }
-    }
-  };
 
   const getDashboardLink = () => {
     if (!sessionUser) return '/login';
@@ -133,31 +85,20 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
           {/* Desktop Navigation Links with Live Active Location Pill */}
           <nav className="hidden xl:flex items-center space-x-1">
             {navLinks.map((link) => {
-              const isSection = link.href.startsWith('#');
-              const isActive = isSection && activeSection === link.href;
-
-              if (isSection) {
-                return (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    onClick={(e) => handleNavClick(e, link.href)}
-                    className={`px-3 py-1.5 text-xs lg:text-sm font-medium rounded-full transition-all duration-200 select-none ${
-                      isActive
-                        ? 'bg-teal-50 text-teal-700 font-bold border border-teal-200/90 shadow-xs'
-                        : 'text-slate-600 hover:text-teal-700 hover:bg-slate-100/70'
-                    }`}
-                  >
-                    {link.label}
-                  </a>
-                );
-              }
+              const isActive =
+                link.href === '/'
+                  ? pathname === '/'
+                  : pathname === link.href || (pathname?.startsWith(link.href) && link.href !== '/');
 
               return (
                 <Link
                   key={link.label}
                   href={link.href}
-                  className="px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-600 hover:text-teal-700 hover:bg-slate-100/70 rounded-full transition-colors select-none"
+                  className={`px-3 py-1.5 text-xs lg:text-sm font-medium rounded-full transition-all duration-200 select-none ${
+                    isActive
+                      ? 'bg-teal-50 text-teal-700 font-bold border border-teal-200/90 shadow-xs'
+                      : 'text-slate-600 hover:text-teal-700 hover:bg-slate-100/70'
+                  }`}
                 >
                   {link.label}
                 </Link>
@@ -229,38 +170,24 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
         <div className="xl:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-2 shadow-lg animate-in slide-in-from-top-2 duration-200">
           <div className="flex flex-col space-y-1 divide-y divide-slate-100">
             {navLinks.map((link) => {
-              const isSection = link.href.startsWith('#');
-              const isActive = isSection && activeSection === link.href;
-
-              if (isSection) {
-                return (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    onClick={(e) => {
-                      handleNavClick(e, link.href);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`flex items-center justify-between px-3.5 py-2.5 text-sm font-medium rounded-xl transition-colors select-none ${
-                      isActive
-                        ? 'bg-teal-50 text-teal-800 font-bold border border-teal-200/80'
-                        : 'text-slate-700 hover:text-teal-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{link.label}</span>
-                    {isActive && <span className="w-2 h-2 rounded-full bg-teal-600" />}
-                  </a>
-                );
-              }
+              const isActive =
+                link.href === '/'
+                  ? pathname === '/'
+                  : pathname === link.href || (pathname?.startsWith(link.href) && link.href !== '/');
 
               return (
                 <Link
                   key={link.label}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3.5 py-2.5 text-sm font-medium text-slate-700 hover:text-teal-700 hover:bg-slate-50 rounded-xl transition-colors select-none"
+                  className={`flex items-center justify-between px-3.5 py-2.5 text-sm font-medium rounded-xl transition-colors select-none ${
+                    isActive
+                      ? 'bg-teal-50 text-teal-800 font-bold border border-teal-200/80'
+                      : 'text-slate-700 hover:text-teal-700 hover:bg-slate-50'
+                  }`}
                 >
                   <span>{link.label}</span>
+                  {isActive && <span className="w-2 h-2 rounded-full bg-teal-600" />}
                 </Link>
               );
             })}

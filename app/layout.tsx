@@ -1,11 +1,26 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import AiChatbot from '@/components/AiChatbot';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+
+export const viewport: Viewport = {
+  themeColor: '#0f766e',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://pragathiai.com'),
   title: 'PRAGATHI AI | Empowering Students for the AI-Powered Future',
   description:
     'PRAGATHI AI is an Artificial Intelligence education initiative introducing school students to AI, machine learning, problem-solving, creativity, and future-ready skills.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'PRAGATHI AI',
+  },
   keywords: [
     'Artificial Intelligence Education',
     'AI Education for Students',
@@ -48,6 +63,8 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 antialiased selection:bg-teal-100 selection:text-teal-900">
         {children}
+        <AiChatbot />
+        <PwaInstallPrompt />
       </body>
     </html>
   );

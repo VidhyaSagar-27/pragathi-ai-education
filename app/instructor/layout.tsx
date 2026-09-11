@@ -58,6 +58,7 @@ export default function InstructorLayout({ children }: { children: React.ReactNo
     { label: 'Assignments', href: '/instructor/assignments', icon: BookOpen },
     { label: 'Session Activities', href: '/instructor/activities', icon: Layers },
     { label: 'Enrolled Students', href: '/instructor/students', icon: Users },
+    { label: 'Student Log Reports', href: '/instructor/reports', icon: ClipboardList },
     { label: 'Announcements', href: '/instructor/announcements', icon: Bell },
     { label: 'My Profile', href: '/instructor/profile', icon: User },
   ];

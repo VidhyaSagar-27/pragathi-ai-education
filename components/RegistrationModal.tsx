@@ -223,6 +223,11 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
                 </div>
               </div>
 
+              <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-xl text-xs text-teal-900 flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
+                <span><strong>Student Photo:</strong> You can upload your official profile photo post-registration directly from your Student Portal.</span>
+              </div>
+
               <div className="pt-2">
                 <button
                   type="submit"

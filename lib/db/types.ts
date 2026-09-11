@@ -7,12 +7,14 @@ export interface StudentDetails {
   parentName: string;
   location: string;
   group: string;
+  photoUrl?: string;
 }
 
 export interface InstructorDetails {
   designation: string;
   assignedModules: number[];
   assignedGroups: string[];
+  photoUrl?: string;
 }
 
 export interface User {
@@ -80,11 +82,17 @@ export interface Assignment {
   createdAt: string;
 }
 
+export type ExamQuestionType = 'MCQ' | 'FILL_IN_BLANK' | 'THEORY' | 'ASSIGNMENT';
+
 export interface QuizQuestion {
   id: string;
+  type?: ExamQuestionType;
   question: string;
-  options: string[];
-  correctOptionIndex: number;
+  options?: string[];
+  correctOptionIndex?: number;
+  acceptableAnswers?: string[]; // for FILL_IN_BLANK
+  theoryKeywords?: string[]; // key concepts for auto-evaluating THEORY questions
+  modelAnswer?: string; // explanation or ideal model answer
   marks: number;
   explanation?: string;
 }
@@ -94,14 +102,28 @@ export interface Quiz {
   title: string;
   moduleId: number;
   instructions: string;
+  mode?: 'MCQ' | 'FILL_IN_BLANK' | 'THEORY' | 'ASSIGNMENT' | 'MIXED';
   timeLimitMinutes: number;
   totalMarks: number;
   passingMarks: number;
   isPublished: boolean;
+  autoDeclareResults?: boolean;
   questions: QuizQuestion[];
   createdBy: string;
   creatorName: string;
   createdAt: string;
+}
+
+export interface QuestionResultDetail {
+  questionId: string;
+  question: string;
+  type: ExamQuestionType;
+  studentAnswer: string | number;
+  isCorrect: boolean;
+  marksAwarded: number;
+  maxMarks: number;
+  feedback?: string;
+  modelAnswer?: string;
 }
 
 export interface QuizSubmission {
@@ -111,12 +133,39 @@ export interface QuizSubmission {
   moduleId: number;
   studentId: string;
   studentName: string;
-  answers: Record<string, number>;
+  answers: Record<string, any>;
   score: number;
   totalMarks: number;
   percentage: number;
   passed: boolean;
   submittedAt: string;
+  detailedResults?: QuestionResultDetail[];
+}
+
+export interface StudentAssignmentSubmission {
+  id: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  moduleId: number;
+  studentId: string;
+  studentName: string;
+  submissionText?: string;
+  submissionUrl?: string;
+  submittedAt: string;
+  status: 'SUBMITTED' | 'GRADED';
+  score?: number;
+  maxScore?: number;
+  feedback?: string;
+}
+
+export interface NotificationLog {
+  id: string;
+  type: 'EMAIL' | 'SMS' | 'OTP';
+  recipient: string;
+  subject?: string;
+  message: string;
+  status: 'SENT' | 'FAILED' | 'SIMULATED';
+  timestamp: string;
 }
 
 export interface StudentRegistration {
@@ -128,6 +177,7 @@ export interface StudentRegistration {
   mobileNumber: string;
   email?: string;
   location: string;
+  photoUrl?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   notes?: string;
   createdAt: string;
@@ -255,4 +305,6 @@ export interface DatabaseSchema {
   testimonials: TestimonialItem[];
   announcements: Announcement[];
   certificates: CertificateItem[];
+  assignmentSubmissions?: StudentAssignmentSubmission[];
+  notifications?: NotificationLog[];
 }

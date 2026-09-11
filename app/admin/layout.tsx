@@ -70,15 +70,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       items: [
         { label: 'Manage Students', href: '/admin/students', icon: Users },
         { label: 'Manage Instructors', href: '/admin/instructors', icon: GraduationCap },
+        { label: 'Student Log Reports', href: '/admin/reports', icon: Trophy },
       ],
     },
     {
       group: 'Website CMS & Content',
       items: [
+        { label: 'Curriculum & Syllabus', href: '/admin/curriculum', icon: Layers },
         { label: 'Website CMS & Media', href: '/admin/cms', icon: Sliders },
         { label: 'Faculty Quiz Center', href: '/instructor/quizzes', icon: FileQuestion },
         { label: 'Study Materials', href: '/instructor/materials', icon: BookOpen },
-        { label: 'Session Activities', href: '/instructor/activities', icon: Layers },
+        { label: 'Session Activities', href: '/instructor/activities', icon: BookOpen },
       ],
     },
     {

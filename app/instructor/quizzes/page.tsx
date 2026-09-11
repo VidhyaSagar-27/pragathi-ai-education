@@ -1,19 +1,34 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
   FileQuestion,
   Plus,
   Trash2,
-  Edit,
   CheckCircle2,
   Clock,
   Eye,
   EyeOff,
   AlertCircle,
   Sparkles,
+  BookOpen,
+  Award,
+  Layers,
+  HelpCircle,
 } from 'lucide-react';
-import { Quiz } from '@/lib/db/types';
+import { Quiz, ExamQuestionType } from '@/lib/db/types';
+
+interface QuestionDraft {
+  type: ExamQuestionType;
+  question: string;
+  options: string[];
+  correctOptionIndex: number;
+  acceptableAnswers: string;
+  theoryKeywords: string;
+  modelAnswer: string;
+  marks: number;
+  explanation: string;
+}
 
 export default function InstructorQuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -24,24 +39,22 @@ export default function InstructorQuizzesPage() {
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [moduleId, setModuleId] = useState(1);
-  const [instructions, setInstructions] = useState('Read each question carefully and select the best answer.');
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState(15);
-  const [passingMarks, setPassingMarks] = useState(2);
+  const [mode, setMode] = useState<'MCQ' | 'FILL_IN_BLANK' | 'THEORY' | 'ASSIGNMENT' | 'MIXED'>('MIXED');
+  const [instructions, setInstructions] = useState('Read each question carefully and answer all questions.');
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(20);
+  const [passingMarks, setPassingMarks] = useState(5);
   const [isPublished, setIsPublished] = useState(true);
+  const [autoDeclareResults, setAutoDeclareResults] = useState(true);
 
-  const [questions, setQuestions] = useState<
-    Array<{
-      question: string;
-      options: string[];
-      correctOptionIndex: number;
-      marks: number;
-      explanation: string;
-    }>
-  >([
+  const [questions, setQuestions] = useState<QuestionDraft[]>([
     {
+      type: 'MCQ',
       question: '',
       options: ['', '', '', ''],
       correctOptionIndex: 0,
+      acceptableAnswers: '',
+      theoryKeywords: '',
+      modelAnswer: '',
       marks: 1,
       explanation: '',
     },
@@ -49,7 +62,7 @@ export default function InstructorQuizzesPage() {
 
   const loadQuizzes = () => {
     setLoading(true);
-    fetch('/api/content/quizzes')
+    fetch('/api/content/quizzes?t=' + Date.now())
       .then((r) => r.json())
       .then((data) => {
         setQuizzes(data.quizzes || []);
@@ -66,15 +79,21 @@ export default function InstructorQuizzesPage() {
     setEditingQuizId(null);
     setTitle('');
     setModuleId(1);
-    setInstructions('Read each question carefully and select the best answer.');
-    setTimeLimitMinutes(15);
-    setPassingMarks(1);
+    setMode('MIXED');
+    setInstructions('Answer all questions with attention to accuracy and clarity.');
+    setTimeLimitMinutes(20);
+    setPassingMarks(3);
     setIsPublished(true);
+    setAutoDeclareResults(true);
     setQuestions([
       {
+        type: 'MCQ',
         question: '',
         options: ['', '', '', ''],
         correctOptionIndex: 0,
+        acceptableAnswers: '',
+        theoryKeywords: '',
+        modelAnswer: '',
         marks: 1,
         explanation: '',
       },
@@ -82,14 +101,45 @@ export default function InstructorQuizzesPage() {
     setModalOpen(true);
   };
 
-  const handleAddQuestion = () => {
+  const handleOpenEdit = (quiz: Quiz) => {
+    setEditingQuizId(quiz.id);
+    setTitle(quiz.title);
+    setModuleId(quiz.moduleId);
+    setMode(quiz.mode || 'MIXED');
+    setInstructions(quiz.instructions);
+    setTimeLimitMinutes(quiz.timeLimitMinutes);
+    setPassingMarks(quiz.passingMarks);
+    setIsPublished(quiz.isPublished);
+    setAutoDeclareResults(quiz.autoDeclareResults !== false);
+
+    setQuestions(
+      quiz.questions.map((q) => ({
+        type: q.type || 'MCQ',
+        question: q.question,
+        options: q.options && q.options.length ? q.options : ['', '', '', ''],
+        correctOptionIndex: q.correctOptionIndex || 0,
+        acceptableAnswers: q.acceptableAnswers ? q.acceptableAnswers.join(', ') : '',
+        theoryKeywords: q.theoryKeywords ? q.theoryKeywords.join(', ') : '',
+        modelAnswer: q.modelAnswer || '',
+        marks: q.marks || 1,
+        explanation: q.explanation || '',
+      }))
+    );
+    setModalOpen(true);
+  };
+
+  const handleAddQuestion = (defaultType: ExamQuestionType = 'MCQ') => {
     setQuestions([
       ...questions,
       {
+        type: defaultType,
         question: '',
         options: ['', '', '', ''],
         correctOptionIndex: 0,
-        marks: 1,
+        acceptableAnswers: '',
+        theoryKeywords: '',
+        modelAnswer: '',
+        marks: defaultType === 'THEORY' ? 5 : 1,
         explanation: '',
       },
     ]);
@@ -100,30 +150,39 @@ export default function InstructorQuizzesPage() {
     setQuestions(questions.filter((_, i) => i !== idx));
   };
 
-  const handleQuestionChange = (idx: number, field: string, value: any) => {
+  const handleQuestionChange = (idx: number, field: keyof QuestionDraft, value: any) => {
     const updated = [...questions];
-    (updated[idx] as any)[field] = value;
+    updated[idx] = { ...updated[idx], [field]: value };
     setQuestions(updated);
   };
 
   const handleOptionChange = (qIdx: number, optIdx: number, val: string) => {
     const updated = [...questions];
-    updated[qIdx].options[optIdx] = val;
+    const newOptions = [...updated[qIdx].options];
+    newOptions[optIdx] = val;
+    updated[qIdx] = { ...updated[qIdx], options: newOptions };
     setQuestions(updated);
   };
 
   const handleSaveQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate questions
+    // Validation
     for (let i = 0; i < questions.length; i++) {
-      if (!questions[i].question.trim()) {
-        alert(`Please provide text for Question #${i + 1}`);
+      const q = questions[i];
+      if (!q.question.trim()) {
+        alert(`Please provide question text for Question #${i + 1}`);
         return;
       }
-      for (let j = 0; j < questions[i].options.length; j++) {
-        if (!questions[i].options[j].trim()) {
-          alert(`Please fill in Option ${j + 1} for Question #${i + 1}`);
+      if (q.type === 'MCQ') {
+        const filled = q.options.filter((o) => o.trim());
+        if (filled.length < 2) {
+          alert(`Question #${i + 1} (MCQ) requires at least 2 options.`);
+          return;
+        }
+      } else if (q.type === 'FILL_IN_BLANK') {
+        if (!q.acceptableAnswers.trim()) {
+          alert(`Question #${i + 1} (Fill in Blank) requires at least one acceptable answer.`);
           return;
         }
       }
@@ -133,11 +192,23 @@ export default function InstructorQuizzesPage() {
       const payload = {
         title,
         moduleId,
+        mode,
         instructions,
         timeLimitMinutes,
         passingMarks,
         isPublished,
-        questions,
+        autoDeclareResults,
+        questions: questions.map((q) => ({
+          type: q.type,
+          question: q.question,
+          options: q.options.filter((o) => o.trim()),
+          correctOptionIndex: q.correctOptionIndex,
+          acceptableAnswers: q.acceptableAnswers.split(',').map((s) => s.trim()).filter(Boolean),
+          theoryKeywords: q.theoryKeywords.split(',').map((s) => s.trim()).filter(Boolean),
+          modelAnswer: q.modelAnswer,
+          marks: Number(q.marks) || 1,
+          explanation: q.explanation,
+        })),
       };
 
       let res;
@@ -155,17 +226,17 @@ export default function InstructorQuizzesPage() {
         });
       }
 
-      if (!res.ok) throw new Error('Failed to save quiz');
+      if (!res.ok) throw new Error('Failed to save assessment');
 
       setModalOpen(false);
       loadQuizzes();
     } catch (err: any) {
-      alert(err.message || 'Error saving quiz');
+      alert(err.message || 'Error saving assessment');
     }
   };
 
   const handleDeleteQuiz = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this quiz?')) return;
+    if (!confirm('Are you sure you want to delete this assessment?')) return;
     await fetch(`/api/content/quizzes?id=${id}`, { method: 'DELETE' });
     loadQuizzes();
   };
@@ -189,74 +260,87 @@ export default function InstructorQuizzesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            Quiz & Assessment Builder
+          <div className="flex items-center space-x-2 text-teal-700 text-xs font-bold uppercase tracking-wider mb-1">
+            <Award className="w-4 h-4" />
+            <span>Faculty Assessment Center</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            Multi-Mode Exam & Evaluation Builder
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Create real multiple-choice quizzes linked to the 7 syllabus modules.
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            Create MCQs, Fill-in-the-Blanks, Theory essays, and Assignment tasks with automatic rubric evaluation and instant scorecard declaration.
           </p>
         </div>
         <button
           onClick={handleOpenAdd}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit"
+          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
-          <span>Create New Quiz</span>
+          <span>Create Assessment</span>
         </button>
       </div>
 
+      {/* Quizzes List */}
       {quizzes.length > 0 ? (
-        <div className="grid sm:grid-cols-2 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {quizzes.map((quiz) => (
             <div
               key={quiz.id}
-              className="bg-white rounded-2xl p-6 border border-slate-200 shadow-subtle flex flex-col justify-between"
+              className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between hover:border-slate-300 transition"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-teal-50 text-teal-700 border border-teal-100">
-                    Module 0{quiz.moduleId}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-black px-2.5 py-1 rounded-md bg-teal-50 text-teal-700 border border-teal-200">
+                      Module 0{quiz.moduleId}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
+                      {quiz.mode || 'MIXED'}
+                    </span>
+                  </div>
                   <span
                     className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                      quiz.isPublished
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-600'
+                      quiz.isPublished ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {quiz.isPublished ? 'Published' : 'Draft'}
                   </span>
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{quiz.title}</h3>
+                <h3 className="text-base font-bold text-slate-900 mb-1.5">{quiz.title}</h3>
                 <p className="text-xs text-slate-500 line-clamp-2 mb-4">{quiz.instructions}</p>
 
-                <div className="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div className="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="flex justify-between">
                     <span>Questions:</span>
-                    <strong>{quiz.questions.length}</strong>
+                    <strong>{quiz.questions?.length || 0} questions</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Marks:</span>
-                    <strong>{quiz.totalMarks}</strong>
+                    <strong className="text-teal-700">{quiz.totalMarks} marks</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Passing Marks:</span>
-                    <strong>{quiz.passingMarks}</strong>
+                    <strong>{quiz.passingMarks} marks</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Time Limit:</span>
                     <strong>{quiz.timeLimitMinutes} minutes</strong>
                   </div>
+                  <div className="flex justify-between">
+                    <span>Results:</span>
+                    <strong className="text-emerald-700">Instant Auto-Declared</strong>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <button
                   onClick={() => handleTogglePublish(quiz)}
-                  className="inline-flex items-center space-x-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+                  className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
                 >
                   {quiz.isPublished ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   <span>{quiz.isPublished ? 'Unpublish' : 'Publish'}</span>
@@ -264,9 +348,15 @@ export default function InstructorQuizzesPage() {
 
                 <div className="flex items-center space-x-2">
                   <button
+                    onClick={() => handleOpenEdit(quiz)}
+                    className="px-2.5 py-1.5 text-xs font-bold text-teal-700 hover:bg-teal-50 rounded-lg transition"
+                  >
+                    Edit
+                  </button>
+                  <button
                     onClick={() => handleDeleteQuiz(quiz.id)}
                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    title="Delete Quiz"
+                    title="Delete Assessment"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -276,50 +366,56 @@ export default function InstructorQuizzesPage() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl p-12 text-center max-w-xl mx-auto border border-dashed border-slate-300 shadow-subtle">
+        <div className="bg-white rounded-2xl p-12 text-center max-w-xl mx-auto border border-dashed border-slate-300 shadow-xs">
           <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-700 mx-auto flex items-center justify-center mb-4 border border-teal-100">
             <FileQuestion className="w-8 h-8" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">No Quizzes Created Yet</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">No Assessments Created Yet</h3>
           <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-            Click "Create New Quiz" above to author an MCQ assessment for your students.
+            Click "Create Assessment" above to author exams across MCQs, Fill-in-the-Blanks, Theory, and Assignments.
           </p>
         </div>
       )}
 
-      {/* Create Quiz Modal */}
+      {/* Modal for Creating / Editing Multi-Mode Quizzes */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-6 py-4 bg-brand-navy text-white flex items-center justify-between">
-              <h3 className="text-lg font-bold">
-                {editingQuizId ? 'Edit Quiz' : 'Create New MCQ Quiz'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="text-slate-300 hover:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black tracking-tight">
+                  {editingQuizId ? 'Edit Exam Assessment' : 'Author Multi-Mode Exam Assessment'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Configure question modes, auto-grading keywords, and instant results declaration.
+                </p>
+              </div>
+              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white font-bold p-1">
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveQuiz} className="p-6 overflow-y-auto space-y-6 flex-grow">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quiz Title *</label>
+              {/* Meta Config */}
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Assessment Title *</label>
                   <input
                     type="text"
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Module 1: Foundations of Artificial Intelligence"
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    placeholder="e.g. Module 4: Machine Learning & Neural Computation Exam"
+                    className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Module *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Target Module *</label>
                   <select
                     value={moduleId}
                     onChange={(e) => setModuleId(Number(e.target.value))}
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                   >
                     {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                       <option key={num} value={num}>
@@ -331,164 +427,280 @@ export default function InstructorQuizzesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Exam Instructions</label>
                 <input
                   type="text"
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
+                  className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time Limit (mins)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Time Limit (mins)</label>
                   <input
                     type="number"
                     min={1}
                     max={180}
                     value={timeLimitMinutes}
                     onChange={(e) => setTimeLimitMinutes(Number(e.target.value))}
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                    className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Passing Marks</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Passing Marks</label>
                   <input
                     type="number"
                     min={1}
                     value={passingMarks}
                     onChange={(e) => setPassingMarks(Number(e.target.value))}
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                    className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Assessment Mode</label>
                   <select
-                    value={isPublished ? 'true' : 'false'}
-                    onChange={(e) => setIsPublished(e.target.value === 'true')}
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as any)}
+                    className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
                   >
-                    <option value="true">Published</option>
-                    <option value="false">Draft</option>
+                    <option value="MIXED">Mixed (MCQ + Theory + Blanks)</option>
+                    <option value="MCQ">Multiple Choice Only</option>
+                    <option value="FILL_IN_BLANK">Fill in Blanks Only</option>
+                    <option value="THEORY">Theory / Essay Only</option>
+                    <option value="ASSIGNMENT">Assignment Task Only</option>
                   </select>
+                </div>
+
+                <div className="flex items-center pt-5 space-x-2">
+                  <label className="flex items-center space-x-2 cursor-pointer text-xs font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={autoDeclareResults}
+                      onChange={(e) => setAutoDeclareResults(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                    />
+                    <span>Instant Results</span>
+                  </label>
                 </div>
               </div>
 
               {/* Questions Section */}
               <div className="space-y-6 pt-4 border-t border-slate-200">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Questions ({questions.length})
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    Questions & Rubrics ({questions.length})
                   </h4>
-                  <button
-                    type="button"
-                    onClick={handleAddQuestion}
-                    className="inline-flex items-center space-x-1 text-xs font-semibold text-teal-700 hover:text-teal-900"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Question</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuestion('MCQ')}
+                      className="text-xs font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition"
+                    >
+                      + Add MCQ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuestion('FILL_IN_BLANK')}
+                      className="text-xs font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition"
+                    >
+                      + Add Blank
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuestion('THEORY')}
+                      className="text-xs font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition"
+                    >
+                      + Add Theory
+                    </button>
+                  </div>
                 </div>
 
                 {questions.map((q, qIdx) => (
-                  <div key={qIdx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+                  <div
+                    key={qIdx}
+                    className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 relative"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700">Question #{qIdx + 1}</span>
-                      {questions.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveQuestion(qIdx)}
-                          className="text-xs text-rose-600 hover:underline"
+                      <div className="flex items-center space-x-2">
+                        <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">
+                          {qIdx + 1}
+                        </span>
+                        <select
+                          value={q.type}
+                          onChange={(e) => handleQuestionChange(qIdx, 'type', e.target.value)}
+                          className="text-xs font-bold px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-teal-700"
                         >
-                          Remove
-                        </button>
-                      )}
-                    </div>
+                          <option value="MCQ">Multiple Choice (MCQ)</option>
+                          <option value="FILL_IN_BLANK">Fill in the Blank</option>
+                          <option value="THEORY">Theory / Conceptual</option>
+                          <option value="ASSIGNMENT">Assignment Task</option>
+                        </select>
+                      </div>
 
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Enter question text`}
-                      value={q.question}
-                      onChange={(e) => handleQuestionChange(qIdx, 'question', e.target.value)}
-                      className="w-full text-sm px-3.5 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
-
-                    <div className="space-y-2 pt-2">
-                      <label className="block text-[11px] font-semibold text-slate-600">
-                        Options & Select Correct Answer:
-                      </label>
-                      {q.options.map((opt, optIdx) => (
-                        <div key={optIdx} className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-1">
+                          <label className="text-[11px] font-bold text-slate-500">Marks:</label>
                           <input
-                            type="radio"
-                            name={`correct_${qIdx}`}
-                            checked={q.correctOptionIndex === optIdx}
-                            onChange={() => handleQuestionChange(qIdx, 'correctOptionIndex', optIdx)}
-                            title="Mark as correct answer"
-                            className="text-teal-600"
-                          />
-                          <input
-                            type="text"
-                            required
-                            placeholder={`Option ${optIdx + 1}`}
-                            value={opt}
-                            onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                            className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={q.marks}
+                            onChange={(e) => handleQuestionChange(qIdx, 'marks', Number(e.target.value))}
+                            className="w-14 text-xs font-bold p-1 bg-white border border-slate-300 rounded-md text-center"
                           />
                         </div>
-                      ))}
+                        {questions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuestion(qIdx)}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                            title="Remove Question"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-3 pt-2">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Marks</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={q.marks}
-                          onChange={(e) => handleQuestionChange(qIdx, 'marks', Number(e.target.value))}
-                          className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg"
-                        />
+                    <div>
+                      <input
+                        type="text"
+                        required
+                        value={q.question}
+                        onChange={(e) => handleQuestionChange(qIdx, 'question', e.target.value)}
+                        placeholder="Enter the question prompt here..."
+                        className="w-full text-sm font-medium px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+
+                    {/* Mode Specific Inputs */}
+                    {q.type === 'MCQ' && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase">Options (Select radio for correct option):</p>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                          {q.options.map((opt, optIdx) => (
+                            <div
+                              key={optIdx}
+                              className={`flex items-center space-x-2 p-2 bg-white border rounded-xl ${
+                                q.correctOptionIndex === optIdx ? 'border-teal-500 ring-1 ring-teal-500' : 'border-slate-300'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name={`correct_${qIdx}`}
+                                checked={q.correctOptionIndex === optIdx}
+                                onChange={() => handleQuestionChange(qIdx, 'correctOptionIndex', optIdx)}
+                                className="text-teal-600 focus:ring-teal-500"
+                              />
+                              <input
+                                type="text"
+                                value={opt}
+                                onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
+                                placeholder={`Option ${optIdx + 1}`}
+                                className="w-full text-xs bg-transparent focus:outline-hidden"
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Explanation (Optional)
+                    )}
+
+                    {q.type === 'FILL_IN_BLANK' && (
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Acceptable Answer(s) (comma-separated for variants) *
                         </label>
                         <input
                           type="text"
-                          placeholder="Why this answer is correct"
-                          value={q.explanation}
-                          onChange={(e) => handleQuestionChange(qIdx, 'explanation', e.target.value)}
-                          className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg"
+                          value={q.acceptableAnswers}
+                          onChange={(e) => handleQuestionChange(qIdx, 'acceptableAnswers', e.target.value)}
+                          placeholder="e.g. Artificial Intelligence, AI, artificial intelligence"
+                          className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden"
+                        />
+                        <p className="text-[10px] text-slate-400">Case-insensitive automatic match will award full marks.</p>
+                      </div>
+                    )}
+
+                    {q.type === 'THEORY' && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700">
+                            Auto-Evaluation Keywords (comma-separated for semantic rubric scoring)
+                          </label>
+                          <input
+                            type="text"
+                            value={q.theoryKeywords}
+                            onChange={(e) => handleQuestionChange(qIdx, 'theoryKeywords', e.target.value)}
+                            placeholder="e.g. neural network, layers, backpropagation, activation function, gradient descent"
+                            className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden"
+                          />
+                          <p className="text-[10px] text-teal-700 mt-0.5">
+                            Our automatic grading algorithm will match student explanations against these key concepts to calculate proportional marks.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700">Model Answer / Reference Rubric</label>
+                          <textarea
+                            rows={2}
+                            value={q.modelAnswer}
+                            onChange={(e) => handleQuestionChange(qIdx, 'modelAnswer', e.target.value)}
+                            placeholder="Ideal reference answer provided to student on scorecard..."
+                            className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {q.type === 'ASSIGNMENT' && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-slate-700">Task Criteria / Submission Format</label>
+                        <textarea
+                          rows={2}
+                          value={q.modelAnswer}
+                          onChange={(e) => handleQuestionChange(qIdx, 'modelAnswer', e.target.value)}
+                          placeholder="Provide the task instructions, required code or writeup parameters, and evaluation criteria..."
+                          className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden"
                         />
                       </div>
+                    )}
+
+                    <div>
+                      <input
+                        type="text"
+                        value={q.explanation}
+                        onChange={(e) => handleQuestionChange(qIdx, 'explanation', e.target.value)}
+                        placeholder="Feedback explanation shown to student upon completion..."
+                        className="w-full text-xs px-3 py-1.5 bg-white/70 border border-slate-200 rounded-lg text-slate-600 focus:bg-white focus:outline-hidden"
+                      />
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="pt-4 border-t border-slate-200 flex justify-end space-x-3">
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl shadow-sm"
+                  className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
                 >
-                  Save Quiz
+                  {editingQuizId ? 'Update Assessment' : 'Save & Publish Assessment'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -74,6 +74,7 @@ export async function PATCH(req: NextRequest) {
           parentName: reg.parentName,
           location: reg.location,
           group: 'Foundation Batch A',
+          photoUrl: reg.photoUrl,
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -84,6 +85,18 @@ export async function PATCH(req: NextRequest) {
         if (item) item.status = 'APPROVED';
         dbState.users.push(newStudentUser);
       });
+
+      // Dispatch notification (SMS/Email)
+      try {
+        const { sendRegistrationNotification } = await import('@/lib/notifications');
+        await sendRegistrationNotification(
+          reg.email || reg.mobileNumber,
+          reg.studentName,
+          'APPROVED'
+        );
+      } catch (err) {
+        console.warn('Could not dispatch approval notification:', err);
+      }
 
       return NextResponse.json({
         success: true,
@@ -99,6 +112,17 @@ export async function PATCH(req: NextRequest) {
         const item = dbState.registrations.find((r) => r.id === id);
         if (item) item.status = 'REJECTED';
       });
+
+      try {
+        const { sendRegistrationNotification } = await import('@/lib/notifications');
+        await sendRegistrationNotification(
+          reg.email || reg.mobileNumber,
+          reg.studentName,
+          'REJECTED'
+        );
+      } catch (err) {
+        console.warn('Could not dispatch rejection notification:', err);
+      }
 
       return NextResponse.json({
         success: true,

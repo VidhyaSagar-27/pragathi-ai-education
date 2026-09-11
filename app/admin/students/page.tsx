@@ -21,6 +21,7 @@ export default function AdminStudentsPage() {
   const [parentName, setParentName] = useState('');
   const [location, setLocation] = useState('');
   const [group, setGroup] = useState('Foundation Batch A');
+  const [photoUrl, setPhotoUrl] = useState('');
 
   // Password reset modal
   const [pwModalOpen, setPwModalOpen] = useState(false);
@@ -56,6 +57,7 @@ export default function AdminStudentsPage() {
     setParentName('');
     setLocation('');
     setGroup('Foundation Batch A');
+    setPhotoUrl('');
     setModalOpen(true);
   };
 
@@ -70,6 +72,7 @@ export default function AdminStudentsPage() {
     setParentName(stu.studentDetails?.parentName || '');
     setLocation(stu.studentDetails?.location || '');
     setGroup(stu.studentDetails?.group || 'Foundation Batch A');
+    setPhotoUrl(stu.studentDetails?.photoUrl || '');
     setModalOpen(true);
   };
 
@@ -87,7 +90,7 @@ export default function AdminStudentsPage() {
             email,
             phone,
             password: password || undefined,
-            studentDetails: { classGrade, schoolName, parentName, location, group },
+            studentDetails: { classGrade, schoolName, parentName, location, group, photoUrl },
           }),
         });
         if (!res.ok) throw new Error('Failed to update student');
@@ -101,7 +104,7 @@ export default function AdminStudentsPage() {
             password,
             role: 'STUDENT',
             phone,
-            studentDetails: { classGrade, schoolName, parentName, location, group },
+            studentDetails: { classGrade, schoolName, parentName, location, group, photoUrl },
           }),
         });
         if (!res.ok) {
@@ -211,8 +214,23 @@ export default function AdminStudentsPage() {
                 {filtered.map((stu) => (
                   <tr key={stu.id} className="hover:bg-slate-50/80 transition">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{stu.name}</div>
-                      <div className="text-xs text-slate-400">{stu.email}</div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-700 shrink-0">
+                          {stu.studentDetails?.photoUrl ? (
+                            <img
+                              src={stu.studentDetails.photoUrl}
+                              alt={stu.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            stu.name.charAt(0)
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900">{stu.name}</div>
+                          <div className="text-xs text-slate-400">{stu.email}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-slate-700">
                       <div>{stu.studentDetails?.schoolName || 'N/A'}</div>
@@ -400,6 +418,17 @@ export default function AdminStudentsPage() {
                     className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Student Photo URL</label>
+                <input
+                  type="text"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="https://... or data:image/..."
+                  className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+                />
               </div>
 
               <div className="pt-3 flex justify-end space-x-3">

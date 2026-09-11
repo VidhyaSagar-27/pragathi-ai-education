@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
 import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
-import { Quiz, QuizQuestion } from '@/lib/db/types';
+import { Quiz, QuizQuestion, ExamQuestionType } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+function sanitizeQuestionForStudent(q: QuizQuestion) {
+  const { correctOptionIndex, acceptableAnswers, theoryKeywords, modelAnswer, explanation, ...rest } = q;
+  return rest;
+}
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -29,11 +34,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
     }
 
-    // If student is taking the quiz, don't leak the correct answer index!
+    // If student is taking the quiz, don't leak answers!
     if (session?.role === 'STUDENT' || !session) {
       const sanitizedQuiz = {
         ...singleQuiz,
-        questions: singleQuiz.questions.map(({ correctOptionIndex, explanation, ...q }) => q),
+        questions: singleQuiz.questions.map(sanitizeQuestionForStudent),
       };
       return NextResponse.json({ quiz: sanitizedQuiz }, { headers: noCacheHeaders });
     }
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
   if (session?.role === 'STUDENT' || !session) {
     const sanitizedQuizzes = quizzes.map((q) => ({
       ...q,
-      questions: q.questions.map(({ correctOptionIndex, explanation, ...rest }) => rest),
+      questions: q.questions.map(sanitizeQuestionForStudent),
     }));
     return NextResponse.json({ quizzes: sanitizedQuizzes }, { headers: noCacheHeaders });
   }
@@ -65,10 +70,12 @@ export async function POST(req: NextRequest) {
       title,
       moduleId,
       instructions,
+      mode,
       timeLimitMinutes,
       passingMarks,
       questions,
       isPublished,
+      autoDeclareResults,
     } = body;
 
     if (!title || !moduleId || !Array.isArray(questions) || questions.length === 0) {
@@ -84,9 +91,21 @@ export async function POST(req: NextRequest) {
       calculatedTotal += marks;
       return {
         id: q.id || `q_${Date.now()}_${idx}`,
+        type: (q.type as ExamQuestionType) || 'MCQ',
         question: String(q.question).trim(),
         options: Array.isArray(q.options) ? q.options.map(String) : [],
-        correctOptionIndex: Number(q.correctOptionIndex) || 0,
+        correctOptionIndex: q.correctOptionIndex !== undefined ? Number(q.correctOptionIndex) : 0,
+        acceptableAnswers: Array.isArray(q.acceptableAnswers)
+          ? q.acceptableAnswers.map(String)
+          : (typeof q.acceptableAnswers === 'string' && q.acceptableAnswers.trim())
+            ? q.acceptableAnswers.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [],
+        theoryKeywords: Array.isArray(q.theoryKeywords)
+          ? q.theoryKeywords.map(String)
+          : (typeof q.theoryKeywords === 'string' && q.theoryKeywords.trim())
+            ? q.theoryKeywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [],
+        modelAnswer: q.modelAnswer ? String(q.modelAnswer).trim() : undefined,
         marks,
         explanation: q.explanation ? String(q.explanation).trim() : undefined,
       };
@@ -97,10 +116,12 @@ export async function POST(req: NextRequest) {
       title: String(title).trim(),
       moduleId: Number(moduleId),
       instructions: instructions ? String(instructions).trim() : 'Answer all questions carefully.',
+      mode: mode || 'MIXED',
       timeLimitMinutes: Number(timeLimitMinutes) || 15,
       totalMarks: calculatedTotal,
       passingMarks: Number(passingMarks) || Math.ceil(calculatedTotal * 0.5),
       isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
+      autoDeclareResults: autoDeclareResults !== undefined ? Boolean(autoDeclareResults) : true,
       questions: formattedQuestions,
       createdBy: session.userId,
       creatorName: session.name,
@@ -113,6 +134,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, quiz: newQuiz });
   } catch (error) {
+    console.error('Quiz creation error:', error);
     return NextResponse.json({ error: 'Failed to create quiz' }, { status: 500 });
   }
 }
@@ -130,10 +152,12 @@ export async function PATCH(req: NextRequest) {
       title,
       moduleId,
       instructions,
+      mode,
       timeLimitMinutes,
       passingMarks,
       questions,
       isPublished,
+      autoDeclareResults,
     } = body;
 
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
@@ -144,9 +168,11 @@ export async function PATCH(req: NextRequest) {
         if (title) quiz.title = String(title).trim();
         if (moduleId) quiz.moduleId = Number(moduleId);
         if (instructions !== undefined) quiz.instructions = String(instructions).trim();
+        if (mode) quiz.mode = mode;
         if (timeLimitMinutes) quiz.timeLimitMinutes = Number(timeLimitMinutes);
         if (passingMarks) quiz.passingMarks = Number(passingMarks);
         if (isPublished !== undefined) quiz.isPublished = Boolean(isPublished);
+        if (autoDeclareResults !== undefined) quiz.autoDeclareResults = Boolean(autoDeclareResults);
 
         if (Array.isArray(questions)) {
           let calculatedTotal = 0;
@@ -155,9 +181,21 @@ export async function PATCH(req: NextRequest) {
             calculatedTotal += marks;
             return {
               id: q.id || `q_${Date.now()}_${idx}`,
+              type: (q.type as ExamQuestionType) || 'MCQ',
               question: String(q.question).trim(),
               options: Array.isArray(q.options) ? q.options.map(String) : [],
-              correctOptionIndex: Number(q.correctOptionIndex) || 0,
+              correctOptionIndex: q.correctOptionIndex !== undefined ? Number(q.correctOptionIndex) : 0,
+              acceptableAnswers: Array.isArray(q.acceptableAnswers)
+                ? q.acceptableAnswers.map(String)
+                : (typeof q.acceptableAnswers === 'string' && q.acceptableAnswers.trim())
+                  ? q.acceptableAnswers.split(',').map((s: string) => s.trim()).filter(Boolean)
+                  : [],
+              theoryKeywords: Array.isArray(q.theoryKeywords)
+                ? q.theoryKeywords.map(String)
+                : (typeof q.theoryKeywords === 'string' && q.theoryKeywords.trim())
+                  ? q.theoryKeywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+                  : [],
+              modelAnswer: q.modelAnswer ? String(q.modelAnswer).trim() : undefined,
               marks,
               explanation: q.explanation ? String(q.explanation).trim() : undefined,
             };
@@ -169,6 +207,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Quiz update error:', error);
     return NextResponse.json({ error: 'Failed to update quiz' }, { status: 500 });
   }
 }

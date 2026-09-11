@@ -25,54 +25,52 @@ const INITIAL_MODULES: ModuleItem[] = [
   {
     id: 1,
     number: 1,
-    title: 'Introduction to Artificial Intelligence',
+    title: 'Introduction to AI',
     iconName: 'Brain',
     topics: [
-      'Introduction to Artificial Intelligence',
+      'What is Artificial Intelligence?',
       'History of AI',
-      'AI Around Us',
-      'Importance of Artificial Intelligence',
-      'Advantages and Limitations of AI',
+      'Types of AI',
+      'AI around us',
+      'Intelligent Agents',
     ],
     learningOutcome:
-      'Students will understand the basic concept and importance of Artificial Intelligence.',
+      'Students will understand foundational AI concepts, historical evolution, everyday applications, and how intelligent agents perceive and act in their environment.',
     description:
-      'Foundation concepts, historical milestones, and how AI interacts with modern human life.',
+      'Core foundations of Artificial Intelligence: definitions, historical breakthroughs, modern real-world presence, and intelligent agent architectures.',
   },
   {
     id: 2,
     number: 2,
-    title: 'Types and Applications of AI',
-    iconName: 'Layers',
-    topics: [
-      'Types of Artificial Intelligence',
-      'Narrow AI',
-      'General AI',
-      'Applications of AI',
-      'AI in Everyday Life',
-    ],
-    learningOutcome:
-      'Students will understand different types and applications of Artificial Intelligence.',
-    description:
-      'Distinguishing Narrow vs General AI and exploring real-world applications across various sectors.',
-  },
-  {
-    id: 3,
-    number: 3,
-    title: 'AI Problem Solving and Search Strategies',
+    title: 'How AI Thinks',
     iconName: 'Compass',
     topics: [
       'Problem Solving in AI',
       'Search Strategies',
-      'Breadth-First Search',
-      'Depth-First Search',
       'Heuristics',
-      'Informed Search',
+      'Decision Trees',
     ],
     learningOutcome:
-      'Students will understand how AI searches for solutions and solves problems.',
+      'Students will learn how AI formulates problems, searches state spaces systematically, uses heuristics for optimal choices, and makes decisions using decision trees.',
     description:
-      'Systematic problem formulation, state spaces, and graph search algorithms that drive AI reasoning.',
+      'The reasoning engine of AI: problem formulation, informed and uninformed search strategies, heuristic evaluation, and structured decision trees.',
+  },
+  {
+    id: 3,
+    number: 3,
+    title: 'Logic & Reasoning',
+    iconName: 'Layers',
+    topics: [
+      'If-Then Rules',
+      'Knowledge Representation',
+      'Logical Reasoning',
+      'Rule-Based Systems',
+      'Expert Systems',
+    ],
+    learningOutcome:
+      'Students will understand rule-based deduction, formal knowledge representation, logical inference, and the architecture of expert systems.',
+    description:
+      'Structured logical thinking: rule formulations, knowledge engineering, inference engines, and industrial expert system implementations.',
   },
   {
     id: 4,
@@ -80,71 +78,67 @@ const INITIAL_MODULES: ModuleItem[] = [
     title: 'Machine Learning',
     iconName: 'Cpu',
     topics: [
-      'Introduction to Machine Learning',
-      'How Machines Learn',
-      'Data and Patterns',
+      'What is Machine Learning?',
       'Supervised Learning',
       'Unsupervised Learning',
       'Reinforcement Learning',
+      'Neural Networks',
+      'Deep Learning',
     ],
     learningOutcome:
-      'Students will understand how machines learn from data and patterns.',
+      'Students will master core machine learning paradigms, neural network computation, and deep hierarchical representation learning.',
     description:
-      'The core paradigms of machine learning: discovering patterns, training models, and predicting outcomes.',
+      'From data to intelligence: supervised, unsupervised, and reinforcement learning paradigms, artificial neural networks, and deep learning models.',
   },
   {
     id: 5,
     number: 5,
-    title: 'Deep Learning and Neural Networks',
-    iconName: 'Network',
+    title: 'NLP & Generative AI',
+    iconName: 'Sparkles',
     topics: [
-      'Introduction to Deep Learning',
-      'Neural Networks',
-      'Artificial Neurons',
-      'How Neural Networks Work',
-      'Image Recognition',
-      'Voice Recognition',
+      'What is NLP?',
+      'Conversational AI Tools',
+      'Prompting - Talking to AI Efficiently',
+      'Translation & Text Generation',
+      'AI Image, Video & Music Generation',
     ],
     learningOutcome:
-      'Students will understand the basics of Deep Learning and Neural Networks.',
+      'Students will understand natural language processing, efficient prompt engineering, conversational AI agents, and creative multimodal media synthesis.',
     description:
-      'Biologically inspired computing, perceptrons, multi-layer architectures, and perceptual intelligence.',
+      'Language and creativity: NLP fundamentals, LLMs, prompt craft, translation systems, and multimodal image, video, and audio generation.',
   },
   {
     id: 6,
     number: 6,
-    title: 'Generative AI and Modern AI Tools',
-    iconName: 'Sparkles',
+    title: 'Computer Vision & Robotics',
+    iconName: 'Eye',
     topics: [
-      'Introduction to Generative AI',
-      'AI Chatbots',
-      'Text Generation',
-      'Image Generation',
-      'Modern AI Tools',
-      'Responsible Use of Generative AI',
+      'What is Computer Vision?',
+      'Object and Face Recognition',
+      'Robotics Fundamentals',
+      'How AI and Robotics work together?',
     ],
     learningOutcome:
-      'Students will understand Generative AI and modern AI tools.',
+      'Students will understand visual perception in machines, facial and object detection algorithms, robotic kinematics, and physical AI integration.',
     description:
-      'Large language models, diffusion systems, prompt engineering, and ethical creative exploration.',
+      'Seeing and acting in the physical world: pixel analysis, object recognition, robot control loops, and embodied artificial intelligence.',
   },
   {
     id: 7,
     number: 7,
-    title: 'AI Ethics, Future and Projects',
+    title: 'AI Ethics, Careers & the Future',
     iconName: 'ShieldCheck',
     topics: [
-      'AI Ethics',
-      'Responsible AI',
-      'AI Privacy and Bias',
-      'Benefits and Risks of AI',
-      'AI and Future Careers',
-      'Student Projects and Presentations',
+      'AI Ethics - Fairness and Bias',
+      'Deepfakes and Misinformation',
+      'Responsible AI & Cyber Safety',
+      'Careers in AI',
+      'The Future of AI',
     ],
     learningOutcome:
-      'Students will understand responsible AI and explore future opportunities.',
+      'Students will evaluate ethical implications of AI, combat deepfakes and algorithmic bias, practice cyber safety, and explore emerging AI careers.',
     description:
-      'Fairness, privacy, bias mitigation, emerging career paths, and hands-on capstone project synthesis.',
+      'Guiding principles for tomorrow: bias mitigation, misinformation defense, cyber vigilance, career roadmaps, and the future trajectory of AI.',
   },
 ];
 
@@ -256,6 +250,8 @@ function getInitialDatabase(): DatabaseSchema {
     testimonials: [],
     announcements: [],
     certificates: [],
+    assignmentSubmissions: [],
+    notifications: [],
   };
 }
 
@@ -281,10 +277,23 @@ export async function getDb(): Promise<DatabaseSchema> {
     }
     const db = rawData as DatabaseSchema;
 
-    // ensure required modules and settings exist
+    // ensure required modules and settings exist and syllabus is up to date
     let needsUpdate = false;
-    if (!db.modules || db.modules.length === 0) {
+    if (
+      !db.modules ||
+      db.modules.length === 0 ||
+      db.modules[0]?.title === 'Introduction to Artificial Intelligence' ||
+      db.modules[1]?.title === 'Types and Applications of AI'
+    ) {
       db.modules = INITIAL_MODULES;
+      needsUpdate = true;
+    }
+    if (!db.assignmentSubmissions) {
+      db.assignmentSubmissions = [];
+      needsUpdate = true;
+    }
+    if (!db.notifications) {
+      db.notifications = [];
       needsUpdate = true;
     }
     if (!db.settings) {
@@ -311,6 +320,10 @@ export async function updateDb(
   const dataToSave = (result && typeof result === 'object') ? result : db;
   await saveDatabase(dataToSave);
   return dataToSave;
+}
+
+export async function saveDb(db: DatabaseSchema): Promise<void> {
+  await saveDatabase(db);
 }
 
 export function getFallbackPublicData() {

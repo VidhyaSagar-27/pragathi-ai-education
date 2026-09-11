@@ -33,114 +33,108 @@ const moduleIconMap: Record<number, any> = {
 export default function SyllabusSection({ modules, onOpenRegister }: SyllabusProps) {
   const [selectedModuleId, setSelectedModuleId] = useState<number>(1);
 
-  // Fallback to official 7 modules if not loaded from props
+  // Fallback to official 7 handwritten modules
   const defaultModules = [
     {
       id: 1,
       number: 1,
-      title: 'Introduction to Artificial Intelligence',
+      title: 'Introduction to AI',
       topics: [
-        'Introduction to Artificial Intelligence',
+        'What is Artificial Intelligence?',
         'History of AI',
-        'AI Around Us',
-        'Importance of Artificial Intelligence',
-        'Advantages and Limitations of AI',
+        'Types of AI',
+        'AI around us',
+        'Intelligent Agents',
       ],
       learningOutcome:
-        'Students will understand the basic concept and importance of Artificial Intelligence.',
+        'Students will grasp foundational concepts, history, modern manifestations, and intelligent agent structures in AI.',
     },
     {
       id: 2,
       number: 2,
-      title: 'Types and Applications of AI',
+      title: 'How AI Thinks',
       topics: [
-        'Types of Artificial Intelligence',
-        'Narrow AI',
-        'General AI',
-        'Applications of AI',
-        'AI in Everyday Life',
+        'Problem Solving in AI',
+        'Search Strategies',
+        'Heuristics',
+        'Decision Trees',
       ],
       learningOutcome:
-        'Students will understand different types and applications of Artificial Intelligence.',
+        'Students will understand algorithmic thinking, state-space problem formulation, heuristic search, and decision trees.',
     },
     {
       id: 3,
       number: 3,
-      title: 'AI Problem Solving and Search Strategies',
+      title: 'Logic & Reasoning',
       topics: [
-        'Problem Solving in AI',
-        'Search Strategies',
-        'Breadth-First Search',
-        'Depth-First Search',
-        'Heuristics',
-        'Informed Search',
+        'If-Then Rules',
+        'Knowledge Representation',
+        'Logical Reasoning',
+        'Rule-Based Systems',
+        'Expert Systems',
       ],
       learningOutcome:
-        'Students will understand how AI searches for solutions and solves problems.',
+        'Students will master propositional logic, knowledge graphs, inference chaining, and rule-based expert systems.',
     },
     {
       id: 4,
       number: 4,
       title: 'Machine Learning',
       topics: [
-        'Introduction to Machine Learning',
-        'How Machines Learn',
-        'Data and Patterns',
+        'What is Machine Learning?',
         'Supervised Learning',
         'Unsupervised Learning',
         'Reinforcement Learning',
+        'Neural Networks',
+        'Deep Learning',
       ],
       learningOutcome:
-        'Students will understand how machines learn from data and patterns.',
+        'Students will master core machine learning paradigms, neural network computation, and deep hierarchical representation learning.',
     },
     {
       id: 5,
       number: 5,
-      title: 'Deep Learning and Neural Networks',
+      title: 'NLP & Generative AI',
       topics: [
-        'Introduction to Deep Learning',
-        'Neural Networks',
-        'Artificial Neurons',
-        'How Neural Networks Work',
-        'Image Recognition',
-        'Voice Recognition',
+        'What is NLP?',
+        'Conversational AI Tools',
+        'Prompting - Talking to AI Efficiently',
+        'Translation & Text Generation',
+        'AI Image, Video & Music Generation',
       ],
       learningOutcome:
-        'Students will understand the basics of Deep Learning and Neural Networks.',
+        'Students will understand natural language processing, efficient prompt engineering, conversational AI agents, and creative multimodal media synthesis.',
     },
     {
       id: 6,
       number: 6,
-      title: 'Generative AI and Modern AI Tools',
+      title: 'Computer Vision & Robotics',
       topics: [
-        'Introduction to Generative AI',
-        'AI Chatbots',
-        'Text Generation',
-        'Image Generation',
-        'Modern AI Tools',
-        'Responsible Use of Generative AI',
+        'What is Computer Vision?',
+        'Object and Face Recognition',
+        'Robotics Fundamentals',
+        'How AI and Robotics work together?',
       ],
       learningOutcome:
-        'Students will understand Generative AI and modern AI tools.',
+        'Students will understand visual perception in machines, facial and object detection algorithms, robotic kinematics, and physical AI integration.',
     },
     {
       id: 7,
       number: 7,
-      title: 'AI Ethics, Future and Projects',
+      title: 'AI Ethics, Careers & the Future',
       topics: [
-        'AI Ethics',
-        'Responsible AI',
-        'AI Privacy and Bias',
-        'Benefits and Risks of AI',
-        'AI and Future Careers',
-        'Student Projects and Presentations',
+        'AI Ethics - Fairness and Bias',
+        'Deepfakes and Misinformation',
+        'Responsible AI & Cyber Safety',
+        'Careers in AI',
+        'The Future of AI',
       ],
       learningOutcome:
-        'Students will understand responsible AI and explore future opportunities.',
+        'Students will evaluate ethical implications of AI, combat deepfakes and algorithmic bias, practice cyber safety, and explore emerging AI careers.',
     },
   ];
 
-  const displayModules = modules && modules.length === 7 ? modules : defaultModules;
+  const displayModules = modules && modules.length > 0 ? modules : defaultModules;
   const activeModule = displayModules.find((m) => m.number === selectedModuleId) || displayModules[0];
   const ActiveIcon = moduleIconMap[activeModule.number] || Brain;
 

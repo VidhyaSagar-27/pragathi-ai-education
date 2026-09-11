@@ -59,10 +59,17 @@ function RegisterContent() {
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [autoLoggingIn, setAutoLoggingIn] = useState(false);
 
   useEffect(() => {
-    if (searchParams?.get('tab') === 'status') {
+    const tab = searchParams?.get('tab');
+    const query = searchParams?.get('q') || searchParams?.get('identifier') || searchParams?.get('mobile');
+    if (tab === 'status' || query) {
       setActiveTab('status');
+      if (query) {
+        setLookupQuery(query);
+        handleLookup(undefined, query);
+      }
     }
   }, [searchParams]);
 
@@ -138,6 +145,29 @@ function RegisterContent() {
     } else {
       setCopiedPassword(true);
       setTimeout(() => setCopiedPassword(false), 2000);
+    }
+  };
+
+  const handleInstantAccess = async () => {
+    if (!lookupResult?.student) return;
+    setAutoLoggingIn(true);
+    try {
+      const res = await fetch('/api/student/auto-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: lookupResult.student.mobileNumber || lookupResult.student.loginEmail,
+          password: lookupResult.student.temporaryPassword,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        window.location.href = data.redirectUrl || '/student';
+      } else {
+        window.location.href = `/login?email=${encodeURIComponent(lookupResult.student.loginEmail || '')}&role=STUDENT`;
+      }
+    } catch {
+      window.location.href = `/login?email=${encodeURIComponent(lookupResult.student.loginEmail || '')}&role=STUDENT`;
     }
   };
 
@@ -222,15 +252,22 @@ function RegisterContent() {
                     className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <Search className="w-4 h-4" />
-                    <span>Check Application Status</span>
+                    <span>Check Application Status & Password</span>
                   </button>
 
                   <Link
-                    href="/login"
-                    className="px-5 py-3 bg-brand-navy hover:bg-slate-900 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs flex items-center justify-center space-x-2"
+                    href="/curriculum"
+                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs sm:text-sm transition shadow-xs flex items-center justify-center space-x-2"
                   >
-                    <span>Go to Portal Login</span>
+                    <span>Explore 7-Module Curriculum</span>
                     <ArrowRight className="w-4 h-4" />
+                  </Link>
+
+                  <Link
+                    href="/"
+                    className="px-4 py-3 text-slate-500 hover:text-slate-800 text-xs sm:text-sm font-semibold transition flex items-center justify-center"
+                  >
+                    <span>Return to Home</span>
                   </Link>
                 </div>
               </div>
@@ -606,12 +643,22 @@ function RegisterContent() {
 
                   {/* Action Buttons */}
                   <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                    <Link
-                      href={`/login?email=${encodeURIComponent(lookupResult.student?.loginEmail || '')}`}
-                      className="flex-1 py-3.5 px-6 bg-gradient-to-r from-brand-navy to-teal-700 hover:from-slate-900 hover:to-teal-800 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center space-x-2"
+                    <button
+                      type="button"
+                      onClick={handleInstantAccess}
+                      disabled={autoLoggingIn}
+                      className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-600 via-teal-700 to-brand-navy hover:from-emerald-700 hover:to-slate-900 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                     >
-                      <span>Sign In to Student Portal Now</span>
+                      <Sparkles className="w-4 h-4 text-emerald-300" />
+                      <span>{autoLoggingIn ? 'Entering Student Portal...' : 'Instant 1-Click Launch Student Portal'}</span>
                       <ArrowRight className="w-4 h-4" />
+                    </button>
+
+                    <Link
+                      href={`/login?email=${encodeURIComponent(lookupResult.student?.loginEmail || '')}&role=STUDENT`}
+                      className="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition flex items-center justify-center space-x-1.5"
+                    >
+                      <span>Standard Portal Login</span>
                     </Link>
                   </div>
                 </div>

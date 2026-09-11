@@ -21,18 +21,26 @@ function LoginForm() {
   const callbackUrl = searchParams?.get('callbackUrl') || '';
   const initialError = searchParams?.get('error') || '';
 
+  const emailParam = searchParams?.get('email') || searchParams?.get('identifier') || searchParams?.get('phone') || '';
+  const passwordParam = searchParams?.get('password') || searchParams?.get('pwd') || '';
+
   const roleParam = searchParams?.get('role')?.toUpperCase();
   const initialRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' =
     roleParam === 'ADMIN' || callbackUrl.startsWith('/admin')
       ? 'ADMIN'
-      : roleParam === 'INSTRUCTOR'
+      : roleParam === 'INSTRUCTOR' || callbackUrl.startsWith('/instructor')
+      ? 'INSTRUCTOR'
+      : roleParam === 'STUDENT' || callbackUrl.startsWith('/student')
+      ? 'STUDENT'
+      : emailParam.toLowerCase().includes('admin')
+      ? 'ADMIN'
+      : emailParam.toLowerCase().includes('instructor')
       ? 'INSTRUCTOR'
       : 'STUDENT';
 
-  const emailParam = searchParams?.get('email') || '';
   const [roleTab, setRoleTab] = useState<'STUDENT' | 'INSTRUCTOR' | 'ADMIN'>(initialRole);
   const [identifier, setIdentifier] = useState(emailParam);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(passwordParam);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(

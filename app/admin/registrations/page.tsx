@@ -228,7 +228,7 @@ export default function AdminRegistrationsPage() {
                 {activeReg && (
                   <a
                     href={`https://wa.me/91${activeReg.mobileNumber.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
-                      `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear ${activeReg.studentName},\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: ${activeReg.studentName}\nLogin Email: ${approvedResult.email}\nPassword: ${approvedResult.temporaryPassword}\nStudent Portal: https://pragathi-ai-education.vercel.app/login\n\nPlease login and begin your learning journey!`
+                      `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear ${activeReg.studentName},\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: ${activeReg.studentName}\nLogin Email: ${approvedResult.email}\nPassword: ${approvedResult.temporaryPassword}\n\n👉 Direct 1-Click Access to Student Portal:\nhttps://pragathi-ai-education.vercel.app/register?tab=status&q=${activeReg.mobileNumber.replace(/\D/g, '').slice(-10)}\n\n👉 Portal Login:\nhttps://pragathi-ai-education.vercel.app/login?email=${encodeURIComponent(approvedResult.email)}&role=STUDENT\n\nPlease access your student dashboard and begin your learning journey!`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"

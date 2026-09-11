@@ -67,7 +67,7 @@ export default function AdminSettingsPage() {
 
     let msg = '';
     if (testType === 'CREDENTIALS') {
-      msg = `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear Student,\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: Student\nLogin Email / ID: student@pragathiai.student\nPassword: Pragathi2026!\nStudent Portal: https://pragathi-ai-education.vercel.app/login\n\nPlease login and begin your learning journey!`;
+      msg = `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear Student,\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: Student\nLogin Email / ID: student@pragathiai.student\nPassword: Pragathi2026!\n\n👉 Direct 1-Click Access to Student Portal:\nhttps://pragathi-ai-education.vercel.app/register?tab=status\n\n👉 Portal Login:\nhttps://pragathi-ai-education.vercel.app/login?email=student@pragathiai.student&role=STUDENT\n\nPlease access your student dashboard and begin your learning journey!`;
     } else if (testType === 'OTP') {
       msg = `Your PRAGATHI AI verification code for portal access is: ${Math.floor(100000 + Math.random() * 900000)}. Valid for 10 minutes. Do not share this code.`;
     } else {

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, CheckCircle2, AlertCircle, Sparkles, Send } from 'lucide-react';
+import Link from 'next/link';
+import { X, CheckCircle2, AlertCircle, Sparkles, Send, ArrowRight, Search } from 'lucide-react';
 
 interface RegistrationModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [submittedPhone, setSubmittedPhone] = useState('');
 
   if (!isOpen) return null;
 
@@ -31,6 +33,7 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
     setErrorMessage('');
 
     try {
+      const phoneToKeep = formData.mobileNumber;
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,6 +45,7 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
         throw new Error(data.error || 'Failed to submit student registration.');
       }
 
+      setSubmittedPhone(phoneToKeep);
       setStatus('success');
       setSuccessMessage(data.message);
       setFormData({
@@ -95,15 +99,28 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
               <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
                 {successMessage}
               </p>
-              <div className="pt-4">
+              <div className="pt-4 flex flex-col sm:flex-row gap-2.5 justify-center">
+                <Link
+                  href={`/register?tab=status&q=${encodeURIComponent(submittedPhone)}`}
+                  onClick={() => {
+                    setStatus('idle');
+                    onClose();
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 text-white font-semibold text-xs sm:text-sm hover:bg-teal-700 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>Check Application Status & Password</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+
                 <button
                   onClick={() => {
                     setStatus('idle');
                     onClose();
                   }}
-                  className="px-6 py-2.5 rounded-xl bg-teal-600 text-white font-semibold text-sm hover:bg-teal-700 transition"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-200 transition"
                 >
-                  Done
+                  Close
                 </button>
               </div>
             </div>

@@ -50,32 +50,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Role-specific check: authenticate strictly against the selected role
-    let user = matchedUsers[0];
+    // Smart role-aware authentication:
+    // 1. Try matching requested role first
+    let user: any = null;
     if (requestedRole) {
-      const roleMatched = matchedUsers.find((u) => u.role === requestedRole);
-      if (!roleMatched) {
-        const roleLabel = requestedRole.toLowerCase();
-        return NextResponse.json(
-          { error: `No registered ${roleLabel} account found with these credentials. Please verify your selected login tab.` },
-          { status: 401 }
-        );
+      const candidate = matchedUsers.find((u) => u.role === requestedRole);
+      if (candidate && bcrypt.compareSync(password, candidate.passwordHash)) {
+        user = candidate;
       }
-      user = roleMatched;
+    }
+
+    // 2. Fallback: check other accounts matching this identifier if the password matches
+    if (!user) {
+      user = matchedUsers.find((u) => bcrypt.compareSync(password, u.passwordHash));
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid email/phone number or password' },
+        { status: 401 }
+      );
     }
 
     if (user.status !== 'ACTIVE') {
       return NextResponse.json(
         { error: 'Account is deactivated. Please contact the administrator.' },
         { status: 403 }
-      );
-    }
-
-    const passwordMatches = bcrypt.compareSync(password, user.passwordHash);
-    if (!passwordMatches) {
-      return NextResponse.json(
-        { error: 'Invalid email/phone number or password' },
-        { status: 401 }
       );
     }
 

@@ -11,7 +11,7 @@ export default function AdminSettingsPage() {
   const [success, setSuccess] = useState(false);
 
   // WhatsApp Automation Testing State
-  const [testPhone, setTestPhone] = useState('9346056745');
+  const [testPhone, setTestPhone] = useState('9618611522');
   const [testType, setTestType] = useState<'CREDENTIALS' | 'OTP' | 'CUSTOM'>('CREDENTIALS');
   const [testCustomMsg, setTestCustomMsg] = useState('');
   const [sendingWa, setSendingWa] = useState(false);
@@ -375,7 +375,7 @@ export default function AdminSettingsPage() {
                   required
                   value={testPhone}
                   onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="e.g. 9346056745"
+                  placeholder="e.g. 9618611522"
                   className="w-full text-xs sm:text-sm px-3.5 py-2 bg-white border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-emerald-500"
                 />
               </div>

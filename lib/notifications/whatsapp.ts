@@ -27,7 +27,7 @@ export interface AutomatedWhatsAppResult {
 }
 
 /**
- * Normalizes phone numbers to international format: e.g. "9346056745" -> "919346056745"
+ * Normalizes phone numbers to international format: e.g. "9618611522" -> "919618611522"
  */
 export function normalizeWhatsAppNumber(rawPhone: string): string {
   const digits = rawPhone.replace(/\D/g, '');

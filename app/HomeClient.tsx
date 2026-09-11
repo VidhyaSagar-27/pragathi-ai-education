@@ -391,7 +391,7 @@ export default function HomeClient({ initialData }: HomeClientProps) {
             <div className="flex items-center space-x-3 text-slate-600">
               <Phone className="w-4 h-4 text-teal-600" />
               <span>
-                Need help or have questions? Call us: <strong>+91 9618611522</strong> | <strong>+91 9346056745</strong>
+                Need help or have questions? Call us: <strong>+91 9618611522</strong> | <strong>+91 6281738986</strong>
               </span>
             </div>
 

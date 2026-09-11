@@ -221,7 +221,7 @@ We partner with high schools, colleges, and educational trusts across India to d
 We are here to assist students, parents, and educators:
 
 - **Primary Phone Support**: [+91 9618611522](tel:+919618611522)
-- **Secondary Phone Support**: [+91 9346056745](tel:+919346056745)
+- **Secondary Phone Support**: [+91 6281738986](tel:+916281738986)
 - **Official Support Email**: [support@pragathiai.com](mailto:support@pragathiai.com)
 - **Admissions Email**: [admissions@pragathiai.com](mailto:admissions@pragathiai.com)
 - **Online Inquiry Form**: Visit our dedicated contact page at [/contact](/contact).

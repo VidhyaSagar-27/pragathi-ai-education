@@ -1,8 +1,8 @@
-﻿import { getDb, saveDb } from '@/lib/db';
+import { getDb, saveDb } from '@/lib/db';
 import { NotificationLog } from '@/lib/db/types';
 
 export interface SendNotificationParams {
-  type: 'EMAIL' | 'SMS' | 'OTP';
+  type: 'EMAIL' | 'SMS' | 'OTP' | 'WHATSAPP';
   recipient: string;
   subject?: string;
   message: string;
@@ -118,3 +118,52 @@ export async function sendExamResultAlert(
     message,
   });
 }
+
+export async function sendApprovalCredentialsNotification({
+  recipientMobile,
+  recipientEmail,
+  studentName,
+  loginEmail,
+  temporaryPassword,
+  portalUrl,
+}: {
+  recipientMobile: string;
+  recipientEmail?: string;
+  studentName: string;
+  loginEmail: string;
+  temporaryPassword: string;
+  portalUrl?: string;
+}) {
+  const url = portalUrl || 'https://pragathi-ai-education.vercel.app/login';
+
+  const whatsappMessage = `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear ${studentName},\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: ${studentName}\nLogin Email / ID: ${loginEmail}\nPassword: ${temporaryPassword}\nStudent Portal: ${url}\n\nPlease login and start your learning journey! Keep these credentials safe.`;
+
+  const smsMessage = `PRAGATHI AI: Dear ${studentName}, your admission is approved! Login Email: ${loginEmail}, Password: ${temporaryPassword}. Portal: ${url}`;
+
+  // 1. Dispatch/Log WhatsApp notification
+  await dispatchNotification({
+    type: 'WHATSAPP',
+    recipient: recipientMobile,
+    subject: 'PRAGATHI AI - Student Login Credentials (WhatsApp)',
+    message: whatsappMessage,
+  });
+
+  // 2. Dispatch/Log SMS notification
+  await dispatchNotification({
+    type: 'SMS',
+    recipient: recipientMobile,
+    subject: 'PRAGATHI AI Admission Approved (SMS)',
+    message: smsMessage,
+  });
+
+  // 3. If student has email, dispatch email notification
+  if (recipientEmail && recipientEmail.includes('@')) {
+    await dispatchNotification({
+      type: 'EMAIL',
+      recipient: recipientEmail,
+      subject: 'Welcome to PRAGATHI AI - Your Login Credentials & Access Details',
+      message: `Dear ${studentName},\n\nCongratulations! Your admission to PRAGATHI AI Education has been approved.\n\nYour Login Credentials:\n-------------------------\nStudent Portal: ${url}\nLogin Email: ${loginEmail}\nPassword: ${temporaryPassword}\n\nPlease keep these credentials secure and sign in to explore your curriculum.\n\nWarm regards,\nPRAGATHI AI Team`,
+    });
+  }
+}
+

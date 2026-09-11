@@ -20,6 +20,7 @@ import {
   MapPin,
   Calendar,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 
@@ -813,6 +814,22 @@ export default function AdminStudentsPage() {
                     Student has been added to Enrolled Students and approval notification dispatched.
                   </p>
                 </div>
+
+                {/* 1-Click WhatsApp Direct Dispatch */}
+                {activeReg && (
+                  <a
+                    href={`https://wa.me/91${activeReg.mobileNumber.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                      `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear ${activeReg.studentName},\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: ${activeReg.studentName}\nLogin Email: ${approvedResult.email}\nPassword: ${approvedResult.temporaryPassword}\nStudent Portal: https://pragathi-ai-education.vercel.app/login\n\nPlease login and begin your learning journey!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Send Credentials via WhatsApp to Student</span>
+                  </a>
+                )}
+
                 <button
                   onClick={() => {
                     setApproveModalOpen(false);

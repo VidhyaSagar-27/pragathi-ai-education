@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { UserCheck, Check, X, Trash2, Calendar, School, Phone, Mail, MapPin, AlertCircle } from 'lucide-react';
+import { UserCheck, Check, X, Trash2, Calendar, School, Phone, Mail, MapPin, AlertCircle, MessageSquare } from 'lucide-react';
 import { StudentRegistration } from '@/lib/db/types';
 
 export default function AdminRegistrationsPage() {
@@ -219,10 +219,29 @@ export default function AdminRegistrationsPage() {
                   <p className="text-xs">
                     Password: <code className="bg-white px-1.5 py-0.5 rounded font-mono text-emerald-950 font-bold">{approvedResult.temporaryPassword}</code>
                   </p>
+                  <p className="text-[11px] text-emerald-700 mt-1">
+                    Student has been enrolled and credentials dispatched via SMS & WhatsApp.
+                  </p>
                 </div>
+
+                {/* 1-Click WhatsApp Direct Dispatch */}
+                {activeReg && (
+                  <a
+                    href={`https://wa.me/91${activeReg.mobileNumber.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                      `*PRAGATHI AI EDUCATION - ADMISSION APPROVED*\n\nDear ${activeReg.studentName},\nCongratulations! Your application has been approved by the administration.\n\nHere are your official login credentials:\nStudent Name: ${activeReg.studentName}\nLogin Email: ${approvedResult.email}\nPassword: ${approvedResult.temporaryPassword}\nStudent Portal: https://pragathi-ai-education.vercel.app/login\n\nPlease login and begin your learning journey!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Send Credentials via WhatsApp to Student</span>
+                  </a>
+                )}
+
                 <button
                   onClick={() => setApproveModalOpen(false)}
-                  className="w-full py-2.5 bg-brand-navy text-white text-xs font-semibold rounded-xl"
+                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition cursor-pointer"
                 >
                   Done
                 </button>

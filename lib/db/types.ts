@@ -160,7 +160,7 @@ export interface StudentAssignmentSubmission {
 
 export interface NotificationLog {
   id: string;
-  type: 'EMAIL' | 'SMS' | 'OTP';
+  type: 'EMAIL' | 'SMS' | 'OTP' | 'WHATSAPP';
   recipient: string;
   subject?: string;
   message: string;
@@ -181,6 +181,9 @@ export interface StudentRegistration {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   notes?: string;
   createdAt: string;
+  approvedAt?: string;
+  assignedEmail?: string;
+  temporaryPassword?: string;
 }
 
 export interface SchoolPartnership {

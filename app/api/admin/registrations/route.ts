@@ -82,20 +82,29 @@ export async function PATCH(req: NextRequest) {
 
       await updateDb((dbState) => {
         const item = dbState.registrations.find((r) => r.id === id);
-        if (item) item.status = 'APPROVED';
+        if (item) {
+          item.status = 'APPROVED';
+          item.assignedEmail = studentEmail;
+          item.temporaryPassword = rawPassword;
+          item.approvedAt = new Date().toISOString();
+        }
         dbState.users.push(newStudentUser);
       });
 
-      // Dispatch notification (SMS/Email)
+      // Dispatch credentials notification (WhatsApp, SMS, and Email)
       try {
-        const { sendRegistrationNotification } = await import('@/lib/notifications');
-        await sendRegistrationNotification(
-          reg.email || reg.mobileNumber,
-          reg.studentName,
-          'APPROVED'
-        );
+        const { sendApprovalCredentialsNotification } = await import('@/lib/notifications');
+        const origin = req.nextUrl?.origin || 'https://pragathi-ai-education.vercel.app';
+        await sendApprovalCredentialsNotification({
+          recipientMobile: reg.mobileNumber,
+          recipientEmail: reg.email,
+          studentName: reg.studentName,
+          loginEmail: studentEmail,
+          temporaryPassword: rawPassword,
+          portalUrl: `${origin}/login`,
+        });
       } catch (err) {
-        console.warn('Could not dispatch approval notification:', err);
+        console.warn('Could not dispatch approval credentials notification:', err);
       }
 
       return NextResponse.json({
@@ -105,6 +114,7 @@ export async function PATCH(req: NextRequest) {
           email: studentEmail,
           temporaryPassword: rawPassword,
           name: reg.studentName,
+          phone: reg.mobileNumber,
         },
       });
     } else {

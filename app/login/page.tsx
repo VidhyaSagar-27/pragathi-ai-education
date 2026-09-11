@@ -29,8 +29,9 @@ function LoginForm() {
       ? 'INSTRUCTOR'
       : 'STUDENT';
 
+  const emailParam = searchParams?.get('email') || '';
   const [roleTab, setRoleTab] = useState<'STUDENT' | 'INSTRUCTOR' | 'ADMIN'>(initialRole);
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -273,13 +274,20 @@ function LoginForm() {
           {/* Role specific helper notes */}
           <div className="mt-6 pt-6 border-t border-slate-100 text-center">
             {roleTab === 'STUDENT' && (
-              <p className="text-xs text-slate-500 leading-relaxed">
-                New student?{' '}
-                <Link href="/register" className="font-bold text-teal-700 hover:text-teal-900 underline">
-                  Submit an enrollment registration
-                </Link>{' '}
-                to receive portal credentials upon administrator approval.
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  Approved student?{' '}
+                  <Link href="/register?tab=status" className="font-bold text-teal-700 hover:text-teal-900 underline">
+                    Check approval status & get your password
+                  </Link>
+                </p>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  New student?{' '}
+                  <Link href="/register" className="font-semibold text-slate-700 hover:text-teal-900 underline">
+                    Submit an enrollment registration
+                  </Link>
+                </p>
+              </div>
             )}
 
             {roleTab === 'INSTRUCTOR' && (

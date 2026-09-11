@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import AiChatbot from '@/components/AiChatbot';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import CommandPalette from '@/components/CommandPalette';
 
 export const viewport: Viewport = {
   themeColor: '#0f766e',
@@ -65,6 +66,7 @@ export default function RootLayout({
         {children}
         <AiChatbot />
         <PwaInstallPrompt />
+        <CommandPalette />
       </body>
     </html>
   );

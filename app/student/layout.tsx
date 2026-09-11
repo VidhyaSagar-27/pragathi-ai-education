@@ -56,6 +56,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     { label: 'Video Lessons', href: '/student/videos', icon: Video },
     { label: 'Quizzes & Challenges', href: '/student/quizzes', icon: FileQuestion },
     { label: 'Assignments', href: '/student/assignments', icon: ClipboardList },
+    { label: 'AI Playground', href: '/student/playground', icon: Sparkles },
     { label: 'Announcements', href: '/student/announcements', icon: Bell },
     { label: 'Certificates', href: '/student/certificates', icon: Award },
     { label: 'My Profile', href: '/student/profile', icon: User },

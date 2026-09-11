@@ -255,7 +255,17 @@ function getInitialDatabase(): DatabaseSchema {
   };
 }
 
+// High-concurrency In-Memory Read Cache
+let memoryCache: { data: DatabaseSchema; timestamp: number } | null = null;
+const CACHE_TTL_MS = 3000; // 3 seconds TTL (drastically reduces Neon queries during traffic spikes)
+let writeQueue: Promise<any> = Promise.resolve();
+
+export function invalidateDbCache() {
+  memoryCache = null;
+}
+
 async function saveDatabase(data: DatabaseSchema): Promise<void> {
+  memoryCache = { data, timestamp: Date.now() };
   const sql = getSqlClient();
   const jsonStr = JSON.stringify(data);
   await sql`
@@ -266,7 +276,12 @@ async function saveDatabase(data: DatabaseSchema): Promise<void> {
   `;
 }
 
-export async function getDb(): Promise<DatabaseSchema> {
+export async function getDb(forceFresh = false): Promise<DatabaseSchema> {
+  const now = Date.now();
+  if (!forceFresh && memoryCache && (now - memoryCache.timestamp < CACHE_TTL_MS)) {
+    return memoryCache.data;
+  }
+
   const sql = getSqlClient();
   const rows = await sql`SELECT data FROM app_database WHERE id = 1 LIMIT 1`;
 
@@ -296,6 +311,10 @@ export async function getDb(): Promise<DatabaseSchema> {
       db.notifications = [];
       needsUpdate = true;
     }
+    if (!db.certificates) {
+      db.certificates = [];
+      needsUpdate = true;
+    }
     if (!db.settings) {
       db.settings = INITIAL_SETTINGS;
       needsUpdate = true;
@@ -303,23 +322,33 @@ export async function getDb(): Promise<DatabaseSchema> {
     if (needsUpdate) {
       await saveDatabase(db);
     }
+    memoryCache = { data: db, timestamp: Date.now() };
     return db;
   }
 
   // Row does not exist: initialize with master admin and default data
   const initialData = getInitialDatabase();
   await saveDatabase(initialData);
+  memoryCache = { data: initialData, timestamp: Date.now() };
   return initialData;
 }
 
 export async function updateDb(
   updater: (db: DatabaseSchema) => void | DatabaseSchema | Promise<void | DatabaseSchema>
 ): Promise<DatabaseSchema> {
-  const db = await getDb();
-  const result = await updater(db);
-  const dataToSave = (result && typeof result === 'object') ? result : db;
-  await saveDatabase(dataToSave);
-  return dataToSave;
+  const executeUpdate = async () => {
+    const db = await getDb(true);
+    const result = await updater(db);
+    const dataToSave = (result && typeof result === 'object') ? result : db;
+    if (dataToSave.notifications && dataToSave.notifications.length > 300) {
+      dataToSave.notifications = dataToSave.notifications.slice(0, 300);
+    }
+    await saveDatabase(dataToSave);
+    return dataToSave;
+  };
+
+  writeQueue = writeQueue.then(executeUpdate, executeUpdate);
+  return writeQueue;
 }
 
 export async function saveDb(db: DatabaseSchema): Promise<void> {

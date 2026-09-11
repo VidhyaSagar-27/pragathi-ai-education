@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X, ArrowRight, UserCheck, ShieldCheck, GraduationCap, Sparkles } from 'lucide-react';
+import { Menu, X, ArrowRight, UserCheck, ShieldCheck, GraduationCap, Sparkles, Search } from 'lucide-react';
 
 interface NavbarProps {
   onOpenRegister?: () => void;
@@ -76,10 +76,11 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
     { label: 'About', href: '#about' },
     { label: 'Program', href: '#program' },
     { label: 'Syllabus', href: '#syllabus' },
+    { label: 'AI Playground', href: '/playground' },
     { label: 'Activities', href: '#activities' },
-    { label: 'Gallery', href: '#gallery' },
     { label: 'Achievements', href: '#achievements' },
     { label: 'School Partnership', href: '#partnership' },
+    { label: 'Verify Credential', href: '/verify-certificate' },
     { label: 'Contact', href: '#contact' },
   ];
 
@@ -166,6 +167,16 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
 
           {/* Right Action CTAs */}
           <div className="hidden md:flex items-center space-x-3">
+            <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 transition"
+              title="Search (Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5 text-teal-600" />
+              <span>Search</span>
+              <kbd className="text-[10px] bg-white border border-slate-300 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+            </button>
+
             {sessionUser ? (
               <Link
                 href={getDashboardLink()}

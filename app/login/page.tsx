@@ -275,10 +275,10 @@ function LoginForm() {
             {roleTab === 'STUDENT' && (
               <p className="text-xs text-slate-500 leading-relaxed">
                 New student?{' '}
-                <Link href="/#hero" className="font-semibold text-teal-700 hover:text-teal-900 underline">
+                <Link href="/register" className="font-bold text-teal-700 hover:text-teal-900 underline">
                   Submit an enrollment registration
                 </Link>{' '}
-                to receive portal credentials upon approval.
+                to receive portal credentials upon administrator approval.
               </p>
             )}
 

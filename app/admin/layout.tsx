@@ -29,6 +29,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [adminUser, setAdminUser] = useState<any>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const fetchPending = () => {
+    fetch(`/api/admin/overview?_t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.stats?.pendingRegistrations !== undefined) {
+          setPendingCount(d.stats.pendingRegistrations);
+        }
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -47,7 +59,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
       })
       .catch(() => router.push('/login?callbackUrl=/admin'));
-  }, [router]);
+
+    fetchPending();
+  }, [router, pathname]);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -154,14 +168,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       key={item.label}
                       href={item.href}
                       onClick={() => setMobileNavOpen(false)}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                         isActive
                           ? 'bg-teal-600 text-white font-bold shadow-sm'
                           : 'text-slate-300 hover:text-white hover:bg-slate-800'
                       }`}
                     >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                      <span>{item.label}</span>
+                      <div className="flex items-center space-x-3">
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>{item.label}</span>
+                      </div>
+                      {(item.href === '/admin/registrations' || item.href === '/admin/students') && pendingCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
+                          {pendingCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

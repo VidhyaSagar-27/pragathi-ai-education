@@ -197,8 +197,14 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
             )}
 
             <button
-              onClick={onOpenRegister}
-              className="inline-flex items-center justify-center space-x-2 text-sm font-medium text-white bg-gradient-to-r from-brand-navy to-brand-teal hover:from-slate-900 hover:to-teal-600 px-5 py-2.5 rounded-lg shadow-sm hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-teal-500/40 select-none"
+              onClick={() => {
+                if (onOpenRegister) {
+                  onOpenRegister();
+                } else {
+                  window.location.href = '/register';
+                }
+              }}
+              className="inline-flex items-center justify-center space-x-2 text-sm font-medium text-white bg-gradient-to-r from-brand-navy to-brand-teal hover:from-slate-900 hover:to-teal-600 px-5 py-2.5 rounded-lg shadow-sm hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-teal-500/40 select-none cursor-pointer"
             >
               <span>Join PRAGATHI AI</span>
               <ArrowRight className="w-4 h-4" />
@@ -283,9 +289,13 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
-                if (onOpenRegister) onOpenRegister();
+                if (onOpenRegister) {
+                  onOpenRegister();
+                } else {
+                  window.location.href = '/register';
+                }
               }}
-              className="w-full py-2.5 px-4 text-white bg-gradient-to-r from-brand-navy to-brand-teal rounded-lg text-center font-medium shadow-sm"
+              className="w-full py-2.5 px-4 text-white bg-gradient-to-r from-brand-navy to-brand-teal rounded-lg text-center font-medium shadow-sm cursor-pointer"
             >
               Join PRAGATHI AI
             </button>

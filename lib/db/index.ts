@@ -23,6 +23,7 @@ import {
   DuplicateAttemptLog,
 } from './types';
 import { syncAllFamilies } from '@/lib/family/duplicateEngine';
+import { INBUILT_ASSIGNMENTS, INBUILT_QUIZZES } from './initialContent';
 
 const INITIAL_MODULES: ModuleItem[] = [
   {
@@ -241,8 +242,8 @@ function getInitialDatabase(): DatabaseSchema {
     modules: INITIAL_MODULES,
     materials: [],
     videos: [],
-    assignments: [],
-    quizzes: [],
+    assignments: INBUILT_ASSIGNMENTS,
+    quizzes: INBUILT_QUIZZES,
     quizSubmissions: [],
     registrations: [],
     partnerships: [],

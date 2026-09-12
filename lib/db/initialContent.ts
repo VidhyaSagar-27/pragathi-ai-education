@@ -1,0 +1,752 @@
+import { Assignment, Quiz } from './types';
+
+export const INBUILT_ASSIGNMENTS: Assignment[] = [
+  {
+    id: 'asg_mod_1',
+    title: 'Module 1 Assignment: Introduction to AI & Intelligent Agents',
+    moduleId: 1,
+    instructions: `### Module 1: Introduction to AI & Intelligent Agents
+
+Please complete the following 25 questions covering foundational AI concepts, history, milestones, and types of AI.
+You may submit your answers here or take the interactive assessment under the Quizzes & Assessments tab for instant grading.
+
+#### Questions 1–20: MCQs
+1. What does AI stand for?
+A) Automated Information | B) Artificial Intelligence | C) Advanced Internet | D) Automatic Intelligence
+
+2. What is the main goal of Artificial Intelligence?
+A) To make computers bigger | B) To make computers perform tasks that normally require human intelligence | C) To increase internet speed | D) To store more files
+
+3. Who is known as the Father of Artificial Intelligence?
+A) Alan Turing | B) Charles Babbage | C) John McCarthy | D) Bill Gates
+
+4. In which year was the first artificial neuron model proposed?
+A) 1943 | B) 1956 | C) 1965 | D) 1980
+
+5. What is an artificial neuron inspired by?
+A) Human brain cells | B) Computer keyboards | C) Internet networks | D) Mobile phones
+
+6. Which event is associated with the formal beginning of AI as a field?
+A) Internet Conference | B) Dartmouth Conference | C) World Computer Conference | D) Apple Conference
+
+7. Which IBM computer defeated chess champion Garry Kasparov?
+A) Watson | B) Deep Blue | C) AlphaGo | D) Siri
+
+8. Deep Blue was mainly designed to play which game?
+A) Cricket | B) Football | C) Chess | D) Go
+
+9. Which AI system became famous for defeating a professional Go player?
+A) Deep Blue | B) AlphaGo | C) Siri | D) Alexa
+
+10. AlphaGo was developed by which company?
+A) Microsoft | B) IBM | C) Google DeepMind | D) Apple
+
+11. Which of the following is an example of Generative AI?
+A) Calculator | B) ChatGPT | C) Digital clock | D) Keyboard
+
+12. What can Generative AI do?
+A) Only store files | B) Create new content | C) Only calculate numbers | D) Only connect computers
+
+13. ChatGPT is an example of an AI system that can primarily work with:
+A) Natural language | B) Electricity | C) Computer hardware | D) Printer cables
+
+14. Which type of AI is designed to perform a specific task?
+A) Narrow AI | B) General AI | C) Super AI | D) Human AI
+
+15. Which type of AI refers to intelligence that can perform a wide range of intellectual tasks like a human?
+A) Narrow AI | B) General AI | C) Simple AI | D) Weak AI only
+
+16. Which type of AI is a theoretical concept that would surpass human intelligence?
+A) Narrow AI | B) General AI | C) Super AI | D) Basic AI
+
+17. Which of the following is an everyday example of AI?
+A) Voice assistant | B) Notebook | C) Pencil | D) Water bottle
+
+18. Which technology can use AI to recommend videos to users?
+A) Video recommendation system | B) Calculator | C) USB cable | D) Printer
+
+19. AI systems are designed to learn, reason, or make decisions using:
+A) Data and algorithms | B) Paper and pencil | C) Electricity alone | D) Books only
+
+20. Which of the following is NOT an example of Artificial Intelligence?
+A) Face recognition | B) Voice assistant | C) Recommendation system | D) Ordinary wall clock
+
+#### Questions 21–25: Fill in the Blanks with Options
+21. ________ is known as the Father of Artificial Intelligence.
+A) John McCarthy | B) Bill Gates | C) Steve Jobs | D) Charles Babbage
+
+22. IBM's ________ defeated Garry Kasparov in chess.
+A) AlphaGo | B) Deep Blue | C) ChatGPT | D) Watson
+
+23. ________ is an AI system famous for playing the game of Go.
+A) Deep Blue | B) AlphaGo | C) Siri | D) Alexa
+
+24. ________ AI is designed to perform a specific task.
+A) General | B) Super | C) Narrow | D) Human
+
+25. ChatGPT is an example of ________ AI that can generate text.
+A) Generative | B) Mechanical | C) Electrical | D) Manual`,
+    dueDate: '2026-12-31',
+    targetGroup: 'All Enrolled Students',
+    isPublished: true,
+    createdBy: 'usr_admin_master',
+    creatorName: 'PRAGATHI AI Faculty',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'asg_mod_2',
+    title: 'Module 2 Assignment: Search Strategies & Problem Solving in AI',
+    moduleId: 2,
+    instructions: `### Module 2: How AI Thinks & Search Strategies
+
+Please complete the following 25 questions covering search strategies, state spaces, BFS, DFS, UCS, DLS, IDDFS, and Heuristic Search (A*).
+You may submit your answers here or take the interactive assessment under the Quizzes & Assessments tab for instant grading.
+
+#### Questions 1–20: MCQs
+1. What is a search strategy in Artificial Intelligence?
+A) A method for finding a solution to a problem | B) A method for increasing computer storage | C) A method for designing websites | D) A method for sending emails
+
+2. What is the starting point of a search problem called?
+A) Goal state | B) Initial state | C) Final node | D) Solution path
+
+3. What is the desired final condition of a search problem called?
+A) Initial state | B) Root node | C) Goal state | D) Child node
+
+4. What does a search tree represent?
+A) Possible states and paths of a problem | B) Computer hardware | C) Internet websites | D) Files in a computer
+
+5. Which search strategy explores nodes level by level?
+A) DFS | B) BFS | C) DLS | D) A*
+
+6. BFS stands for:
+A) Basic File Search | B) Breadth-First Search | C) Best File System | D) Binary First Search
+
+7. Which data structure is commonly used by BFS?
+A) Stack | B) Queue | C) Tree only | D) Array only
+
+8. Which search strategy explores deeply along one branch before backtracking?
+A) BFS | B) DFS | C) UCS | D) Best-First Search
+
+9. DFS stands for:
+A) Depth-First Search | B) Data-First Search | C) Direct File Search | D) Depth-Final System
+
+10. Which data structure is commonly associated with DFS?
+A) Queue | B) Stack | C) Printer | D) Database
+
+11. Which search strategy considers the path cost when selecting a node?
+A) UCS | B) DFS | C) DLS | D) BFS only
+
+12. UCS stands for:
+A) Uniform Cost Search | B) Universal Computer System | C) User Cost System | D) Uniform Computer Search
+
+13. What is the main purpose of Depth-Limited Search?
+A) To search without any limit | B) To limit the depth of the search | C) To remove the goal state | D) To increase the path cost
+
+14. What does DLS stand for?
+A) Data Learning Search | B) Depth-Limited Search | C) Direct Learning System | D) Deep Level System
+
+15. Which algorithm combines the ideas of depth-first search with repeated depth limits?
+A) BFS | B) UCS | C) IDDFS | D) Best-First Search
+
+16. IDDFS stands for:
+A) Iterative Deepening Depth-First Search | B) Intelligent Data Depth File Search | C) Initial Depth Data Search | D) Iterative Direct Data Search
+
+17. Which search uses a heuristic to help decide which node to explore?
+A) Informed Search | B) Uninformed Search | C) Random Search | D) Simple Search
+
+18. What is a heuristic function used for?
+A) Estimating the cost from a current state to the goal | B) Storing passwords | C) Increasing screen brightness | D) Connecting to Wi-Fi
+
+19. Which algorithm uses both path cost and heuristic information?
+A) DFS | B) BFS | C) A* Search | D) DLS
+
+20. Which of the following is an informed search algorithm?
+A) BFS | B) DFS | C) A* Search | D) DLS
+
+#### Questions 21–25: Fill in the Blanks with Options
+21. ________ explores nodes level by level.
+A) DFS | B) BFS | C) DLS | D) A*
+
+22. ________ explores one branch deeply before backtracking.
+A) BFS | B) DFS | C) UCS | D) IDDFS
+
+23. A ________ function estimates the cost of reaching the goal.
+A) heuristic | B) hardware | C) network | D) storage
+
+24. ________ Search uses both path cost and heuristic information.
+A) BFS | B) DFS | C) A* | D) DLS
+
+25. The desired final condition in a search problem is called the ________ state.
+A) Initial | B) Starting | C) Goal | D) Root`,
+    dueDate: '2026-12-31',
+    targetGroup: 'All Enrolled Students',
+    isPublished: true,
+    createdBy: 'usr_admin_master',
+    creatorName: 'PRAGATHI AI Faculty',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+export const INBUILT_QUIZZES: Quiz[] = [
+  {
+    id: 'quiz_mod_1',
+    title: 'Module 1: Introduction to AI & Intelligent Agents (25 Questions)',
+    moduleId: 1,
+    instructions:
+      'Answer all 25 questions (20 MCQs and 5 Fill in the Blanks). Each correct question awards 1 mark. Minimum passing score is 60% (15/25). Auto-evaluated with instant feedback and scorecard.',
+    mode: 'MIXED',
+    timeLimitMinutes: 30,
+    totalMarks: 25,
+    passingMarks: 15,
+    isPublished: true,
+    autoDeclareResults: true,
+    createdBy: 'usr_admin_master',
+    creatorName: 'PRAGATHI AI Faculty',
+    createdAt: new Date().toISOString(),
+    questions: [
+      {
+        id: 'm1_q1',
+        type: 'MCQ',
+        question: '1. What does AI stand for?',
+        options: ['Automated Information', 'Artificial Intelligence', 'Advanced Internet', 'Automatic Intelligence'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Artificial Intelligence',
+        explanation: 'AI stands for Artificial Intelligence.',
+      },
+      {
+        id: 'm1_q2',
+        type: 'MCQ',
+        question: '2. What is the main goal of Artificial Intelligence?',
+        options: [
+          'To make computers bigger',
+          'To make computers perform tasks that normally require human intelligence',
+          'To increase internet speed',
+          'To store more files',
+        ],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'To make computers perform tasks that normally require human intelligence',
+        explanation: 'AI aims to create systems capable of performing cognitive tasks typically requiring human intellect.',
+      },
+      {
+        id: 'm1_q3',
+        type: 'MCQ',
+        question: '3. Who is known as the Father of Artificial Intelligence?',
+        options: ['Alan Turing', 'Charles Babbage', 'John McCarthy', 'Bill Gates'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'John McCarthy',
+        explanation: 'John McCarthy coined the term "Artificial Intelligence" in 1955 and organized the 1956 Dartmouth Conference.',
+      },
+      {
+        id: 'm1_q4',
+        type: 'MCQ',
+        question: '4. In which year was the first artificial neuron model proposed?',
+        options: ['1943', '1956', '1965', '1980'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: '1943',
+        explanation: 'Warren McCulloch and Walter Pitts proposed the first computational model for an artificial neuron in 1943.',
+      },
+      {
+        id: 'm1_q5',
+        type: 'MCQ',
+        question: '5. What is an artificial neuron inspired by?',
+        options: ['Human brain cells', 'Computer keyboards', 'Internet networks', 'Mobile phones'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Human brain cells',
+        explanation: 'Artificial neurons are mathematical abstractions inspired by biological neurons in the human brain.',
+      },
+      {
+        id: 'm1_q6',
+        type: 'MCQ',
+        question: '6. Which event is associated with the formal beginning of AI as a field?',
+        options: ['Internet Conference', 'Dartmouth Conference', 'World Computer Conference', 'Apple Conference'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Dartmouth Conference',
+        explanation: 'The 1956 Dartmouth Summer Research Project on Artificial Intelligence is recognized as the birth of AI.',
+      },
+      {
+        id: 'm1_q7',
+        type: 'MCQ',
+        question: '7. Which IBM computer defeated chess champion Garry Kasparov?',
+        options: ['Watson', 'Deep Blue', 'AlphaGo', 'Siri'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Deep Blue',
+        explanation: 'IBM Deep Blue defeated world chess champion Garry Kasparov in May 1997.',
+      },
+      {
+        id: 'm1_q8',
+        type: 'MCQ',
+        question: '8. Deep Blue was mainly designed to play which game?',
+        options: ['Cricket', 'Football', 'Chess', 'Go'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Chess',
+        explanation: 'Deep Blue was a chess-playing supercomputer developed by IBM.',
+      },
+      {
+        id: 'm1_q9',
+        type: 'MCQ',
+        question: '9. Which AI system became famous for defeating a professional Go player?',
+        options: ['Deep Blue', 'AlphaGo', 'Siri', 'Alexa'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'AlphaGo',
+        explanation: 'AlphaGo defeated 18-time world Go champion Lee Sedol in 2016.',
+      },
+      {
+        id: 'm1_q10',
+        type: 'MCQ',
+        question: '10. AlphaGo was developed by which company?',
+        options: ['Microsoft', 'IBM', 'Google DeepMind', 'Apple'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Google DeepMind',
+        explanation: 'AlphaGo was developed by Google DeepMind.',
+      },
+      {
+        id: 'm1_q11',
+        type: 'MCQ',
+        question: '11. Which of the following is an example of Generative AI?',
+        options: ['Calculator', 'ChatGPT', 'Digital clock', 'Keyboard'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'ChatGPT',
+        explanation: 'ChatGPT generates novel text responses, making it an example of Generative AI.',
+      },
+      {
+        id: 'm1_q12',
+        type: 'MCQ',
+        question: '12. What can Generative AI do?',
+        options: ['Only store files', 'Create new content', 'Only calculate numbers', 'Only connect computers'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Create new content',
+        explanation: 'Generative AI produces original content such as text, images, audio, and code.',
+      },
+      {
+        id: 'm1_q13',
+        type: 'MCQ',
+        question: '13. ChatGPT is an example of an AI system that can primarily work with:',
+        options: ['Natural language', 'Electricity', 'Computer hardware', 'Printer cables'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Natural language',
+        explanation: 'ChatGPT is a Large Language Model designed to understand and generate human natural language.',
+      },
+      {
+        id: 'm1_q14',
+        type: 'MCQ',
+        question: '14. Which type of AI is designed to perform a specific task?',
+        options: ['Narrow AI', 'General AI', 'Super AI', 'Human AI'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Narrow AI',
+        explanation: 'Narrow (or Weak) AI is specialized for dedicated specific tasks like chess, face unlock, or translation.',
+      },
+      {
+        id: 'm1_q15',
+        type: 'MCQ',
+        question: '15. Which type of AI refers to intelligence that can perform a wide range of intellectual tasks like a human?',
+        options: ['Narrow AI', 'General AI', 'Simple AI', 'Weak AI only'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'General AI',
+        explanation: 'Artificial General Intelligence (AGI) refers to versatile, human-level intelligence across diverse domains.',
+      },
+      {
+        id: 'm1_q16',
+        type: 'MCQ',
+        question: '16. Which type of AI is a theoretical concept that would surpass human intelligence?',
+        options: ['Narrow AI', 'General AI', 'Super AI', 'Basic AI'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Super AI',
+        explanation: 'Artificial Superintelligence (ASI) refers to theoretical AI that exceeds human cognitive abilities.',
+      },
+      {
+        id: 'm1_q17',
+        type: 'MCQ',
+        question: '17. Which of the following is an everyday example of AI?',
+        options: ['Voice assistant', 'Notebook', 'Pencil', 'Water bottle'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Voice assistant',
+        explanation: 'Voice assistants (like Siri, Google Assistant, and Alexa) utilize AI and speech recognition.',
+      },
+      {
+        id: 'm1_q18',
+        type: 'MCQ',
+        question: '18. Which technology can use AI to recommend videos to users?',
+        options: ['Video recommendation system', 'Calculator', 'USB cable', 'Printer'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Video recommendation system',
+        explanation: 'Recommendation systems analyze user preferences and viewing patterns using machine learning.',
+      },
+      {
+        id: 'm1_q19',
+        type: 'MCQ',
+        question: '19. AI systems are designed to learn, reason, or make decisions using:',
+        options: ['Data and algorithms', 'Paper and pencil', 'Electricity alone', 'Books only'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Data and algorithms',
+        explanation: 'AI systems rely on structured/unstructured data and computational algorithms to learn patterns and make decisions.',
+      },
+      {
+        id: 'm1_q20',
+        type: 'MCQ',
+        question: '20. Which of the following is NOT an example of Artificial Intelligence?',
+        options: ['Face recognition', 'Voice assistant', 'Recommendation system', 'Ordinary wall clock'],
+        correctOptionIndex: 3,
+        marks: 1,
+        modelAnswer: 'Ordinary wall clock',
+        explanation: 'An ordinary wall clock operates purely on mechanical or quartz oscillation without data learning or intelligence.',
+      },
+      {
+        id: 'm1_q21',
+        type: 'MCQ',
+        question: '21. ________ is known as the Father of Artificial Intelligence.',
+        options: ['John McCarthy', 'Bill Gates', 'Steve Jobs', 'Charles Babbage'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'John McCarthy',
+        explanation: 'John McCarthy is known as the Father of Artificial Intelligence.',
+      },
+      {
+        id: 'm1_q22',
+        type: 'MCQ',
+        question: "22. IBM's ________ defeated Garry Kasparov in chess.",
+        options: ['AlphaGo', 'Deep Blue', 'ChatGPT', 'Watson'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Deep Blue',
+        explanation: "IBM's Deep Blue defeated Garry Kasparov in 1997.",
+      },
+      {
+        id: 'm1_q23',
+        type: 'MCQ',
+        question: '23. ________ is an AI system famous for playing the game of Go.',
+        options: ['Deep Blue', 'AlphaGo', 'Siri', 'Alexa'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'AlphaGo',
+        explanation: 'AlphaGo defeated world champions in the game of Go.',
+      },
+      {
+        id: 'm1_q24',
+        type: 'MCQ',
+        question: '24. ________ AI is designed to perform a specific task.',
+        options: ['General', 'Super', 'Narrow', 'Human'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Narrow',
+        explanation: 'Narrow AI is purpose-built for a defined specialized task.',
+      },
+      {
+        id: 'm1_q25',
+        type: 'MCQ',
+        question: '25. ChatGPT is an example of ________ AI that can generate text.',
+        options: ['Generative', 'Mechanical', 'Electrical', 'Manual'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Generative',
+        explanation: 'Generative AI creates new content, including text, imagery, and code.',
+      },
+    ],
+  },
+  {
+    id: 'quiz_mod_2',
+    title: 'Module 2: Search Strategies & Problem Solving in AI (25 Questions)',
+    moduleId: 2,
+    instructions:
+      'Answer all 25 questions (20 MCQs and 5 Fill in the Blanks) on state spaces, search strategies, BFS, DFS, UCS, DLS, IDDFS, and Heuristic Search. Minimum passing score is 60% (15/25). Instant scorecard upon submission.',
+    mode: 'MIXED',
+    timeLimitMinutes: 30,
+    totalMarks: 25,
+    passingMarks: 15,
+    isPublished: true,
+    autoDeclareResults: true,
+    createdBy: 'usr_admin_master',
+    creatorName: 'PRAGATHI AI Faculty',
+    createdAt: new Date().toISOString(),
+    questions: [
+      {
+        id: 'm2_q1',
+        type: 'MCQ',
+        question: '1. What is a search strategy in Artificial Intelligence?',
+        options: [
+          'A method for finding a solution to a problem',
+          'A method for increasing computer storage',
+          'A method for designing websites',
+          'A method for sending emails',
+        ],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'A method for finding a solution to a problem',
+        explanation: 'A search strategy systematically explores states in a search space to find a path from the initial state to a goal state.',
+      },
+      {
+        id: 'm2_q2',
+        type: 'MCQ',
+        question: '2. What is the starting point of a search problem called?',
+        options: ['Goal state', 'Initial state', 'Final node', 'Solution path'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Initial state',
+        explanation: 'The initial state represents the condition where the agent starts.',
+      },
+      {
+        id: 'm2_q3',
+        type: 'MCQ',
+        question: '3. What is the desired final condition of a search problem called?',
+        options: ['Initial state', 'Root node', 'Goal state', 'Child node'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Goal state',
+        explanation: 'The goal state is the target condition the agent seeks to achieve.',
+      },
+      {
+        id: 'm2_q4',
+        type: 'MCQ',
+        question: '4. What does a search tree represent?',
+        options: ['Possible states and paths of a problem', 'Computer hardware', 'Internet websites', 'Files in a computer'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Possible states and paths of a problem',
+        explanation: 'A search tree visualizes all possible configurations (nodes) and state transitions (branches) in a problem space.',
+      },
+      {
+        id: 'm2_q5',
+        type: 'MCQ',
+        question: '5. Which search strategy explores nodes level by level?',
+        options: ['DFS', 'BFS', 'DLS', 'A*'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'BFS',
+        explanation: 'Breadth-First Search systematically expands all shallowest unexpanded nodes at the current depth before moving deeper.',
+      },
+      {
+        id: 'm2_q6',
+        type: 'MCQ',
+        question: '6. BFS stands for:',
+        options: ['Basic File Search', 'Breadth-First Search', 'Best File System', 'Binary First Search'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Breadth-First Search',
+        explanation: 'BFS stands for Breadth-First Search.',
+      },
+      {
+        id: 'm2_q7',
+        type: 'MCQ',
+        question: '7. Which data structure is commonly used by BFS?',
+        options: ['Stack', 'Queue', 'Tree only', 'Array only'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Queue',
+        explanation: 'BFS uses a FIFO (First-In, First-Out) Queue to manage node expansion.',
+      },
+      {
+        id: 'm2_q8',
+        type: 'MCQ',
+        question: '8. Which search strategy explores deeply along one branch before backtracking?',
+        options: ['BFS', 'DFS', 'UCS', 'Best-First Search'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'DFS',
+        explanation: 'Depth-First Search explores the deepest node in the current frontier before backtracking.',
+      },
+      {
+        id: 'm2_q9',
+        type: 'MCQ',
+        question: '9. DFS stands for:',
+        options: ['Depth-First Search', 'Data-First Search', 'Direct File Search', 'Depth-Final System'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Depth-First Search',
+        explanation: 'DFS stands for Depth-First Search.',
+      },
+      {
+        id: 'm2_q10',
+        type: 'MCQ',
+        question: '10. Which data structure is commonly associated with DFS?',
+        options: ['Queue', 'Stack', 'Printer', 'Database'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Stack',
+        explanation: 'DFS uses a LIFO (Last-In, First-Out) Stack for tracking the search path and backtracking.',
+      },
+      {
+        id: 'm2_q11',
+        type: 'MCQ',
+        question: '11. Which search strategy considers the path cost when selecting a node?',
+        options: ['UCS', 'DFS', 'DLS', 'BFS only'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'UCS',
+        explanation: 'Uniform Cost Search (UCS) expands the node with the lowest cumulative path cost g(n).',
+      },
+      {
+        id: 'm2_q12',
+        type: 'MCQ',
+        question: '12. UCS stands for:',
+        options: ['Uniform Cost Search', 'Universal Computer System', 'User Cost System', 'Uniform Computer Search'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Uniform Cost Search',
+        explanation: 'UCS stands for Uniform Cost Search.',
+      },
+      {
+        id: 'm2_q13',
+        type: 'MCQ',
+        question: '13. What is the main purpose of Depth-Limited Search?',
+        options: [
+          'To search without any limit',
+          'To limit the depth of the search',
+          'To remove the goal state',
+          'To increase the path cost',
+        ],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'To limit the depth of the search',
+        explanation: 'Depth-Limited Search sets a predefined depth cutoff to prevent DFS from getting trapped in infinite branches.',
+      },
+      {
+        id: 'm2_q14',
+        type: 'MCQ',
+        question: '14. What does DLS stand for?',
+        options: ['Data Learning Search', 'Depth-Limited Search', 'Direct Learning System', 'Deep Level System'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'Depth-Limited Search',
+        explanation: 'DLS stands for Depth-Limited Search.',
+      },
+      {
+        id: 'm2_q15',
+        type: 'MCQ',
+        question: '15. Which algorithm combines the ideas of depth-first search with repeated depth limits?',
+        options: ['BFS', 'UCS', 'IDDFS', 'Best-First Search'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'IDDFS',
+        explanation: 'Iterative Deepening DFS (IDDFS) repeatedly runs depth-limited searches with incrementally increasing limits (0, 1, 2, ...).',
+      },
+      {
+        id: 'm2_q16',
+        type: 'MCQ',
+        question: '16. IDDFS stands for:',
+        options: [
+          'Iterative Deepening Depth-First Search',
+          'Intelligent Data Depth File Search',
+          'Initial Depth Data Search',
+          'Iterative Direct Data Search',
+        ],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Iterative Deepening Depth-First Search',
+        explanation: 'IDDFS stands for Iterative Deepening Depth-First Search.',
+      },
+      {
+        id: 'm2_q17',
+        type: 'MCQ',
+        question: '17. Which search uses a heuristic to help decide which node to explore?',
+        options: ['Informed Search', 'Uninformed Search', 'Random Search', 'Simple Search'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Informed Search',
+        explanation: 'Informed (heuristic) search uses problem-specific knowledge to estimate proximity to the goal.',
+      },
+      {
+        id: 'm2_q18',
+        type: 'MCQ',
+        question: '18. What is a heuristic function used for?',
+        options: [
+          'Estimating the cost from a current state to the goal',
+          'Storing passwords',
+          'Increasing screen brightness',
+          'Connecting to Wi-Fi',
+        ],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'Estimating the cost from a current state to the goal',
+        explanation: 'A heuristic function h(n) calculates an estimated cost from state n to the closest goal state.',
+      },
+      {
+        id: 'm2_q19',
+        type: 'MCQ',
+        question: '19. Which algorithm uses both path cost and heuristic information?',
+        options: ['DFS', 'BFS', 'A* Search', 'DLS'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'A* Search',
+        explanation: 'A* search evaluates nodes using f(n) = g(n) + h(n), balancing exact path cost g(n) and heuristic estimate h(n).',
+      },
+      {
+        id: 'm2_q20',
+        type: 'MCQ',
+        question: '20. Which of the following is an informed search algorithm?',
+        options: ['BFS', 'DFS', 'A* Search', 'DLS'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'A* Search',
+        explanation: 'A* is an informed search algorithm that uses heuristic knowledge.',
+      },
+      {
+        id: 'm2_q21',
+        type: 'MCQ',
+        question: '21. ________ explores nodes level by level.',
+        options: ['DFS', 'BFS', 'DLS', 'A*'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'BFS',
+        explanation: 'Breadth-First Search (BFS) explores all nodes at the present depth before going deeper.',
+      },
+      {
+        id: 'm2_q22',
+        type: 'MCQ',
+        question: '22. ________ explores one branch deeply before backtracking.',
+        options: ['BFS', 'DFS', 'UCS', 'IDDFS'],
+        correctOptionIndex: 1,
+        marks: 1,
+        modelAnswer: 'DFS',
+        explanation: 'Depth-First Search (DFS) dives deeply into a single branch until dead-end or goal, then backtracks.',
+      },
+      {
+        id: 'm2_q23',
+        type: 'MCQ',
+        question: '23. A ________ function estimates the cost of reaching the goal.',
+        options: ['heuristic', 'hardware', 'network', 'storage'],
+        correctOptionIndex: 0,
+        marks: 1,
+        modelAnswer: 'heuristic',
+        explanation: 'A heuristic function estimates the remaining distance/cost to the goal.',
+      },
+      {
+        id: 'm2_q24',
+        type: 'MCQ',
+        question: '24. ________ Search uses both path cost and heuristic information.',
+        options: ['BFS', 'DFS', 'A*', 'DLS'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'A*',
+        explanation: 'A* Search combines path cost g(n) and estimated cost h(n) into f(n) = g(n) + h(n).',
+      },
+      {
+        id: 'm2_q25',
+        type: 'MCQ',
+        question: '25. The desired final condition in a search problem is called the ________ state.',
+        options: ['Initial', 'Starting', 'Goal', 'Root'],
+        correctOptionIndex: 2,
+        marks: 1,
+        modelAnswer: 'Goal',
+        explanation: 'The goal state is the desired target outcome.',
+      },
+    ],
+  },
+];

@@ -47,6 +47,7 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
     { label: 'Gallery', href: '/gallery' },
     { label: 'School Partnership', href: '/partnerships' },
     { label: 'Verify Credential', href: '/verify-certificate' },
+    { label: 'Parent Hub', href: '/parent' },
     { label: 'Contact', href: '/contact' },
   ];
 

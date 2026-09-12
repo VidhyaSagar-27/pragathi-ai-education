@@ -75,6 +75,10 @@ export async function PATCH(req: NextRequest) {
           location: reg.location,
           group: 'Foundation Batch A',
           photoUrl: reg.photoUrl,
+          familyId: reg.familyId,
+          studentCode: reg.studentCode,
+          parentPhone: reg.mobileNumber,
+          parentEmail: reg.email,
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -89,6 +93,14 @@ export async function PATCH(req: NextRequest) {
           item.approvedAt = new Date().toISOString();
         }
         dbState.users.push(newStudentUser);
+
+        // Associate with family studentIds
+        if (reg.familyId && dbState.families) {
+          const fam = dbState.families.find((f) => f.id === reg.familyId);
+          if (fam && !fam.studentIds.includes(newStudentUser.id)) {
+            fam.studentIds.push(newStudentUser.id);
+          }
+        }
       });
 
       // Dispatch credentials notification (WhatsApp, SMS, and Email)
@@ -158,13 +170,23 @@ export async function DELETE(req: NextRequest) {
   await updateDb((dbState) => {
     const reg = (dbState.registrations || []).find((r) => r.id === id);
     dbState.registrations = (dbState.registrations || []).filter((r) => r.id !== id);
+
     if (reg) {
+      // Remove from family registrationIds
+      if (reg.familyId && dbState.families) {
+        const fam = dbState.families.find((f) => f.id === reg.familyId);
+        if (fam) {
+          fam.registrationIds = (fam.registrationIds || []).filter((rid) => rid !== id);
+        }
+      }
+
+      // Safe user removal: match exact assignedEmail or exact student name, NEVER delete by shared parent phone!
       dbState.users = (dbState.users || []).filter(
         (u) =>
           u.role !== 'STUDENT' ||
-          (u.email.toLowerCase() !== (reg.email || '').toLowerCase() &&
-           u.phone !== reg.mobileNumber &&
-           u.name.toLowerCase() !== reg.studentName.toLowerCase())
+          (reg.assignedEmail
+            ? u.email.toLowerCase() !== reg.assignedEmail.toLowerCase()
+            : u.name.toLowerCase() !== reg.studentName.toLowerCase())
       );
     }
   });

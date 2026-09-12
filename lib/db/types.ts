@@ -1,4 +1,4 @@
-export type UserRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+export type UserRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' | 'PARENT';
 export type UserStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface StudentDetails {
@@ -8,6 +8,10 @@ export interface StudentDetails {
   location: string;
   group: string;
   photoUrl?: string;
+  familyId?: string;
+  studentCode?: string;
+  parentPhone?: string;
+  parentEmail?: string;
 }
 
 export interface InstructorDetails {
@@ -168,6 +172,33 @@ export interface NotificationLog {
   timestamp: string;
 }
 
+export interface Family {
+  id: string;
+  familyName: string;
+  parentName: string;
+  parentPhones: string[];
+  parentEmails: string[];
+  studentIds: string[];
+  registrationIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DuplicateAttemptLog {
+  id: string;
+  studentName: string;
+  existingStudentId?: string;
+  existingRegistrationId?: string;
+  parentPhone: string;
+  parentEmail?: string;
+  submittedAt: string;
+  reason: string;
+  confidence: number;
+  matchSignals: string[];
+  rawPayload?: any;
+  status: 'BLOCKED' | 'FLAGGED_FOR_REVIEW' | 'RESOLVED';
+}
+
 export interface StudentRegistration {
   id: string;
   studentName: string;
@@ -184,6 +215,12 @@ export interface StudentRegistration {
   approvedAt?: string;
   assignedEmail?: string;
   temporaryPassword?: string;
+  familyId?: string;
+  studentCode?: string;
+  duplicateConfidence?: number;
+  duplicateStatus?: 'NONE' | 'POSSIBLE_DUPLICATE' | 'CONFIRMED_DUPLICATE';
+  flaggedMatchId?: string;
+  matchSignals?: string[];
 }
 
 export interface SchoolPartnership {
@@ -310,4 +347,6 @@ export interface DatabaseSchema {
   certificates: CertificateItem[];
   assignmentSubmissions?: StudentAssignmentSubmission[];
   notifications?: NotificationLog[];
+  families?: Family[];
+  duplicateLogs?: DuplicateAttemptLog[];
 }

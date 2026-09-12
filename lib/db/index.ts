@@ -19,7 +19,10 @@ import {
   TestimonialItem,
   Announcement,
   CertificateItem,
+  Family,
+  DuplicateAttemptLog,
 } from './types';
+import { syncAllFamilies } from '@/lib/family/duplicateEngine';
 
 const INITIAL_MODULES: ModuleItem[] = [
   {
@@ -252,6 +255,8 @@ function getInitialDatabase(): DatabaseSchema {
     certificates: [],
     assignmentSubmissions: [],
     notifications: [],
+    families: [],
+    duplicateLogs: [],
   };
 }
 
@@ -313,6 +318,15 @@ export async function getDb(forceFresh = false): Promise<DatabaseSchema> {
     }
     if (!db.certificates) {
       db.certificates = [];
+      needsUpdate = true;
+    }
+    if (!db.families) {
+      db.families = [];
+      syncAllFamilies(db);
+      needsUpdate = true;
+    }
+    if (!db.duplicateLogs) {
+      db.duplicateLogs = [];
       needsUpdate = true;
     }
     if (!db.settings) {

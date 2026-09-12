@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, noCacheHeaders } from '@/lib/db';
+import { normalizePhone, normalizeEmail } from '@/lib/family/normalization';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,155 +24,209 @@ export async function GET(req: NextRequest) {
     }
 
     const db = await getDb();
-    const cleanDigits = identifier.replace(/\D/g, '');
-    const last10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : '';
+    const cleanPhone = normalizePhone(identifier);
+    const cleanEmail = normalizeEmail(identifier);
     const lowerIdentifier = identifier.toLowerCase();
 
-    // 1. Check in db.registrations
-    const registrations = db.registrations || [];
-    const reg = registrations.find((r) => {
-      if (r.id && r.id.toLowerCase() === lowerIdentifier) return true;
-      if (r.email && r.email.toLowerCase() === lowerIdentifier) return true;
-      if (r.assignedEmail && r.assignedEmail.toLowerCase() === lowerIdentifier) return true;
-      if (last10 && r.mobileNumber) {
-        const rDigits = r.mobileNumber.replace(/\D/g, '');
-        if (rDigits.slice(-10) === last10) return true;
-      }
-      return false;
-    });
+    // Map to collect all student records belonging to this lookup or its Family
+    const childrenMap = new Map<string, any>();
 
-    if (reg) {
-      if (reg.status === 'APPROVED') {
-        // Find corresponding user account in db.users for certainty
-        const user = (db.users || []).find(
+    // Helper to add or update student presentation
+    const addStudentItem = (item: any) => {
+      const key = (item.loginEmail || item.id || item.name).toLowerCase();
+      if (!childrenMap.has(key)) {
+        childrenMap.set(key, item);
+      } else {
+        // Merge with preference to APPROVED status
+        const existing = childrenMap.get(key);
+        if (existing.status !== 'APPROVED' && item.status === 'APPROVED') {
+          childrenMap.set(key, item);
+        }
+      }
+    };
+
+    let matchedFamilyId: string | undefined;
+
+    // 1. Check all registrations
+    for (const reg of db.registrations || []) {
+      const rPhone = normalizePhone(reg.mobileNumber);
+      const rEmail = normalizeEmail(reg.email);
+      const rId = reg.id.toLowerCase();
+      const rAssigned = normalizeEmail(reg.assignedEmail);
+
+      const matches =
+        (cleanPhone && rPhone === cleanPhone) ||
+        (cleanEmail && (rEmail === cleanEmail || rAssigned === cleanEmail)) ||
+        rId === lowerIdentifier;
+
+      if (matches) {
+        if (reg.familyId) matchedFamilyId = reg.familyId;
+
+        // Find linked user if approved
+        const linkedUser = (db.users || []).find(
           (u) =>
             u.role === 'STUDENT' &&
             ((reg.assignedEmail && u.email.toLowerCase() === reg.assignedEmail.toLowerCase()) ||
-             (reg.email && u.email.toLowerCase() === reg.email.toLowerCase()) ||
-             (last10 && u.phone && u.phone.replace(/\D/g, '').slice(-10) === last10) ||
-             u.name.toLowerCase() === reg.studentName.toLowerCase())
+              (reg.email && u.email.toLowerCase() === reg.email.toLowerCase()) ||
+              u.name.toLowerCase() === reg.studentName.toLowerCase())
         );
 
-        const loginEmail = reg.assignedEmail || user?.email || `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`;
+        const loginEmail =
+          reg.assignedEmail ||
+          linkedUser?.email ||
+          `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`;
         const temporaryPassword = reg.temporaryPassword || 'Pragathi2026!';
 
-        return NextResponse.json(
-          {
-            found: true,
-            status: 'APPROVED',
-            student: {
+        addStudentItem({
+          id: reg.id,
+          studentCode: reg.studentCode || 'STU',
+          name: reg.studentName,
+          status: reg.status,
+          mobileNumber: reg.mobileNumber,
+          schoolName: reg.schoolName,
+          classGrade: reg.classGrade,
+          location: reg.location,
+          photoUrl: reg.photoUrl,
+          loginEmail,
+          temporaryPassword,
+          createdAt: reg.createdAt,
+          approvedAt: reg.approvedAt || (reg.status === 'APPROVED' ? reg.createdAt : undefined),
+          notes: reg.notes,
+          familyId: reg.familyId,
+        });
+      }
+    }
+
+    // 2. Check all enrolled users in db.users
+    for (const user of db.users || []) {
+      if (user.role === 'STUDENT') {
+        const uPhone = normalizePhone(user.studentDetails?.parentPhone || user.phone);
+        const uEmail = normalizeEmail(user.studentDetails?.parentEmail || user.email);
+        const uId = user.id.toLowerCase();
+
+        const matches =
+          (cleanPhone && uPhone === cleanPhone) ||
+          (cleanEmail && uEmail === cleanEmail) ||
+          uId === lowerIdentifier;
+
+        if (matches) {
+          if (user.studentDetails?.familyId) matchedFamilyId = user.studentDetails.familyId;
+
+          addStudentItem({
+            id: user.id,
+            studentCode: user.studentDetails?.studentCode || 'STU',
+            name: user.name,
+            status: user.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
+            mobileNumber: user.phone || user.studentDetails?.parentPhone || '',
+            schoolName: user.studentDetails?.schoolName || 'PRAGATHI AI School',
+            classGrade: user.studentDetails?.classGrade || '10',
+            location: user.studentDetails?.location || '',
+            photoUrl: user.studentDetails?.photoUrl,
+            loginEmail: user.email,
+            temporaryPassword: 'Pragathi2026!',
+            createdAt: user.createdAt,
+            approvedAt: user.createdAt,
+            familyId: user.studentDetails?.familyId,
+          });
+        }
+      }
+    }
+
+    // 3. If matched with a Family, bring in all other siblings in this family
+    if (matchedFamilyId) {
+      const family = (db.families || []).find((f) => f.id === matchedFamilyId);
+      if (family) {
+        // Collect registrations in family
+        for (const reg of db.registrations || []) {
+          if (reg.familyId === matchedFamilyId) {
+            const loginEmail =
+              reg.assignedEmail ||
+              `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`;
+            addStudentItem({
               id: reg.id,
+              studentCode: reg.studentCode || 'STU',
               name: reg.studentName,
+              status: reg.status,
               mobileNumber: reg.mobileNumber,
               schoolName: reg.schoolName,
               classGrade: reg.classGrade,
               location: reg.location,
               photoUrl: reg.photoUrl,
               loginEmail,
-              temporaryPassword,
-              approvedAt: reg.approvedAt || reg.createdAt,
-            },
-          },
-          { headers: noCacheHeaders }
-        );
-      }
-
-      if (reg.status === 'PENDING') {
-        return NextResponse.json(
-          {
-            found: true,
-            status: 'PENDING',
-            student: {
-              id: reg.id,
-              name: reg.studentName,
-              mobileNumber: reg.mobileNumber,
-              schoolName: reg.schoolName,
-              classGrade: reg.classGrade,
+              temporaryPassword: reg.temporaryPassword || 'Pragathi2026!',
               createdAt: reg.createdAt,
-            },
-            message:
-              'Your registration application is under review by PRAGATHI AI administrators. Once accepted, your login credentials will be displayed here immediately and sent via WhatsApp/SMS.',
-          },
-          { headers: noCacheHeaders }
-        );
-      }
+              approvedAt: reg.approvedAt,
+              notes: reg.notes,
+              familyId: reg.familyId,
+            });
+          }
+        }
 
-      if (reg.status === 'REJECTED') {
-        return NextResponse.json(
-          {
-            found: true,
-            status: 'REJECTED',
-            student: {
-              id: reg.id,
-              name: reg.studentName,
-              mobileNumber: reg.mobileNumber,
-            },
-            notes:
-              reg.notes ||
-              'Your registration application could not be approved at this time. Please contact your school administrator or submit a new registration with valid information.',
-          },
-          { headers: noCacheHeaders }
-        );
+        // Collect users in family
+        for (const user of db.users || []) {
+          if (user.role === 'STUDENT' && user.studentDetails?.familyId === matchedFamilyId) {
+            addStudentItem({
+              id: user.id,
+              studentCode: user.studentDetails?.studentCode || 'STU',
+              name: user.name,
+              status: user.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
+              mobileNumber: user.phone || user.studentDetails?.parentPhone || '',
+              schoolName: user.studentDetails?.schoolName || 'PRAGATHI AI School',
+              classGrade: user.studentDetails?.classGrade || '10',
+              location: user.studentDetails?.location || '',
+              photoUrl: user.studentDetails?.photoUrl,
+              loginEmail: user.email,
+              temporaryPassword: 'Pragathi2026!',
+              createdAt: user.createdAt,
+              approvedAt: user.createdAt,
+              familyId: user.studentDetails?.familyId,
+            });
+          }
+        }
       }
     }
 
-    // 2. Check in db.users for directly enrolled students
-    const studentUser = (db.users || []).find((u) => {
-      if (u.role !== 'STUDENT') return false;
-      if (u.email.toLowerCase() === lowerIdentifier) return true;
-      if (last10 && u.phone) {
-        const uDigits = u.phone.replace(/\D/g, '');
-        if (uDigits.slice(-10) === last10) return true;
-      }
-      return false;
-    });
+    const familyStudents = Array.from(childrenMap.values());
 
-    if (studentUser) {
+    if (familyStudents.length === 0) {
       return NextResponse.json(
         {
-          found: true,
-          status: studentUser.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
-          student: {
-            id: studentUser.id,
-            name: studentUser.name,
-            mobileNumber: studentUser.phone || '',
-            schoolName: studentUser.studentDetails?.schoolName || 'PRAGATHI AI School',
-            classGrade: studentUser.studentDetails?.classGrade || '10',
-            location: studentUser.studentDetails?.location || '',
-            photoUrl: studentUser.studentDetails?.photoUrl,
-            loginEmail: studentUser.email,
-            temporaryPassword: 'Pragathi2026!',
-            approvedAt: studentUser.createdAt,
-          },
+          found: false,
+          error: `No student application or account found for '${identifier}'. Please ensure you entered the correct 10-digit mobile number or register as a new student.`,
         },
-        { headers: noCacheHeaders }
+        { status: 404, headers: noCacheHeaders }
       );
     }
 
+    // Sort by status: APPROVED first, then PENDING, then others
+    familyStudents.sort((a, b) => {
+      if (a.status === 'APPROVED' && b.status !== 'APPROVED') return -1;
+      if (b.status === 'APPROVED' && a.status !== 'APPROVED') return 1;
+      return 0;
+    });
+
+    const primaryStudent = familyStudents[0];
+
     return NextResponse.json(
       {
-        found: false,
-        error: `No student application or active account found for '${identifier}'. Please ensure you entered the correct 10-digit mobile number or register as a new student.`,
+        found: true,
+        status: primaryStudent.status,
+        student: primaryStudent,
+        familyStudents,
+        totalChildren: familyStudents.length,
+        familyId: matchedFamilyId,
+        message:
+          primaryStudent.status === 'PENDING'
+            ? 'Your registration application is under review by PRAGATHI AI administrators. Once accepted, your login credentials will be displayed here immediately and sent via WhatsApp/SMS.'
+            : undefined,
       },
-      { status: 404, headers: noCacheHeaders }
+      { headers: noCacheHeaders }
     );
   } catch (error) {
     console.error('Application status lookup error:', error);
     return NextResponse.json(
-      { error: 'An error occurred while looking up application status.' },
+      { error: 'An unexpected error occurred during status verification.' },
       { status: 500, headers: noCacheHeaders }
     );
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const identifier = body.identifier || body.mobile || body.email || '';
-    const fakeUrl = new URL(`http://localhost/api/student/application-status?identifier=${encodeURIComponent(identifier)}`);
-    const newReq = new NextRequest(fakeUrl);
-    return GET(newReq);
-  } catch (e) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400, headers: noCacheHeaders });
   }
 }

@@ -45,7 +45,7 @@ function RegisterContent() {
     location: '',
   });
 
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'duplicate'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [submittedName, setSubmittedName] = useState('');
@@ -55,6 +55,7 @@ function RegisterContent() {
   const [lookupQuery, setLookupQuery] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState<any | null>(null);
+  const [selectedChildIndex, setSelectedChildIndex] = useState(0);
   const [lookupError, setLookupError] = useState('');
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
@@ -92,8 +93,14 @@ function RegisterContent() {
 
       setSubmittedName(formData.studentName);
       setSubmittedMobile(formData.mobileNumber);
-      setStatus('success');
       setSuccessMessage(data.message);
+
+      if (data.isDuplicate) {
+        setStatus('duplicate');
+      } else {
+        setStatus('success');
+      }
+
       setFormData({
         studentName: '',
         classGrade: '',
@@ -117,6 +124,7 @@ function RegisterContent() {
     setLookupLoading(true);
     setLookupError('');
     setLookupResult(null);
+    setSelectedChildIndex(0);
 
     try {
       const res = await fetch(
@@ -130,6 +138,7 @@ function RegisterContent() {
       }
 
       setLookupResult(data);
+      setSelectedChildIndex(0);
     } catch (err: any) {
       setLookupError(err.message || 'Could not verify application status.');
     } finally {
@@ -149,25 +158,28 @@ function RegisterContent() {
   };
 
   const handleInstantAccess = async () => {
-    if (!lookupResult?.student) return;
+    const currentStudent =
+      (lookupResult?.familyStudents && lookupResult.familyStudents[selectedChildIndex]) ||
+      lookupResult?.student;
+    if (!currentStudent) return;
     setAutoLoggingIn(true);
     try {
       const res = await fetch('/api/student/auto-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          identifier: lookupResult.student.mobileNumber || lookupResult.student.loginEmail,
-          password: lookupResult.student.temporaryPassword,
+          identifier: currentStudent.mobileNumber || currentStudent.loginEmail,
+          password: currentStudent.temporaryPassword,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         window.location.href = data.redirectUrl || '/student';
       } else {
-        window.location.href = `/login?email=${encodeURIComponent(lookupResult.student.loginEmail || '')}&role=STUDENT`;
+        window.location.href = `/login?email=${encodeURIComponent(currentStudent.loginEmail || '')}&role=STUDENT`;
       }
     } catch {
-      window.location.href = `/login?email=${encodeURIComponent(lookupResult.student.loginEmail || '')}&role=STUDENT`;
+      window.location.href = `/login?email=${encodeURIComponent(currentStudent.loginEmail || '')}&role=STUDENT`;
     }
   };
 
@@ -208,7 +220,58 @@ function RegisterContent() {
         {/* TAB 1: NEW STUDENT ENROLLMENT */}
         {activeTab === 'register' && (
           <>
-            {status === 'success' ? (
+            {status === 'duplicate' ? (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 border-2 border-amber-400 shadow-xl max-w-xl mx-auto text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto border border-amber-200">
+                  <AlertCircle className="w-9 h-9" />
+                </div>
+
+                <div>
+                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wider block">
+                    Active Application Detected
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+                    Application Already on File!
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-3 leading-relaxed">
+                    An active enrollment record for <strong>{submittedName}</strong> already exists under mobile number <strong>{submittedMobile}</strong>.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 text-left text-xs text-amber-900 space-y-2">
+                  <p className="font-bold flex items-center space-x-1.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-700" />
+                    <span>No need to submit duplicate applications:</span>
+                  </p>
+                  <p className="leading-relaxed">
+                    PRAGATHI AI protects your existing submission and keeps your place in the verification queue. You can check approval progress and retrieve your login credentials right now below.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('status');
+                      setLookupQuery(submittedMobile);
+                      handleLookup(undefined, submittedMobile);
+                    }}
+                    className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>View Application Status & Password</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus('idle')}
+                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                  >
+                    <span>Back to Registration</span>
+                  </button>
+                </div>
+              </div>
+            ) : status === 'success' ? (
               <div className="bg-white rounded-3xl p-8 sm:p-12 border-2 border-emerald-400 shadow-xl max-w-xl mx-auto text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
                 <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200">
                   <CheckCircle2 className="w-9 h-9" />
@@ -518,214 +581,274 @@ function RegisterContent() {
                 </div>
               )}
 
-              {/* Result State 1: APPROVED (Displays Credentials with Copy & Login button) */}
-              {lookupResult && lookupResult.status === 'APPROVED' && (
-                <div className="bg-emerald-50/60 border-2 border-emerald-400 rounded-3xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between border-b border-emerald-200 pb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center font-bold">
-                        <CheckCircle2 className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full tracking-wider">
-                          Application Approved
-                        </span>
-                        <h2 className="text-xl font-black text-slate-900 mt-1">
-                          {lookupResult.student?.name}
-                        </h2>
-                        <p className="text-xs text-slate-600">
-                          {lookupResult.student?.schoolName} • Grade {lookupResult.student?.classGrade}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+              {/* Result State Rendering with Multi-Child Family Support */}
+              {(() => {
+                const currentStudent =
+                  (lookupResult?.familyStudents && lookupResult.familyStudents[selectedChildIndex]) ||
+                  lookupResult?.student;
+                const currentStatus = currentStudent?.status || lookupResult?.status;
 
-                  {/* Credentials Box */}
-                  <div className="bg-white rounded-2xl p-5 border border-emerald-300 shadow-sm space-y-4">
-                    <p className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center space-x-1.5">
-                      <Key className="w-4 h-4 text-emerald-600" />
-                      <span>Your Official Login Credentials</span>
-                    </p>
-
-                    {/* Email / ID */}
-                    <div>
-                      <span className="block text-[11px] font-bold text-slate-500 mb-1">
-                        Login Email / Student ID
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value={lookupResult.student?.loginEmail || ''}
-                          className="flex-grow font-mono text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 select-all"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(lookupResult.student?.loginEmail || '', 'email')}
-                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
-                          title="Copy Email"
-                        >
-                          {copiedEmail ? (
-                            <>
-                              <Check className="w-4 h-4 text-emerald-600" />
-                              <span className="text-emerald-700">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
+                return (
+                  <>
+                    {/* Family Multi-Child Selector */}
+                    {lookupResult?.familyStudents && lookupResult.familyStudents.length > 1 && (
+                      <div className="bg-slate-100/90 p-3.5 rounded-2xl border border-slate-200 space-y-2 animate-in fade-in">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            Family Portal: {lookupResult.familyStudents.length} Children Registered
+                          </span>
+                          <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2.5 py-0.5 rounded-full">
+                            Linked Family Account
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {lookupResult.familyStudents.map((child: any, idx: number) => {
+                            const isSelected = selectedChildIndex === idx;
+                            return (
+                              <button
+                                key={child.id || idx}
+                                type="button"
+                                onClick={() => setSelectedChildIndex(idx)}
+                                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-xs ${
+                                  isSelected
+                                    ? 'bg-teal-700 text-white ring-2 ring-teal-500'
+                                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                }`}
+                              >
+                                <span>{child.name}</span>
+                                <span className="text-[10px] opacity-80">(Grade {child.classGrade})</span>
+                                <span
+                                  className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full ${
+                                    child.status === 'APPROVED'
+                                      ? isSelected
+                                        ? 'bg-white text-emerald-800'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                      : isSelected
+                                      ? 'bg-white text-amber-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {child.status}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Password */}
-                    <div>
-                      <span className="block text-[11px] font-bold text-slate-500 mb-1">
-                        Password
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <div className="relative flex-grow">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            readOnly
-                            value={lookupResult.student?.temporaryPassword || 'Pragathi2026!'}
-                            className="w-full font-mono text-sm pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 select-all"
-                          />
+                    {/* Result State 1: APPROVED (Displays Credentials with Copy & Login button) */}
+                    {lookupResult && currentStatus === 'APPROVED' && (
+                      <div className="bg-emerald-50/60 border-2 border-emerald-400 rounded-3xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center justify-between border-b border-emerald-200 pb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center font-bold">
+                              <CheckCircle2 className="w-7 h-7" />
+                            </div>
+                            <div>
+                              <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full tracking-wider">
+                                Application Approved
+                              </span>
+                              <h2 className="text-xl font-black text-slate-900 mt-1">
+                                {currentStudent?.name}
+                              </h2>
+                              <p className="text-xs text-slate-600">
+                                {currentStudent?.schoolName} • Grade {currentStudent?.classGrade}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Credentials Box */}
+                        <div className="bg-white rounded-2xl p-5 border border-emerald-300 shadow-sm space-y-4">
+                          <p className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center space-x-1.5">
+                            <Key className="w-4 h-4 text-emerald-600" />
+                            <span>Official Login Credentials</span>
+                          </p>
+
+                          {/* Email / ID */}
+                          <div>
+                            <span className="block text-[11px] font-bold text-slate-500 mb-1">
+                              Login Email / Student ID
+                            </span>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                readOnly
+                                value={currentStudent?.loginEmail || ''}
+                                className="flex-grow font-mono text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 select-all"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(currentStudent?.loginEmail || '', 'email')}
+                                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
+                                title="Copy Email"
+                              >
+                                {copiedEmail ? (
+                                  <>
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                    <span className="text-emerald-700">Copied</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-4 h-4" />
+                                    <span>Copy</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Password */}
+                          <div>
+                            <span className="block text-[11px] font-bold text-slate-500 mb-1">
+                              Password
+                            </span>
+                            <div className="flex items-center space-x-2">
+                              <div className="relative flex-grow">
+                                <input
+                                  type={showPassword ? 'text' : 'password'}
+                                  readOnly
+                                  value={currentStudent?.temporaryPassword || 'Pragathi2026!'}
+                                  className="w-full font-mono text-sm pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 select-all"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                                  title={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopy(currentStudent?.temporaryPassword || 'Pragathi2026!', 'password')
+                                }
+                                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
+                                title="Copy Password"
+                              >
+                                {copiedPassword ? (
+                                  <>
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                    <span className="text-emerald-700">Copied</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-4 h-4" />
+                                    <span>Copy</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Please save this password securely. You can change it at any time in your student profile settings.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Notification Alert Info */}
+                        <div className="p-3.5 bg-emerald-100/70 border border-emerald-300 rounded-2xl text-xs text-emerald-900 flex items-start space-x-2">
+                          <MessageSquare className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">Notification Dispatched</p>
+                            <p className="text-emerald-800 mt-0.5 leading-relaxed">
+                              Credentials have been dispatched to student WhatsApp & SMS on{' '}
+                              <strong>+91 {currentStudent?.mobileNumber}</strong>.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-2 flex flex-col sm:flex-row gap-3">
                           <button
                             type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                            title={showPassword ? 'Hide password' : 'Show password'}
+                            onClick={handleInstantAccess}
+                            disabled={autoLoggingIn}
+                            className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-600 via-teal-700 to-brand-navy hover:from-emerald-700 hover:to-slate-900 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                           >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            <Sparkles className="w-4 h-4 text-emerald-300" />
+                            <span>{autoLoggingIn ? 'Entering Student Portal...' : `Launch Portal as ${currentStudent?.name}`}</span>
+                            <ArrowRight className="w-4 h-4" />
                           </button>
+
+                          <Link
+                            href={`/login?email=${encodeURIComponent(currentStudent?.loginEmail || '')}&role=STUDENT`}
+                            className="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition flex items-center justify-center space-x-1.5"
+                          >
+                            <span>Standard Portal Login</span>
+                          </Link>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Result State 2: PENDING (Application under review) */}
+                    {lookupResult && currentStatus === 'PENDING' && (
+                      <div className="bg-amber-50/70 border-2 border-amber-300 rounded-3xl p-6 sm:p-7 space-y-4 animate-in fade-in">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center font-bold">
+                            <Clock className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-black uppercase px-2.5 py-0.5 bg-amber-200 text-amber-900 rounded-full tracking-wider">
+                              Under Administrative Review
+                            </span>
+                            <h2 className="text-lg font-bold text-slate-900 mt-1">
+                              {currentStudent?.name}
+                            </h2>
+                            <p className="text-xs text-slate-600">
+                              {currentStudent?.schoolName} • Grade {currentStudent?.classGrade}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs sm:text-sm text-amber-950 leading-relaxed bg-white p-4 rounded-2xl border border-amber-200">
+                          {lookupResult.message ||
+                            'Your registration application is currently under review by PRAGATHI AI administrators. Once accepted, your login credentials will be displayed here immediately and sent via WhatsApp/SMS.'}
+                        </p>
+
+                        <div className="text-xs text-slate-500">
+                          Submitted on: {new Date(currentStudent?.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Result State 3: REJECTED */}
+                    {lookupResult && currentStatus === 'REJECTED' && (
+                      <div className="bg-rose-50/70 border-2 border-rose-300 rounded-3xl p-6 sm:p-7 space-y-4 animate-in fade-in">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-rose-100 text-rose-800 rounded-2xl flex items-center justify-center font-bold">
+                            <AlertCircle className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-black uppercase px-2.5 py-0.5 bg-rose-200 text-rose-900 rounded-full tracking-wider">
+                              Application Not Approved
+                            </span>
+                            <h2 className="text-lg font-bold text-slate-900 mt-1">
+                              {currentStudent?.name}
+                            </h2>
+                          </div>
+                        </div>
+
+                        <p className="text-xs sm:text-sm text-rose-950 leading-relaxed bg-white p-4 rounded-2xl border border-rose-200">
+                          {currentStudent?.notes ||
+                            lookupResult.notes ||
+                            'Your registration could not be approved at this time. Please contact school administration or submit a new registration.'}
+                        </p>
+
                         <button
                           type="button"
-                          onClick={() =>
-                            handleCopy(lookupResult.student?.temporaryPassword || 'Pragathi2026!', 'password')
-                          }
-                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
-                          title="Copy Password"
+                          onClick={() => setActiveTab('register')}
+                          className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-bold transition"
                         >
-                          {copiedPassword ? (
-                            <>
-                              <Check className="w-4 h-4 text-emerald-600" />
-                              <span className="text-emerald-700">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4" />
-                              <span>Copy</span>
-                            </>
-                          )}
+                          Submit New Application
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Please save this password securely. You can change it at any time in your student profile settings.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Notification Alert Info */}
-                  <div className="p-3.5 bg-emerald-100/70 border border-emerald-300 rounded-2xl text-xs text-emerald-900 flex items-start space-x-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold">Notification Dispatched</p>
-                      <p className="text-emerald-800 mt-0.5 leading-relaxed">
-                        These login credentials have also been dispatched to your WhatsApp and SMS on{' '}
-                        <strong>+91 {lookupResult.student?.mobileNumber}</strong>.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                    <button
-                      type="button"
-                      onClick={handleInstantAccess}
-                      disabled={autoLoggingIn}
-                      className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-600 via-teal-700 to-brand-navy hover:from-emerald-700 hover:to-slate-900 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <Sparkles className="w-4 h-4 text-emerald-300" />
-                      <span>{autoLoggingIn ? 'Entering Student Portal...' : 'Instant 1-Click Launch Student Portal'}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-
-                    <Link
-                      href={`/login?email=${encodeURIComponent(lookupResult.student?.loginEmail || '')}&role=STUDENT`}
-                      className="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition flex items-center justify-center space-x-1.5"
-                    >
-                      <span>Standard Portal Login</span>
-                    </Link>
-                  </div>
-                </div>
-              )}
-
-              {/* Result State 2: PENDING (Application under review) */}
-              {lookupResult && lookupResult.status === 'PENDING' && (
-                <div className="bg-amber-50/70 border-2 border-amber-300 rounded-3xl p-6 sm:p-7 space-y-4 animate-in fade-in">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center font-bold">
-                      <Clock className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-black uppercase px-2.5 py-0.5 bg-amber-200 text-amber-900 rounded-full tracking-wider">
-                        Under Administrative Review
-                      </span>
-                      <h2 className="text-lg font-bold text-slate-900 mt-1">
-                        {lookupResult.student?.name}
-                      </h2>
-                      <p className="text-xs text-slate-600">
-                        {lookupResult.student?.schoolName} • Grade {lookupResult.student?.classGrade}
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs sm:text-sm text-amber-950 leading-relaxed bg-white p-4 rounded-2xl border border-amber-200">
-                    {lookupResult.message ||
-                      'Your registration application is currently under review by PRAGATHI AI administrators. Once accepted, your login credentials will be displayed here immediately and sent via WhatsApp/SMS.'}
-                  </p>
-
-                  <div className="text-xs text-slate-500">
-                    Submitted on: {new Date(lookupResult.student?.createdAt).toLocaleString()}
-                  </div>
-                </div>
-              )}
-
-              {/* Result State 3: REJECTED */}
-              {lookupResult && lookupResult.status === 'REJECTED' && (
-                <div className="bg-rose-50/70 border-2 border-rose-300 rounded-3xl p-6 sm:p-7 space-y-4 animate-in fade-in">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-rose-100 text-rose-800 rounded-2xl flex items-center justify-center font-bold">
-                      <AlertCircle className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-black uppercase px-2.5 py-0.5 bg-rose-200 text-rose-900 rounded-full tracking-wider">
-                        Application Not Approved
-                      </span>
-                      <h2 className="text-lg font-bold text-slate-900 mt-1">
-                        {lookupResult.student?.name}
-                      </h2>
-                    </div>
-                  </div>
-
-                  <p className="text-xs sm:text-sm text-rose-950 leading-relaxed bg-white p-4 rounded-2xl border border-rose-200">
-                    {lookupResult.notes ||
-                      'Your registration could not be approved at this time. Please contact school administration or submit a new registration.'}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('register')}
-                    className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-bold transition"
-                  >
-                    Submit New Application
-                  </button>
-                </div>
-              )}
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Quick instructions / Help */}
               <div className="pt-2 border-t border-slate-100 text-center">

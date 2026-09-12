@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  ShieldAlert,
   Layers,
   FileQuestion,
   Bell,
@@ -75,6 +76,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       items: [
         { label: 'Overview', href: '/admin', icon: LayoutDashboard },
         { label: 'Student Registrations', href: '/admin/registrations', icon: UserCheck },
+        { label: 'Family & Duplicate Review', href: '/admin/family-review', icon: ShieldAlert },
         { label: 'School Partnerships', href: '/admin/partnerships', icon: Building2 },
         { label: 'Contact Messages', href: '/admin/messages', icon: Mail },
       ],

@@ -126,6 +126,20 @@ export default function AdminRegistrationsPage() {
                   >
                     {reg.status}
                   </span>
+                  {reg.duplicateStatus === 'POSSIBLE_DUPLICATE' && (
+                    <a
+                      href="/admin/family-review"
+                      className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                    >
+                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                      <span>Possible Duplicate ({reg.duplicateConfidence || 85}%) → Review</span>
+                    </a>
+                  )}
+                  {reg.familyId && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+                      {reg.familyId}
+                    </span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-600 pt-1">

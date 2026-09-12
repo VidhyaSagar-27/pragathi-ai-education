@@ -33,14 +33,18 @@ export async function GET(req: NextRequest) {
 
     // Helper to add or update student presentation
     const addStudentItem = (item: any) => {
-      const key = (item.loginEmail || item.id || item.name).toLowerCase();
+      // Key by normalized student name so user and registration for the same child merge,
+      // while genuine siblings (different children) remain distinct in the family view!
+      const key = (item.name || item.id).trim().toLowerCase();
       if (!childrenMap.has(key)) {
         childrenMap.set(key, item);
       } else {
-        // Merge with preference to APPROVED status
+        // Merge with preference to APPROVED status and credentials
         const existing = childrenMap.get(key);
         if (existing.status !== 'APPROVED' && item.status === 'APPROVED') {
           childrenMap.set(key, item);
+        } else if (!existing.loginEmail && item.loginEmail) {
+          childrenMap.set(key, { ...existing, loginEmail: item.loginEmail, temporaryPassword: item.temporaryPassword });
         }
       }
     };

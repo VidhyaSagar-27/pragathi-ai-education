@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -213,7 +213,7 @@ export default function StudentQuizzesPage() {
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {idx + 1}. {qr.question}
+                        {idx + 1}. {qr.question.replace(/^\d+[\.\)]\s*/, '')}
                       </p>
                     </div>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-md shrink-0 ml-3">
@@ -305,7 +305,7 @@ export default function StudentQuizzesPage() {
                           {qType}
                         </span>
                         <h3 className="inline text-sm font-bold text-slate-900 leading-snug">
-                          {idx + 1}. {q.question}
+                          {idx + 1}. {q.question.replace(/^\d+[\.\)]\s*/, '')}
                         </h3>
                       </div>
                       <span className="text-xs text-slate-400 font-bold shrink-0 ml-2">

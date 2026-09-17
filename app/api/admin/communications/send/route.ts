@@ -153,10 +153,25 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
+      const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+
       return NextResponse.json({
         success: true,
         message: `Message sent to ${targetName} via WhatsApp & Email.`,
         automation: automationResult.results,
+        delivery: {
+          email: {
+            dispatched: emailSent,
+            messageId: automationResult.results?.EMAIL?.providerMessageId,
+            error: automationResult.results?.EMAIL?.errorReason,
+          },
+          whatsapp: {
+            dispatched: waDelivered,
+            messageId: automationResult.results?.WHATSAPP?.providerMessageId,
+            error: automationResult.results?.WHATSAPP?.errorReason,
+          },
+        },
       });
     }
 

@@ -911,24 +911,29 @@ export default function AdminSettingsPage() {
           </div>
 
           {emailResult && (
-            emailResult.delivery?.email?.dispatched ? (
+            (emailResult.delivery?.email?.dispatched || emailResult.automation?.EMAIL?.status === 'SENT') ? (
               <div className="p-3 bg-teal-50 border border-teal-300 text-teal-900 rounded-xl text-xs space-y-1">
                 <p className="font-bold flex items-center space-x-1.5">
                   <Check className="w-4 h-4 text-teal-600" />
                   <span>Real Email Dispatched Successfully!</span>
                 </p>
                 <p className="text-[11px] text-teal-700">
-                  Delivered to {testEmailAddr} via configured email gateway.
+                  Delivered to {testEmailAddr} via Official Gmail API (from hello.pragathiai@gmail.com).
                 </p>
+                {(emailResult.delivery?.email?.messageId || emailResult.automation?.EMAIL?.providerMessageId) && (
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    Message ID: {emailResult.delivery?.email?.messageId || emailResult.automation?.EMAIL?.providerMessageId}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="p-4 bg-amber-50 border border-amber-300 text-amber-950 rounded-xl text-xs space-y-2">
                 <p className="font-bold flex items-center space-x-1.5 text-amber-900">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Simulation Mode Only — Not Delivered to Inbox</span>
+                  <span>Delivery Unsuccessful</span>
                 </p>
                 <p className="text-slate-600 leading-relaxed">
-                  No real email was sent to {testEmailAddr} because you have not connected <strong>Google OAuth (hello.pragathiai@gmail.com)</strong> or entered <strong>Resend / SMTP</strong> credentials above yet. Web servers require an authorized email provider to deliver messages.
+                  {emailResult.delivery?.email?.error || emailResult.automation?.EMAIL?.errorReason || 'Could not deliver email via configured gateway.'}
                 </p>
               </div>
             )

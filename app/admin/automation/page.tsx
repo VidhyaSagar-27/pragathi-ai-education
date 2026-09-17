@@ -38,6 +38,8 @@ export default function AdminAutomationPage() {
 
   // Direct Dispatcher State (Individual & Broadcast)
   const [students, setStudents] = useState<any[]>([]);
+  const [instructors, setInstructors] = useState<any[]>([]);
+  const [dispatchTargetRole, setDispatchTargetRole] = useState<'STUDENT' | 'INSTRUCTOR'>('STUDENT');
   const [dispatchScope, setDispatchScope] = useState<'INDIVIDUAL' | 'BROADCAST'>('INDIVIDUAL');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [manualName, setManualName] = useState('');
@@ -72,21 +74,24 @@ export default function AdminAutomationPage() {
     }
   };
 
-  const loadStudents = async () => {
+  const loadRecipients = async () => {
     try {
-      const res = await fetch(`/api/admin/users?role=STUDENT&_t=${Date.now()}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (res.ok) {
-        setStudents(data.users || []);
-      }
+      const [stuRes, instRes] = await Promise.all([
+        fetch(`/api/admin/users?role=STUDENT&_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/users?role=INSTRUCTOR&_t=${Date.now()}`, { cache: 'no-store' }),
+      ]);
+      const stuData = await stuRes.json();
+      const instData = await instRes.json();
+      if (stuRes.ok) setStudents(stuData.users || []);
+      if (instRes.ok) setInstructors(instData.users || []);
     } catch (err) {
-      console.error('Failed to load students:', err);
+      console.error('Failed to load recipients:', err);
     }
   };
 
   useEffect(() => {
     loadData();
-    loadStudents();
+    loadRecipients();
   }, []);
 
   const handleDirectDispatch = async (e: React.FormEvent) => {
@@ -101,7 +106,9 @@ export default function AdminAutomationPage() {
 
     if (dispatchScope === 'INDIVIDUAL') {
       if (!selectedStudentId && !manualPhone && !manualEmail) {
-        setDispatchError('Please select an enrolled student or enter a recipient phone/email.');
+        setDispatchError(
+          `Please select a ${dispatchTargetRole === 'INSTRUCTOR' ? 'faculty instructor' : 'student'} or enter a recipient phone/email.`
+        );
         return;
       }
     }
@@ -118,19 +125,30 @@ export default function AdminAutomationPage() {
     try {
       const payload: any = {
         recipientScope: dispatchScope,
+        targetRole: dispatchTargetRole,
         actionType: dispatchAction,
         channels,
         customSubject: dispatchSubject,
         customMessage: dispatchMessage,
+        newPassword:
+          dispatchAction === 'SEND_CREDENTIALS'
+            ? dispatchTargetRole === 'INSTRUCTOR'
+              ? 'Faculty2026!'
+              : 'Pragathi2026!'
+            : undefined,
       };
 
       if (dispatchScope === 'INDIVIDUAL') {
         if (selectedStudentId) {
+          payload.userId = selectedStudentId;
           payload.studentUserId = selectedStudentId;
+          payload.role = dispatchTargetRole;
         } else {
-          payload.recipientName = manualName || 'Recipient';
+          payload.recipientName =
+            manualName || (dispatchTargetRole === 'INSTRUCTOR' ? 'Faculty Member' : 'Student');
           payload.recipientPhone = manualPhone;
           payload.recipientEmail = manualEmail;
+          payload.role = dispatchTargetRole;
         }
       }
 
@@ -359,30 +377,64 @@ export default function AdminAutomationPage() {
             </p>
           </div>
 
-          {/* Scope Toggle: Individual vs Broadcast */}
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl w-fit">
-            <button
-              type="button"
-              onClick={() => setDispatchScope('INDIVIDUAL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dispatchScope === 'INDIVIDUAL'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              👤 Individual Student
-            </button>
-            <button
-              type="button"
-              onClick={() => setDispatchScope('BROADCAST')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dispatchScope === 'BROADCAST'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              📢 Broadcast All ({students.length})
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Target Audience Toggle: Students vs Instructors */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setDispatchTargetRole('STUDENT');
+                  setSelectedStudentId('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dispatchTargetRole === 'STUDENT'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🎓 Students ({students.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDispatchTargetRole('INSTRUCTOR');
+                  setSelectedStudentId('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dispatchTargetRole === 'INSTRUCTOR'
+                    ? 'bg-brand-navy text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                👨‍🏫 Faculty ({instructors.length})
+              </button>
+            </div>
+
+            {/* Scope Toggle: Individual vs Broadcast */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setDispatchScope('INDIVIDUAL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dispatchScope === 'INDIVIDUAL'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                👤 Individual {dispatchTargetRole === 'INSTRUCTOR' ? 'Faculty' : 'Student'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDispatchScope('BROADCAST')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dispatchScope === 'BROADCAST'
+                    ? 'bg-brand-navy text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📢 Broadcast All ({dispatchTargetRole === 'INSTRUCTOR' ? instructors.length : students.length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -436,7 +488,7 @@ export default function AdminAutomationPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Select Enrolled Student
+                  Select {dispatchTargetRole === 'INSTRUCTOR' ? 'Faculty Instructor' : 'Enrolled Student'}
                 </label>
                 <select
                   value={selectedStudentId}
@@ -450,15 +502,28 @@ export default function AdminAutomationPage() {
                   }}
                   className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">-- Choose from Enrolled Students ({students.length}) --</option>
-                  {students.map((stu) => (
-                    <option key={stu.id} value={stu.id}>
-                      {stu.name} ({stu.studentDetails?.studentId || 'ID Pending'}) — {stu.email}
-                    </option>
-                  ))}
+                  {dispatchTargetRole === 'INSTRUCTOR' ? (
+                    <>
+                      <option value="">-- Choose from Faculty Instructors ({instructors.length}) --</option>
+                      {instructors.map((inst) => (
+                        <option key={inst.id} value={inst.id}>
+                          {inst.name} ({inst.instructorDetails?.designation || 'Faculty'}) — {inst.email} • {inst.phone || 'No phone'}
+                        </option>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <option value="">-- Choose from Enrolled Students ({students.length}) --</option>
+                      {students.map((stu) => (
+                        <option key={stu.id} value={stu.id}>
+                          {stu.name} ({stu.studentDetails?.studentId || 'ID Pending'}) — {stu.email}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Or enter manual recipient details below if not in the student directory.
+                  Or enter manual recipient details below if not in directory.
                 </span>
               </div>
 
@@ -472,7 +537,7 @@ export default function AdminAutomationPage() {
                       type="text"
                       value={manualName}
                       onChange={(e) => setManualName(e.target.value)}
-                      placeholder="e.g. Student"
+                      placeholder={dispatchTargetRole === 'INSTRUCTOR' ? 'Faculty Name' : 'Student Name'}
                       className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl"
                     />
                   </div>
@@ -507,13 +572,15 @@ export default function AdminAutomationPage() {
             <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl flex items-center justify-between text-xs">
               <div>
                 <p className="font-bold text-teal-950 flex items-center space-x-1.5">
-                  <span>📢 Broadcast Audience: All Enrolled Students</span>
+                  <span>
+                    📢 Broadcast Audience: All {dispatchTargetRole === 'INSTRUCTOR' ? 'Faculty Instructors' : 'Enrolled Students'}
+                  </span>
                   <span className="px-2 py-0.5 bg-teal-200 text-teal-900 rounded-full text-[10px] font-black">
-                    {students.length} Recipients
+                    {dispatchTargetRole === 'INSTRUCTOR' ? instructors.length : students.length} Recipients
                   </span>
                 </p>
                 <p className="text-teal-700 text-[11px] mt-0.5">
-                  Notification will dispatch simultaneously to all enrolled students registered in the platform.
+                  Notification will dispatch simultaneously to all {dispatchTargetRole === 'INSTRUCTOR' ? 'faculty instructors' : 'enrolled students'} registered in the platform via WhatsApp & Email.
                 </p>
               </div>
             </div>

@@ -37,6 +37,8 @@ interface CommunicationModalProps {
   targetUser?: CommunicationTargetUser | null;
   broadcastCount?: number;
   currentUserRole?: 'ADMIN' | 'INSTRUCTOR';
+  initialAction?: CommunicationAction;
+  initialChannels?: { wa?: boolean; email?: boolean };
 }
 
 export default function CommunicationModal({
@@ -48,6 +50,8 @@ export default function CommunicationModal({
   targetUser,
   broadcastCount = 0,
   currentUserRole = 'ADMIN',
+  initialAction,
+  initialChannels,
 }: CommunicationModalProps) {
   // Channels
   const [channelWa, setChannelWa] = useState(true);
@@ -55,7 +59,7 @@ export default function CommunicationModal({
 
   // Action
   const [actionType, setActionType] = useState<CommunicationAction>(
-    mode === 'BROADCAST' ? 'CUSTOM_MESSAGE' : 'CUSTOM_MESSAGE'
+    initialAction || (mode === 'BROADCAST' ? 'CUSTOM_MESSAGE' : 'CUSTOM_MESSAGE')
   );
 
   // Custom Message Fields
@@ -88,10 +92,11 @@ export default function CommunicationModal({
       setSuccessResult(null);
       setErrorMessage(null);
       setDeliveryReport(null);
-      setChannelWa(true);
-      setChannelEmail(true);
+      setChannelWa(initialChannels?.wa !== undefined ? initialChannels.wa : true);
+      setChannelEmail(initialChannels?.email !== undefined ? initialChannels.email : true);
 
-      const defaultAction: CommunicationAction = mode === 'BROADCAST' ? 'CUSTOM_MESSAGE' : 'CUSTOM_MESSAGE';
+      const defaultAction: CommunicationAction =
+        mode === 'BROADCAST' ? 'CUSTOM_MESSAGE' : initialAction || 'CUSTOM_MESSAGE';
       setActionType(defaultAction);
 
       const defaultSubject =
@@ -116,7 +121,7 @@ export default function CommunicationModal({
         setManualRole(targetRole);
       }
     }
-  }, [isOpen, mode, targetRole, targetUser, currentUserRole]);
+  }, [isOpen, mode, targetRole, targetUser, currentUserRole, initialAction, initialChannels]);
 
   if (!isOpen) return null;
 

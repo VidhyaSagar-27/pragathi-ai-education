@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Plus, Trash2, Calendar } from 'lucide-react';
+import { Bell, Plus, Trash2, Calendar, Phone, Mail, Send } from 'lucide-react';
 import { Announcement } from '@/lib/db/types';
 
 export default function InstructorAnnouncementsPage() {
@@ -13,6 +13,9 @@ export default function InstructorAnnouncementsPage() {
   const [message, setMessage] = useState('');
   const [targetRole, setTargetRole] = useState<'ALL' | 'STUDENT'>('STUDENT');
   const [targetGroup, setTargetGroup] = useState('All');
+  const [dispatchWa, setDispatchWa] = useState(true);
+  const [dispatchEmail, setDispatchEmail] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = () => {
     setLoading(true);
@@ -31,19 +34,44 @@ export default function InstructorAnnouncementsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
+      // 1. Save announcement to platform feed
       const res = await fetch('/api/content/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, message, targetRole, targetGroup }),
       });
       if (!res.ok) throw new Error('Failed to post announcement');
+
+      // 2. Dispatch simultaneously via WhatsApp & Email if selected
+      const channels: ('WHATSAPP' | 'EMAIL')[] = [];
+      if (dispatchWa) channels.push('WHATSAPP');
+      if (dispatchEmail) channels.push('EMAIL');
+
+      if (channels.length > 0) {
+        await fetch('/api/instructor/communications/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientScope: 'BROADCAST',
+            actionType: 'CUSTOM_MESSAGE',
+            targetRole: 'STUDENT',
+            customSubject: title,
+            customMessage: message,
+            channels,
+          }),
+        }).catch((err) => console.warn('Announcement channel broadcast error:', err));
+      }
+
       setModalOpen(false);
       setTitle('');
       setMessage('');
       loadData();
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -69,12 +97,16 @@ export default function InstructorAnnouncementsPage() {
             Faculty Announcements
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Broadcast updates, workshop schedules, and project notices to your student cohorts.
+            Broadcast updates, workshop schedules, and project notices to your student cohorts via Portal Feed, WhatsApp & Email.
           </p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit"
+          onClick={() => {
+            setDispatchWa(true);
+            setDispatchEmail(true);
+            setModalOpen(true);
+          }}
+          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>New Announcement</span>
@@ -96,7 +128,7 @@ export default function InstructorAnnouncementsPage() {
                   </span>
                   <button
                     onClick={() => handleDelete(anc.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 transition"
+                    className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -119,17 +151,17 @@ export default function InstructorAnnouncementsPage() {
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">No Announcements Yet</h3>
           <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-            Click "New Announcement" to publish a notice to your enrolled students.
+            Click "New Announcement" to publish a notice to your enrolled students with simultaneous WhatsApp and Email broadcast.
           </p>
         </div>
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 bg-brand-navy text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">Publish Announcement</h3>
-              <button onClick={() => setModalOpen(false)}>✕</button>
+              <h3 className="text-base font-bold">Publish & Broadcast Announcement</h3>
+              <button onClick={() => setModalOpen(false)} className="text-slate-300 hover:text-white font-bold">✕</button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
@@ -140,7 +172,7 @@ export default function InstructorAnnouncementsPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Schedule for Module 2 Interactive Lab"
-                  className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
+                  className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
                 />
               </div>
 
@@ -151,24 +183,56 @@ export default function InstructorAnnouncementsPage() {
                   required
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Write message details..."
-                  className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white"
+                  placeholder="Write message details for student cohorts..."
+                  className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
                 />
+              </div>
+
+              {/* Delivery Channels */}
+              <div className="p-3.5 bg-teal-50/70 border border-teal-200 rounded-xl space-y-2">
+                <span className="text-xs font-bold text-teal-950 flex items-center space-x-1.5">
+                  <Send className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Also Broadcast to Students Via:</span>
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <label className="flex items-center space-x-2 cursor-pointer p-1.5 bg-white rounded-lg border border-teal-100">
+                    <input
+                      type="checkbox"
+                      checked={dispatchWa}
+                      onChange={(e) => setDispatchWa(e.target.checked)}
+                      className="rounded text-teal-600"
+                    />
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="font-semibold text-slate-800">WhatsApp</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer p-1.5 bg-white rounded-lg border border-teal-100">
+                    <input
+                      type="checkbox"
+                      checked={dispatchEmail}
+                      onChange={(e) => setDispatchEmail(e.target.checked)}
+                      className="rounded text-teal-600"
+                    />
+                    <Mail className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="font-semibold text-slate-800">Email</span>
+                  </label>
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
                 >
-                  Broadcast Announcement
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'Broadcasting...' : 'Publish & Broadcast'}</span>
                 </button>
               </div>
             </form>

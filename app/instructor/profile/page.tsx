@@ -163,6 +163,132 @@ export default function InstructorProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Request Administration Assistance Card */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-subtle space-y-4">
+        <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Request Anything from Administration
+            </h3>
+            <p className="text-xs text-slate-500">
+              Need new credentials, curriculum resources, or account updates? Request directly from admin.
+            </p>
+          </div>
+        </div>
+
+        <InstructorHelpForm profile={profile} />
+      </div>
     </div>
+  );
+}
+
+function InstructorHelpForm({ profile }: { profile: any }) {
+  const [reqType, setReqType] = useState('CREDENTIALS_REQUEST');
+  const [reqSubject, setReqSubject] = useState('');
+  const [reqMessage, setReqMessage] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus('loading');
+    setError('');
+
+    try {
+      const res = await fetch('/api/support/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterName: profile?.name || 'Faculty Instructor',
+          requesterRole: 'INSTRUCTOR',
+          requesterPhone: profile?.phone,
+          requesterEmail: profile?.email,
+          type: reqType,
+          subject: reqSubject.trim() || `Instructor Request: ${reqType}`,
+          message: reqMessage.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit request');
+
+      setStatus('success');
+      setReqSubject('');
+      setReqMessage('');
+    } catch (err: any) {
+      setStatus('error');
+      setError(err.message || 'Error submitting request');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+      {status === 'success' && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center space-x-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Your request has been submitted to the admin team. We will reply shortly.</span>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1">Request Type</label>
+          <select
+            value={reqType}
+            onChange={(e) => setReqType(e.target.value)}
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+          >
+            <option value="CREDENTIALS_REQUEST">Credentials / User ID Request</option>
+            <option value="PASSWORD_RESET">Password Reset Request</option>
+            <option value="GENERAL_HELP">Course / System Assistance</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1">Subject</label>
+          <input
+            type="text"
+            required
+            value={reqSubject}
+            onChange={(e) => setReqSubject(e.target.value)}
+            placeholder="e.g. Need portal login credentials"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block font-semibold text-slate-700 mb-1">Details / Message</label>
+        <textarea
+          rows={3}
+          required
+          value={reqMessage}
+          onChange={(e) => setReqMessage(e.target.value)}
+          placeholder="Describe what you need from administration..."
+          className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+        />
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <button
+          type="submit"
+          disabled={status === 'loading'}
+          className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition cursor-pointer disabled:opacity-50"
+        >
+          {status === 'loading' ? 'Submitting...' : 'Send Request to Admin'}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -127,9 +127,26 @@ export default function StudentDashboardPage() {
       {/* Welcome Hero Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-navy via-slate-900 to-teal-900 text-white p-6 sm:p-10 shadow-elevated">
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold mb-3 border border-teal-500/30">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Pragathi AI Foundation Program</span>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-500/30">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Pragathi AI Foundation Program</span>
+            </div>
+
+            {data.user?.studentDetails?.studentId && (
+              <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-black font-mono border border-white/30 backdrop-blur-xs">
+                <span>ID: {data.user.studentDetails.studentId}</span>
+              </div>
+            )}
+
+            {data.user?.studentDetails?.classGrade && (
+              <div className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-white/10 text-slate-200 text-xs font-semibold border border-white/20">
+                <span>
+                  Grade {data.user.studentDetails.classGrade}
+                  {data.user.studentDetails.section ? ` • Sec ${data.user.studentDetails.section}` : ''}
+                </span>
+              </div>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">

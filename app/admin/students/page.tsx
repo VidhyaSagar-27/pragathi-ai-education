@@ -22,6 +22,7 @@ import {
   Sparkles,
   MessageSquare,
   Camera,
+  Send,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
@@ -62,6 +63,63 @@ export default function AdminStudentsPage() {
   const [generatedPassword, setGeneratedPassword] = useState('Pragathi2026!');
   const [customEmail, setCustomEmail] = useState('');
   const [approvedResult, setApprovedResult] = useState<any | null>(null);
+
+  // Anytime Communications Dispatch Modal State
+  const [commModalOpen, setCommModalOpen] = useState(false);
+  const [commTargetStudent, setCommTargetStudent] = useState<User | null>(null);
+  const [commActionType, setCommActionType] = useState<
+    'SEND_CREDENTIALS' | 'RESET_PASSWORD' | 'CUSTOM_MESSAGE'
+  >('SEND_CREDENTIALS');
+  const [commNewPassword, setCommNewPassword] = useState('Pragathi2026!');
+  const [commCustomSubject, setCommCustomSubject] = useState('');
+  const [commCustomMessage, setCommCustomMessage] = useState('');
+  const [commSending, setCommSending] = useState(false);
+  const [commSuccess, setCommSuccess] = useState<string | null>(null);
+  const [commError, setCommError] = useState<string | null>(null);
+
+  const handleOpenCommModal = (stu: User) => {
+    setCommTargetStudent(stu);
+    setCommActionType('SEND_CREDENTIALS');
+    setCommNewPassword('Pragathi2026!');
+    setCommCustomSubject('');
+    setCommCustomMessage('');
+    setCommSuccess(null);
+    setCommError(null);
+    setCommModalOpen(true);
+  };
+
+  const handleSendComm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commTargetStudent) return;
+    setCommSending(true);
+    setCommSuccess(null);
+    setCommError(null);
+
+    try {
+      const res = await fetch('/api/admin/communications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: commTargetStudent.studentDetails?.studentId,
+          userId: commTargetStudent.id,
+          actionType: commActionType,
+          newPassword: commActionType === 'RESET_PASSWORD' ? commNewPassword : undefined,
+          customSubject: commActionType === 'CUSTOM_MESSAGE' ? commCustomSubject : undefined,
+          customMessage: commActionType === 'CUSTOM_MESSAGE' ? commCustomMessage : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch communication');
+
+      setCommSuccess(data.message || 'Dispatched successfully via WhatsApp and Email!');
+      loadData();
+    } catch (err: any) {
+      setCommError(err.message || 'Error dispatching communication');
+    } finally {
+      setCommSending(false);
+    }
+  };
 
   const loadData = () => {
     setLoading(true);
@@ -558,7 +616,14 @@ export default function AdminStudentsPage() {
                               </div>
                             </div>
                             <div>
-                              <div className="font-bold text-slate-900">{stu.name}</div>
+                              <div className="font-bold text-slate-900 flex items-center space-x-2">
+                                <span>{stu.name}</span>
+                                {stu.studentDetails?.studentId && (
+                                  <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-teal-100 text-teal-900 border border-teal-200">
+                                    {stu.studentDetails.studentId}
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-xs text-slate-400">{stu.email}</div>
                             </div>
                           </div>
@@ -567,6 +632,7 @@ export default function AdminStudentsPage() {
                           <div>{stu.studentDetails?.schoolName || 'N/A'}</div>
                           <span className="text-[11px] text-teal-700 font-semibold">
                             Grade {stu.studentDetails?.classGrade || 'N/A'}
+                            {stu.studentDetails?.section ? ` • Sec ${stu.studentDetails.section}` : ''}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-700">
@@ -603,7 +669,15 @@ export default function AdminStudentsPage() {
                             <span>{stu.status}</span>
                           </button>
                         </td>
-                        <td className="px-6 py-4 text-right space-x-2">
+                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={() => handleOpenCommModal(stu)}
+                            className="p-1.5 text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2.5 shadow-2xs"
+                            title="Send Credentials, Reset Password, or Dispatch Message via WhatsApp & Email"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-bold">Dispatch</span>
+                          </button>
                           <button
                             onClick={() => {
                               setPwTargetUser(stu);
@@ -993,6 +1067,207 @@ export default function AdminStudentsPage() {
                   >
                     <Check className="w-4 h-4" />
                     <span>Approve & Provision Account</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Anytime Communications & Credential Dispatch Modal */}
+      {commModalOpen && commTargetStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+                  Automated Dispatch & Helpdesk
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                  Dispatch to {commTargetStudent.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCommModalOpen(false);
+                  setCommTargetStudent(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {commSuccess ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+                  <div className="font-bold text-sm flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>Communication Dispatched Successfully!</span>
+                  </div>
+                  <p className="text-xs text-emerald-950">{commSuccess}</p>
+                  <p className="text-[11px] text-emerald-700 pt-1">
+                    Multi-channel delivery triggered for both WhatsApp (+91 {commTargetStudent.phone || 'registered number'}) and Email ({commTargetStudent.email}).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommModalOpen(false);
+                    setCommTargetStudent(null);
+                  }}
+                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSendComm} className="space-y-4">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Student ID:</span>
+                    <strong className="font-mono text-teal-800 font-bold">
+                      {commTargetStudent.studentDetails?.studentId || commTargetStudent.id}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Login Email:</span>
+                    <strong className="font-mono text-slate-800">{commTargetStudent.email}</strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">WhatsApp Mobile:</span>
+                    <strong className="font-mono text-slate-800">
+                      +91 {commTargetStudent.phone?.replace(/\D/g, '').slice(-10) || 'N/A'}
+                    </strong>
+                  </div>
+                </div>
+
+                {commError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{commError}</span>
+                  </div>
+                )}
+
+                {/* Action selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Select Dispatch Action *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCommActionType('SEND_CREDENTIALS')}
+                      className={`p-2 rounded-xl text-xs font-bold border transition cursor-pointer text-center ${
+                        commActionType === 'SEND_CREDENTIALS'
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      Send Login Credentials
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommActionType('RESET_PASSWORD')}
+                      className={`p-2 rounded-xl text-xs font-bold border transition cursor-pointer text-center ${
+                        commActionType === 'RESET_PASSWORD'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      Reset Password
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommActionType('CUSTOM_MESSAGE')}
+                      className={`p-2 rounded-xl text-xs font-bold border transition cursor-pointer text-center ${
+                        commActionType === 'CUSTOM_MESSAGE'
+                          ? 'bg-brand-navy text-white border-brand-navy shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      Custom Notice
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conditional Fields based on action */}
+                {commActionType === 'RESET_PASSWORD' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      New Password to Set & Dispatch *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={commNewPassword}
+                      onChange={(e) => setCommNewPassword(e.target.value)}
+                      placeholder="e.g. Pragathi2026!"
+                      className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono focus:bg-white focus:ring-2 focus:ring-teal-500"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      This will overwrite the password and send new login instructions immediately.
+                    </span>
+                  </div>
+                )}
+
+                {commActionType === 'CUSTOM_MESSAGE' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Notice Subject / Title *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={commCustomSubject}
+                        onChange={(e) => setCommCustomSubject(e.target.value)}
+                        placeholder="e.g. Important Class Schedule Update"
+                        className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Notice Body / Message *
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        value={commCustomMessage}
+                        onChange={(e) => setCommCustomMessage(e.target.value)}
+                        placeholder="Enter notice text to send via WhatsApp and Email..."
+                        className="w-full text-xs sm:text-sm p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {commActionType === 'SEND_CREDENTIALS' && (
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Will trigger an automated multi-channel dispatch sending this student's login ID, registered email, and direct 1-click access links to their WhatsApp mobile number and email.
+                  </p>
+                )}
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommModalOpen(false);
+                      setCommTargetStudent(null);
+                    }}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={commSending}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{commSending ? 'Dispatching...' : 'Dispatch via WhatsApp & Email'}</span>
                   </button>
                 </div>
               </form>

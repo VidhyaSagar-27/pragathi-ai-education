@@ -13,6 +13,7 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
   const [formData, setFormData] = useState({
     studentName: '',
     classGrade: '',
+    section: '',
     schoolName: '',
     parentName: '',
     mobileNumber: '',
@@ -24,6 +25,7 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [submittedPhone, setSubmittedPhone] = useState('');
+  const [submittedRegId, setSubmittedRegId] = useState('');
 
   if (!isOpen) return null;
 
@@ -46,11 +48,13 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
       }
 
       setSubmittedPhone(phoneToKeep);
+      setSubmittedRegId(data.registrationId || '');
       setStatus('success');
       setSuccessMessage(data.message);
       setFormData({
         studentName: '',
         classGrade: '',
+        section: '',
         schoolName: '',
         parentName: '',
         mobileNumber: '',
@@ -96,6 +100,12 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
                 <CheckCircle2 className="w-9 h-9" />
               </div>
               <h4 className="text-2xl font-bold text-slate-900">Application Submitted!</h4>
+              {submittedRegId && (
+                <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-mono font-bold">
+                  <span className="text-teal-400">Registration ID:</span>
+                  <span>{submittedRegId}</span>
+                </div>
+              )}
               <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
                 {successMessage}
               </p>
@@ -137,21 +147,21 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
                 </div>
               )}
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Student Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.studentName}
-                    onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                    placeholder="Full name of student"
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Student Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.studentName}
+                  onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
+                  placeholder="Full name of student"
+                  className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
+                />
+              </div>
 
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Class / Grade *
@@ -162,6 +172,19 @@ export default function RegistrationModal({ isOpen, onClose }: RegistrationModal
                     value={formData.classGrade}
                     onChange={(e) => setFormData({ ...formData, classGrade: e.target.value })}
                     placeholder="e.g. Class 8 / Grade 9"
+                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Section (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.section}
+                    onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                    placeholder="e.g. A, B, Rose"
                     className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
                   />
                 </div>

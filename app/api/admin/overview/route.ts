@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const totalQuizzes = (db.quizzes || []).length;
   const totalAssignments = (db.assignments || []).length;
   const pendingRegistrations = (db.registrations || []).filter((r) => r.status === 'PENDING').length;
+  const pendingHelpRequests = (db.helpRequests || []).filter((r) => r.status === 'PENDING').length;
   const newMessages = (db.messages || []).filter((m) => !m.isRead).length;
   const partnershipRequests = (db.partnerships || []).length;
 
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
         totalQuizzes,
         totalAssignments,
         pendingRegistrations,
+        pendingHelpRequests,
         newMessages,
         partnershipRequests,
       },

@@ -13,6 +13,12 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  HelpCircle,
+  CheckCircle2,
+  Phone,
+  Key,
+  Send,
+  X,
 } from 'lucide-react';
 
 function LoginForm() {
@@ -52,6 +58,67 @@ function LoginForm() {
       ? 'Student access required to view that page.'
       : ''
   );
+
+  // Help / Credential Request Modal State
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [helpName, setHelpName] = useState('');
+  const [helpPhone, setHelpPhone] = useState('');
+  const [helpEmail, setHelpEmail] = useState('');
+  const [helpRole, setHelpRole] = useState<'STUDENT' | 'INSTRUCTOR' | 'APPLICANT'>('STUDENT');
+  const [helpType, setHelpType] = useState<
+    'PASSWORD_RESET' | 'USER_ID_REQUEST' | 'CREDENTIALS_REQUEST' | 'GENERAL_HELP'
+  >('PASSWORD_RESET');
+  const [helpMessage, setHelpMessage] = useState('');
+  const [helpSubmitting, setHelpSubmitting] = useState(false);
+  const [helpSuccess, setHelpSuccess] = useState<string | null>(null);
+  const [helpError, setHelpError] = useState<string | null>(null);
+
+  const handleOpenHelpModal = () => {
+    setHelpRole(roleTab === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT');
+    if (identifier.includes('@')) {
+      setHelpEmail(identifier);
+    } else if (identifier.replace(/\D/g, '').length >= 10) {
+      setHelpPhone(identifier);
+    }
+    setHelpSuccess(null);
+    setHelpError(null);
+    setHelpModalOpen(true);
+  };
+
+  const handleSubmitHelpRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setHelpSubmitting(true);
+    setHelpError(null);
+    setHelpSuccess(null);
+
+    try {
+      const res = await fetch('/api/support/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterName: helpName,
+          requesterRole: helpRole,
+          requesterPhone: helpPhone,
+          requesterEmail: helpEmail,
+          type: helpType,
+          subject: `${helpRole} Request: ${helpType.replace(/_/g, ' ')}`,
+          message: helpMessage,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit request');
+
+      setHelpSuccess(
+        data.message ||
+          'Your request has been delivered to PRAGATHI AI administrators. We will send credentials to your registered WhatsApp & Email.'
+      );
+    } catch (err: any) {
+      setHelpError(err.message || 'Error submitting request. Please try again.');
+    } finally {
+      setHelpSubmitting(false);
+    }
+  };
 
   // Pure role change handler: completely isolates credentials, errors, and UI state
   const handleRoleChange = (newRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN') => {
@@ -267,6 +334,18 @@ function LoginForm() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-400">Can't sign in?</span>
+              <button
+                type="button"
+                onClick={handleOpenHelpModal}
+                className="font-semibold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer flex items-center space-x-1"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>Forgot Password or User ID?</span>
+              </button>
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"
@@ -325,6 +404,187 @@ function LoginForm() {
           </Link>
         </div>
       </div>
+
+      {/* Help & Credential Request Modal */}
+      {helpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+                  PRAGATHI AI Helpdesk
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                  Request Credentials or Assistance
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {helpSuccess ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+                  <div className="font-bold text-sm flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>Request Submitted Successfully!</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-emerald-900">
+                    {helpSuccess}
+                  </p>
+                  <p className="text-[11px] text-emerald-700 pt-1">
+                    The administration will dispatch your credentials directly to your WhatsApp mobile number and email address shortly.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHelpModalOpen(false)}
+                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitHelpRequest} className="space-y-3.5">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Lost your password or student ID? Submit your registered phone or email, and the admin team will dispatch your access credentials via WhatsApp & Email.
+                </p>
+
+                {helpError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{helpError}</span>
+                  </div>
+                )}
+
+                {/* Role selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    I am a *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['STUDENT', 'INSTRUCTOR', 'APPLICANT'] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setHelpRole(r)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          helpRole === r
+                            ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {r.charAt(0) + r.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={helpName}
+                    onChange={(e) => setHelpName(e.target.value)}
+                    placeholder="Enter your full name"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                {/* Registered Phone */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Registered WhatsApp Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">+91</span>
+                    <input
+                      type="tel"
+                      required
+                      value={helpPhone}
+                      onChange={(e) => setHelpPhone(e.target.value)}
+                      placeholder="10-digit mobile number"
+                      className="w-full text-xs sm:text-sm pl-12 pr-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Registered Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={helpEmail}
+                    onChange={(e) => setHelpEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                {/* Request Type */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    What do you need? *
+                  </label>
+                  <select
+                    value={helpType}
+                    onChange={(e) => setHelpType(e.target.value as any)}
+                    className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="PASSWORD_RESET">Reset My Password</option>
+                    <option value="USER_ID_REQUEST">Send My Student / User ID</option>
+                    <option value="CREDENTIALS_REQUEST">Send Both User ID & Password</option>
+                    <option value="GENERAL_HELP">Cannot Sign In / General Assistance</option>
+                  </select>
+                </div>
+
+                {/* Additional Note */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Notes for Administrator (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={helpMessage}
+                    onChange={(e) => setHelpMessage(e.target.value)}
+                    placeholder="Any extra details e.g. class, school, or error message..."
+                    className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setHelpModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={helpSubmitting}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{helpSubmitting ? 'Submitting...' : 'Submit Request to Admin'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

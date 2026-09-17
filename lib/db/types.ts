@@ -3,12 +3,14 @@ export type UserStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface StudentDetails {
   classGrade: string;
+  section?: string;
   schoolName: string;
   parentName: string;
   location: string;
   group: string;
   photoUrl?: string;
   familyId?: string;
+  studentId?: string;
   studentCode?: string;
   parentPhone?: string;
   parentEmail?: string;
@@ -199,24 +201,43 @@ export interface DuplicateAttemptLog {
   status: 'BLOCKED' | 'FLAGGED_FOR_REVIEW' | 'RESOLVED';
 }
 
+export interface DuplicateMatchInfo {
+  matchedRecordId: string;
+  type: 'STUDENT' | 'REGISTRATION';
+  studentName: string;
+  studentId?: string;
+  registrationId?: string;
+  classGrade?: string;
+  guardianPhone: string;
+  guardianEmail?: string;
+  matchedFields: ('PHONE' | 'EMAIL' | 'NAME')[];
+  matchDescription: string;
+  reason?: string;
+}
+
 export interface StudentRegistration {
   id: string;
+  registrationId?: string; // Sequential format: REG-2026-0001
   studentName: string;
   classGrade: string;
+  section?: string;
   schoolName: string;
   parentName: string;
   mobileNumber: string;
   email?: string;
   location: string;
   photoUrl?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVIEW';
+  studentId?: string; // Permanent format: PAI26-0001
   notes?: string;
   createdAt: string;
   approvedAt?: string;
+  acceptedAt?: string;
   assignedEmail?: string;
   temporaryPassword?: string;
   familyId?: string;
   studentCode?: string;
+  duplicateMatches?: DuplicateMatchInfo[];
   duplicateConfidence?: number;
   duplicateStatus?: 'NONE' | 'POSSIBLE_DUPLICATE' | 'CONFIRMED_DUPLICATE';
   flaggedMatchId?: string;
@@ -245,6 +266,22 @@ export interface ContactMessage {
   subject: string;
   message: string;
   isRead: boolean;
+  createdAt: string;
+}
+
+export interface AdminHelpRequest {
+  id: string;
+  requesterName: string;
+  requesterRole: 'STUDENT' | 'INSTRUCTOR' | 'APPLICANT' | 'OTHER';
+  requesterPhone?: string;
+  requesterEmail?: string;
+  studentId?: string;
+  type: 'PASSWORD_RESET' | 'USER_ID_REQUEST' | 'CREDENTIALS_REQUEST' | 'GENERAL_HELP' | 'OTHER';
+  subject: string;
+  message: string;
+  status: 'PENDING' | 'RESOLVED' | 'IN_PROGRESS';
+  adminNotes?: string;
+  resolvedAt?: string;
   createdAt: string;
 }
 
@@ -309,6 +346,37 @@ export interface CertificateItem {
   status: 'ISSUED';
 }
 
+export interface WhatsAppConfig {
+  provider?: 'META' | 'TWILIO';
+  metaApiToken?: string;
+  metaAccessToken?: string;
+  metaPhoneNumberId?: string;
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioWhatsAppNumber?: string;
+  twilioFromNumber?: string;
+}
+
+export interface GmailConfig {
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  accessToken?: string;
+  tokenExpiry?: number;
+  authorizedEmail?: string;
+  connectedAt?: string;
+}
+
+export interface EmailConfig {
+  provider?: 'RESEND' | 'SMTP' | 'GMAIL_API';
+  resendApiKey?: string;
+  fromEmail?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+}
+
 export interface WebsiteSettings {
   websiteName: string;
   programName: string;
@@ -324,7 +392,76 @@ export interface WebsiteSettings {
   aboutOverview: string;
   missionStatement: string;
   visionStatement: string;
+  whatsappConfig?: WhatsAppConfig;
+  emailConfig?: EmailConfig;
+  gmailConfig?: GmailConfig;
   updatedAt: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  studentId: string;
+  title: string;
+  message: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ALERT';
+  isRead: boolean;
+  createdAt: string;
+  link?: string;
+}
+
+export type AutomationChannel = 'WHATSAPP' | 'EMAIL' | 'IN_APP' | 'PUSH';
+export type AutomationStatus = 'SENT' | 'DELIVERED' | 'FAILED' | 'NOT_CONFIGURED' | 'RETRYING';
+export type AutomationEventName =
+  | 'REGISTRATION_SUBMITTED'
+  | 'REGISTRATION_ACCEPTED'
+  | 'REGISTRATION_REJECTED'
+  | 'PASSWORD_RESET'
+  | 'CREDENTIALS_DISPATCH'
+  | 'CUSTOM_MESSAGE'
+  | 'CLASS_REMINDER'
+  | 'ASSIGNMENT_CREATED'
+  | 'ASSIGNMENT_REMINDER'
+  | 'QUIZ_CREATED'
+  | 'QUIZ_REMINDER'
+  | 'RESULT_PUBLISHED'
+  | 'PAYMENT_CONFIRMED'
+  | 'IMPORTANT_ANNOUNCEMENT';
+
+export interface AutomationLog {
+  id: string;
+  event: AutomationEventName;
+  channel: AutomationChannel;
+  recipient: string;
+  recipientName?: string;
+  studentId?: string;
+  registrationId?: string;
+  status: AutomationStatus;
+  providerMessageId?: string;
+  errorReason?: string;
+  retryCount: number;
+  payload?: any;
+  timestamp: string;
+  updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  performedBy: string;
+  targetId: string;
+  targetType?: 'REGISTRATION' | 'STUDENT' | 'AUTOMATION' | string;
+  targetEntity?: string;
+  details: Record<string, any>;
+  timestamp: string;
+}
+
+export interface PushSubscriptionItem {
+  id: string;
+  studentId: string;
+  subscription?: any;
+  endpoint?: string;
+  keys?: { p256dh: string; auth: string };
+  createdAt: string;
 }
 
 export interface DatabaseSchema {
@@ -347,6 +484,11 @@ export interface DatabaseSchema {
   certificates: CertificateItem[];
   assignmentSubmissions?: StudentAssignmentSubmission[];
   notifications?: NotificationLog[];
+  inAppNotifications?: InAppNotification[];
+  automationLogs?: AutomationLog[];
+  auditLogs?: AuditLogEntry[];
+  pushSubscriptions?: PushSubscriptionItem[];
   families?: Family[];
   duplicateLogs?: DuplicateAttemptLog[];
+  helpRequests?: AdminHelpRequest[];
 }

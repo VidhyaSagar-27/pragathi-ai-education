@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -15,6 +15,8 @@ import {
   Sparkles,
   Save,
   Image as ImageIcon,
+  MessageSquare,
+  HelpCircle,
 } from 'lucide-react';
 
 export default function StudentProfilePage() {
@@ -179,11 +181,18 @@ export default function StudentProfilePage() {
             <div>
               <h2 className="text-lg font-black text-slate-900">{profile?.name}</h2>
               <span className="inline-block mt-0.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-teal-100/70 text-teal-800">
-                PRAGATHI AI Student ID
+                Official Student Identity
               </span>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">
-                ID: {profile?.id?.substring(0, 16)}...
-              </p>
+              <div className="mt-1 flex items-center space-x-1.5">
+                <span className="text-xs font-black font-mono px-2 py-0.5 rounded-md bg-teal-900 text-white shadow-2xs">
+                  {profile?.studentDetails?.studentId || profile?.id?.substring(0, 16)}
+                </span>
+                {profile?.studentDetails?.section && (
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                    Sec {profile.studentDetails.section}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -228,6 +237,7 @@ export default function StudentProfilePage() {
                 <span className="text-xs text-slate-400 block font-bold">School & Cohort</span>
                 <span className="text-slate-800 font-semibold">
                   {profile?.studentDetails?.schoolName || 'Enrolled School'} • Grade {profile?.studentDetails?.classGrade || 'N/A'}
+                  {profile?.studentDetails?.section ? ` (Sec ${profile.studentDetails.section})` : ''}
                 </span>
                 <span className="block text-[11px] text-teal-700 font-medium">
                   Group: {profile?.studentDetails?.group || 'Foundation Batch A'}
@@ -330,6 +340,133 @@ export default function StudentProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Student Request to Admin Card */}
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-subtle space-y-4">
+        <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+            <MessageSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Request Anything from Administration
+            </h3>
+            <p className="text-xs text-slate-500">
+              Lost login details, need a password reset, or have questions? Submit a direct ticket to administration.
+            </p>
+          </div>
+        </div>
+
+        <StudentHelpForm profile={profile} />
+      </div>
     </div>
+  );
+}
+
+function StudentHelpForm({ profile }: { profile: any }) {
+  const [reqType, setReqType] = useState('PASSWORD_RESET');
+  const [reqSubject, setReqSubject] = useState('');
+  const [reqMessage, setReqMessage] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus('loading');
+    setError('');
+
+    try {
+      const res = await fetch('/api/support/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterName: profile?.name || 'Student',
+          requesterRole: 'STUDENT',
+          requesterPhone: profile?.phone || profile?.studentDetails?.parentPhone,
+          requesterEmail: profile?.email || profile?.studentDetails?.parentEmail,
+          type: reqType,
+          subject: reqSubject.trim() || `Student Help Request: ${reqType}`,
+          message: reqMessage.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit request');
+
+      setStatus('success');
+      setReqSubject('');
+      setReqMessage('');
+    } catch (err: any) {
+      setStatus('error');
+      setError(err.message || 'Error submitting request');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+      {status === 'success' && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center space-x-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Your request has been submitted to the administration team. Credentials/reply will be sent to your registered WhatsApp & Email.</span>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1">What do you need?</label>
+          <select
+            value={reqType}
+            onChange={(e) => setReqType(e.target.value)}
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+          >
+            <option value="PASSWORD_RESET">Password Reset Assistance</option>
+            <option value="USER_ID_REQUEST">Send My Student ID Details</option>
+            <option value="CREDENTIALS_REQUEST">Send Both Student ID & Password</option>
+            <option value="GENERAL_HELP">Course / Dashboard Assistance</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1">Subject</label>
+          <input
+            type="text"
+            required
+            value={reqSubject}
+            onChange={(e) => setReqSubject(e.target.value)}
+            placeholder="e.g. Need assistance with credentials"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block font-semibold text-slate-700 mb-1">Message Details</label>
+        <textarea
+          rows={3}
+          required
+          value={reqMessage}
+          onChange={(e) => setReqMessage(e.target.value)}
+          placeholder="Describe your request to administration..."
+          className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+        />
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <button
+          type="submit"
+          disabled={status === 'loading'}
+          className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition cursor-pointer disabled:opacity-50"
+        >
+          {status === 'loading' ? 'Submitting...' : 'Submit Request to Admin'}
+        </button>
+      </div>
+    </form>
   );
 }

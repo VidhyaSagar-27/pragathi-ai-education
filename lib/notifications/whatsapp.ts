@@ -58,14 +58,24 @@ export async function sendAutomatedWhatsAppMessage({
   let errorMsg: string | undefined;
 
   try {
+    const db = await getDb();
+    const waConfig = db?.settings?.whatsappConfig;
+
+    const metaToken = waConfig?.metaAccessToken || process.env.WHATSAPP_API_TOKEN;
+    const metaPhoneId = waConfig?.metaPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    const twilioSid = waConfig?.twilioAccountSid || process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuth = waConfig?.twilioAuthToken || process.env.TWILIO_AUTH_TOKEN;
+    const twilioFrom = waConfig?.twilioFromNumber || process.env.TWILIO_WHATSAPP_NUMBER;
+
     // 1. Check Meta WhatsApp Cloud API (Graph API)
-    if (process.env.WHATSAPP_API_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    if (metaToken && metaPhoneId) {
       try {
-        const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+        const url = `https://graph.facebook.com/v19.0/${metaPhoneId}/messages`;
         const res = await fetch(url, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+            Authorization: `Bearer ${metaToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -92,19 +102,13 @@ export async function sendAutomatedWhatsAppMessage({
     }
 
     // 2. Check Twilio WhatsApp Gateway
-    else if (
-      process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_WHATSAPP_NUMBER
-    ) {
+    else if (twilioSid && twilioAuth && twilioFrom) {
       try {
-        const url = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
-        const auth = Buffer.from(
-          `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
-        ).toString('base64');
+        const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+        const auth = Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64');
 
         const params = new URLSearchParams();
-        params.append('From', `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`);
+        params.append('From', twilioFrom.startsWith('whatsapp:') ? twilioFrom : `whatsapp:${twilioFrom}`);
         params.append('To', `whatsapp:+${normalizedPhone}`);
         params.append('Body', message);
         if (mediaUrl) params.append('MediaUrl', mediaUrl);
@@ -154,7 +158,6 @@ export async function sendAutomatedWhatsAppMessage({
     }
 
     // 4. Record to Database Notification Log for Audit & Live Tracking
-    const db = await getDb();
     if (!db.notifications) {
       db.notifications = [];
     }

@@ -55,19 +55,27 @@ export async function GET(req: NextRequest) {
       const rEmail = normalizeEmail(reg.email);
       const rId = reg.id.toLowerCase();
       const rAssigned = normalizeEmail(reg.assignedEmail);
+      const rRegId = (reg.registrationId || '').toLowerCase();
+      const rStuId = (reg.studentId || '').toLowerCase();
 
       const matches =
         (cleanPhone && rPhone === cleanPhone) ||
         (cleanEmail && (rEmail === cleanEmail || rAssigned === cleanEmail)) ||
-        rId === lowerIdentifier;
+        rId === lowerIdentifier ||
+        (rRegId && rRegId === lowerIdentifier) ||
+        (rStuId && rStuId === lowerIdentifier);
 
       if (matches) {
+        // Normalize status
+        const normStatus = (reg.status === 'ACCEPTED' || reg.status === 'APPROVED') ? 'APPROVED' : reg.status;
+
         // Find linked user if approved
         const linkedUser = (db.users || []).find(
           (u) =>
             u.role === 'STUDENT' &&
             ((reg.assignedEmail && u.email.toLowerCase() === reg.assignedEmail.toLowerCase()) ||
               (reg.email && u.email.toLowerCase() === reg.email.toLowerCase()) ||
+              (reg.studentId && u.studentDetails?.studentId?.toLowerCase() === reg.studentId.toLowerCase()) ||
               u.name.toLowerCase() === reg.studentName.toLowerCase())
         );
 
@@ -79,18 +87,21 @@ export async function GET(req: NextRequest) {
 
         addStudentItem({
           id: reg.id,
+          registrationId: reg.registrationId || reg.id,
+          studentId: reg.studentId || linkedUser?.studentDetails?.studentId,
           studentCode: reg.studentCode || 'STU',
           name: reg.studentName,
-          status: reg.status,
+          status: normStatus,
           mobileNumber: reg.mobileNumber,
           schoolName: reg.schoolName,
           classGrade: reg.classGrade,
+          section: reg.section || linkedUser?.studentDetails?.section,
           location: reg.location,
           photoUrl: reg.photoUrl,
           loginEmail,
           temporaryPassword,
           createdAt: reg.createdAt,
-          approvedAt: reg.approvedAt || (reg.status === 'APPROVED' ? reg.createdAt : undefined),
+          approvedAt: reg.approvedAt || (normStatus === 'APPROVED' ? reg.createdAt : undefined),
           notes: reg.notes,
         });
       }
@@ -102,21 +113,25 @@ export async function GET(req: NextRequest) {
         const uPhone = normalizePhone(user.studentDetails?.parentPhone || user.phone);
         const uEmail = normalizeEmail(user.studentDetails?.parentEmail || user.email);
         const uId = user.id.toLowerCase();
+        const uStuId = (user.studentDetails?.studentId || '').toLowerCase();
 
         const matches =
           (cleanPhone && uPhone === cleanPhone) ||
           (cleanEmail && uEmail === cleanEmail) ||
-          uId === lowerIdentifier;
+          uId === lowerIdentifier ||
+          (uStuId && uStuId === lowerIdentifier);
 
         if (matches) {
           addStudentItem({
             id: user.id,
+            studentId: user.studentDetails?.studentId,
             studentCode: user.studentDetails?.studentCode || 'STU',
             name: user.name,
             status: user.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
             mobileNumber: user.phone || user.studentDetails?.parentPhone || '',
             schoolName: user.studentDetails?.schoolName || 'PRAGATHI AI School',
             classGrade: user.studentDetails?.classGrade || '10',
+            section: user.studentDetails?.section,
             location: user.studentDetails?.location || '',
             photoUrl: user.studentDetails?.photoUrl,
             loginEmail: user.email,

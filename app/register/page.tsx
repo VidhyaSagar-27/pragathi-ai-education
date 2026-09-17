@@ -38,6 +38,7 @@ function RegisterContent() {
   const [formData, setFormData] = useState({
     studentName: '',
     classGrade: '',
+    section: '',
     schoolName: '',
     parentName: '',
     mobileNumber: '',
@@ -50,6 +51,7 @@ function RegisterContent() {
   const [successMessage, setSuccessMessage] = useState('');
   const [submittedName, setSubmittedName] = useState('');
   const [submittedMobile, setSubmittedMobile] = useState('');
+  const [submittedRegistrationId, setSubmittedRegistrationId] = useState('');
 
   // Status Lookup State
   const [lookupQuery, setLookupQuery] = useState('');
@@ -94,6 +96,9 @@ function RegisterContent() {
       setSubmittedName(formData.studentName);
       setSubmittedMobile(formData.mobileNumber);
       setSuccessMessage(data.message);
+      if (data.registrationId) {
+        setSubmittedRegistrationId(data.registrationId);
+      }
 
       if (data.isDuplicate) {
         setStatus('duplicate');
@@ -104,6 +109,7 @@ function RegisterContent() {
       setFormData({
         studentName: '',
         classGrade: '',
+        section: '',
         schoolName: '',
         parentName: '',
         mobileNumber: '',
@@ -289,6 +295,33 @@ function RegisterContent() {
                   </p>
                 </div>
 
+                {submittedRegistrationId && (
+                  <div className="p-4 bg-teal-50/90 border-2 border-teal-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-teal-800 block">
+                        Official Application Registration ID
+                      </span>
+                      <span className="text-lg font-black font-mono text-teal-950">
+                        {submittedRegistrationId}
+                      </span>
+                      <span className="text-[11px] text-teal-700 block mt-0.5">
+                        Keep this Registration ID handy to check your approval status.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(submittedRegistrationId);
+                        alert(`Copied Registration ID: ${submittedRegistrationId}`);
+                      }}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center space-x-1.5 shadow-xs shrink-0 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy ID</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs text-slate-600 space-y-2">
                   <p className="font-bold text-slate-800 flex items-center space-x-1.5">
                     <ShieldCheck className="w-4 h-4 text-teal-600" />
@@ -362,22 +395,23 @@ function RegisterContent() {
                     </div>
                   )}
 
-                  {/* Student Name & Grade */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Student Full Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.studentName}
-                        onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                        placeholder="e.g. Aarav Sharma"
-                        className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                      />
-                    </div>
+                  {/* Student Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Student Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.studentName}
+                      onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
+                      placeholder="e.g. Aarav Sharma"
+                      className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                    />
+                  </div>
 
+                  {/* Class / Grade & Section */}
+                  <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Class / Grade *
@@ -397,6 +431,20 @@ function RegisterContent() {
                         <option value="11">Grade 11</option>
                         <option value="12">Grade 12</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Section (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.section}
+                        onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                        placeholder="e.g. Section A, B, or Rose"
+                        maxLength={15}
+                        className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                      />
                     </div>
                   </div>
 
@@ -654,7 +702,15 @@ function RegisterContent() {
                               </h2>
                               <p className="text-xs text-slate-600">
                                 {currentStudent?.schoolName} • Grade {currentStudent?.classGrade}
+                                {currentStudent?.section ? ` • Sec ${currentStudent?.section}` : ''}
                               </p>
+                              {currentStudent?.studentId && (
+                                <div className="mt-1">
+                                  <span className="text-[11px] font-black font-mono px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-950 border border-emerald-300">
+                                    Student ID: {currentStudent.studentId}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -799,7 +855,15 @@ function RegisterContent() {
                             </h2>
                             <p className="text-xs text-slate-600">
                               {currentStudent?.schoolName} • Grade {currentStudent?.classGrade}
+                              {currentStudent?.section ? ` • Sec ${currentStudent?.section}` : ''}
                             </p>
+                            {currentStudent?.registrationId && (
+                              <div className="mt-1">
+                                <span className="text-[11px] font-black font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-950 border border-amber-300">
+                                  Registration ID: {currentStudent.registrationId}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -857,7 +921,7 @@ function RegisterContent() {
                   <a href="mailto:support@pragathiai.com" className="font-semibold text-teal-700 underline">
                     support@pragathiai.com
                   </a>{' '}
-                  or call +91 9618611522.
+                  or call +91 9618611522 / +91 6281738986.
                 </p>
               </div>
             </div>

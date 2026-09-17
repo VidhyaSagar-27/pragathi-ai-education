@@ -327,6 +327,26 @@ export async function getDb(forceFresh = false): Promise<DatabaseSchema> {
       db.duplicateLogs = [];
       needsUpdate = true;
     }
+    if (!db.inAppNotifications) {
+      db.inAppNotifications = [];
+      needsUpdate = true;
+    }
+    if (!db.automationLogs) {
+      db.automationLogs = [];
+      needsUpdate = true;
+    }
+    if (!db.auditLogs) {
+      db.auditLogs = [];
+      needsUpdate = true;
+    }
+    if (!db.pushSubscriptions) {
+      db.pushSubscriptions = [];
+      needsUpdate = true;
+    }
+    if (!db.helpRequests) {
+      db.helpRequests = [];
+      needsUpdate = true;
+    }
     if (!db.settings) {
       db.settings = INITIAL_SETTINGS;
       needsUpdate = true;
@@ -376,4 +396,65 @@ export function getFallbackPublicData() {
     achievements: [],
     testimonials: [],
   };
+}
+
+let sequenceTableEnsured = false;
+
+export async function ensureSequenceTable(): Promise<void> {
+  if (sequenceTableEnsured) return;
+  try {
+    const sql = getSqlClient();
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_sequences (
+        name VARCHAR(64) PRIMARY KEY,
+        last_value BIGINT NOT NULL DEFAULT 0
+      );
+    `;
+    sequenceTableEnsured = true;
+  } catch (err) {
+    console.warn('Could not ensure app_sequences table in Postgres, fallback to DB sequence state:', err);
+  }
+}
+
+export async function getNextAtomicSequence(sequenceName: 'registration_id' | 'student_id'): Promise<number> {
+  await ensureSequenceTable();
+  try {
+    const sql = getSqlClient();
+    const rows = await sql`
+      INSERT INTO app_sequences (name, last_value)
+      VALUES (${sequenceName}, 1)
+      ON CONFLICT (name) DO UPDATE
+      SET last_value = app_sequences.last_value + 1
+      RETURNING last_value;
+    `;
+    if (rows && rows.length > 0 && rows[0].last_value !== undefined) {
+      return Number(rows[0].last_value);
+    }
+  } catch (err) {
+    console.warn(`Atomic sequence query failed for ${sequenceName}, using in-db sequence fallback:`, err);
+  }
+
+  // Fallback if Postgres sequence table is temporarily unreachable:
+  let fallbackVal = 1;
+  await updateDb((db) => {
+    if (sequenceName === 'registration_id') {
+      fallbackVal = (db.registrations?.length || 0) + 1;
+    } else {
+      const studentCount = (db.users?.filter((u) => u.role === 'STUDENT').length || 0);
+      fallbackVal = studentCount + 1;
+    }
+  });
+  return fallbackVal;
+}
+
+export async function generateRegistrationId(): Promise<string> {
+  const seq = await getNextAtomicSequence('registration_id');
+  const year = new Date().getFullYear();
+  return `REG-${year}-${String(seq).padStart(4, '0')}`;
+}
+
+export async function generateStudentId(): Promise<string> {
+  const seq = await getNextAtomicSequence('student_id');
+  const yearSuffix = String(new Date().getFullYear()).slice(-2);
+  return `PAI${yearSuffix}-${String(seq).padStart(4, '0')}`;
 }

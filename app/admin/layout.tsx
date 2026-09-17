@@ -23,6 +23,7 @@ import {
   Layers,
   FileQuestion,
   Bell,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [adminUser, setAdminUser] = useState<any>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingHelpCount, setPendingHelpCount] = useState(0);
 
   const fetchPending = () => {
     fetch(`/api/admin/overview?_t=${Date.now()}`, { cache: 'no-store' })
@@ -38,6 +40,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then((d) => {
         if (d?.stats?.pendingRegistrations !== undefined) {
           setPendingCount(d.stats.pendingRegistrations);
+        }
+        if (d?.stats?.pendingHelpRequests !== undefined) {
+          setPendingHelpCount(d.stats.pendingHelpRequests);
         }
       })
       .catch(() => {});
@@ -76,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       items: [
         { label: 'Overview', href: '/admin', icon: LayoutDashboard },
         { label: 'Student Registrations', href: '/admin/registrations', icon: UserCheck },
+        { label: 'Automation & Logs', href: '/admin/automation', icon: Bell },
         { label: 'School Partnerships', href: '/admin/partnerships', icon: Building2 },
         { label: 'Contact Messages', href: '/admin/messages', icon: Mail },
       ],
@@ -84,6 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       group: 'User Management',
       items: [
         { label: 'Manage Students', href: '/admin/students', icon: Users },
+        { label: 'Help & Password Requests', href: '/admin/requests', icon: MessageSquare },
         { label: 'Manage Instructors', href: '/admin/instructors', icon: GraduationCap },
         { label: 'Student Log Reports', href: '/admin/reports', icon: Trophy },
       ],
@@ -182,6 +189,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       {(item.href === '/admin/registrations' || item.href === '/admin/students') && pendingCount > 0 && (
                         <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
                           {pendingCount}
+                        </span>
+                      )}
+                      {item.href === '/admin/requests' && pendingHelpCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                          {pendingHelpCount}
                         </span>
                       )}
                     </Link>

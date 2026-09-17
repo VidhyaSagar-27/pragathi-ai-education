@@ -40,9 +40,11 @@ export default async function ContactPage() {
                 <Phone className="w-5 h-5" />
               </div>
               <h3 className="font-bold text-slate-900 text-sm">Call Us Directly</h3>
-              <p className="text-xs text-slate-500">Mon–Sat, 9am to 6pm IST</p>
-              <a href={`tel:${settings.phonePrimary || '+919618611522'}`} className="block text-xs font-bold text-teal-700 hover:underline pt-1">
+              <a href={`tel:${(settings.phonePrimary || '+919618611522').replace(/\s+/g, '')}`} className="block text-xs font-bold text-teal-700 hover:underline pt-1">
                 {settings.phonePrimary || '+91 9618611522'}
+              </a>
+              <a href={`tel:${(settings.phoneSecondary || '+916281738986').replace(/\s+/g, '')}`} className="block text-xs font-bold text-teal-700 hover:underline">
+                {settings.phoneSecondary || '+91 6281738986'}
               </a>
             </div>
 

@@ -23,6 +23,21 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [studentUser, setStudentUser] = useState<any>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const fetchNotifications = () => {
+    fetch('/api/student/notifications?_t=' + Date.now())
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) {
+          setNotifications(d.notifications || []);
+          setUnreadCount(d.unreadCount || 0);
+        }
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -36,12 +51,28 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       .then((data) => {
         if (data?.authenticated && (data.user.role === 'STUDENT' || data.user.role === 'ADMIN')) {
           setStudentUser(data.user);
+          fetchNotifications();
         } else if (data?.authenticated && data.user.role !== 'STUDENT') {
           router.push('/instructor');
         }
       })
       .catch(() => router.push('/login'));
+
+    // Register Service Worker for Web Push if supported
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   }, [router]);
+
+  const handleMarkAllAsRead = async () => {
+    await fetch('/api/student/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markAllAsRead: true }),
+    });
+    setUnreadCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -98,16 +129,82 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </div>
           </div>
 
-          {/* Student Profile snippet */}
+          {/* Student Profile snippet with official Student ID */}
           {studentUser && (
-            <div className="my-4 p-3 bg-teal-50/70 border border-teal-100 rounded-xl">
-              <p className="text-xs font-bold text-teal-950 truncate">{studentUser.name}</p>
-              <p className="text-[11px] text-teal-700 truncate">
+            <div className="my-3 p-3 bg-teal-50/80 border border-teal-200 rounded-2xl space-y-1.5 relative">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-slate-900 truncate">{studentUser.name}</p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setNotifOpen(!notifOpen)}
+                    className="p-1 text-teal-800 hover:text-teal-950 rounded-lg hover:bg-teal-100 transition relative cursor-pointer"
+                    title="In-App Notifications"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-teal-800 font-medium truncate">
                 {studentUser.studentDetails?.schoolName || 'Foundation Program'}
               </p>
-              <span className="inline-block mt-1 text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded">
-                Grade: {studentUser.studentDetails?.classGrade || 'Student'}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {studentUser.studentDetails?.studentId ? (
+                  <span className="text-[10px] font-black font-mono bg-teal-800 text-white px-2 py-0.5 rounded-md shadow-2xs">
+                    {studentUser.studentDetails.studentId}
+                  </span>
+                ) : null}
+                <span className="text-[10px] font-bold bg-white text-slate-700 border border-teal-200 px-1.5 py-0.5 rounded">
+                  Grade {studentUser.studentDetails?.classGrade || 'Student'}
+                  {studentUser.studentDetails?.section ? ` • Sec ${studentUser.studentDetails.section}` : ''}
+                </span>
+              </div>
+
+              {/* In-App Notifications Dropdown */}
+              {notifOpen && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 z-50 space-y-2 max-h-80 overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Notifications ({unreadCount} new)
+                    </span>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllAsRead}
+                        className="text-[10px] font-bold text-teal-700 hover:underline"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3 text-center">No notifications yet.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`p-2 rounded-xl text-xs space-y-0.5 ${
+                            n.isRead ? 'bg-slate-50 text-slate-600' : 'bg-teal-50/70 text-slate-900 border border-teal-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[11px]">{n.title}</span>
+                            <span className="text-[9px] text-slate-400">
+                              {new Date(n.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-slate-700">{n.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

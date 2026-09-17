@@ -41,19 +41,18 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'APPROVE') {
-      const studentEmail = (
+      let studentEmail = (
         customEmail ||
         reg.email ||
         `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`
       ).trim().toLowerCase();
 
-      // Check if student user already exists
-      const existingUser = db.users.find((u) => u.email.toLowerCase() === studentEmail);
-      if (existingUser) {
-        return NextResponse.json(
-          { error: `A user with email ${studentEmail} already exists.` },
-          { status: 400 }
-        );
+      // If user with this email already exists, auto-resolve with a unique email so Admin is never blocked!
+      // This allows accepting multiple students with identical details (same phone, email, name, etc.).
+      if (db.users.some((u) => u.email.toLowerCase() === studentEmail)) {
+        const base = reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'student';
+        const suffix = Math.random().toString(36).substring(2, 6);
+        studentEmail = `${base}_${suffix}@pragathiai.student`;
       }
 
       const rawPassword = initialPassword || 'Pragathi2026!';
@@ -75,7 +74,6 @@ export async function PATCH(req: NextRequest) {
           location: reg.location,
           group: 'Foundation Batch A',
           photoUrl: reg.photoUrl,
-          familyId: reg.familyId,
           studentCode: reg.studentCode,
           parentPhone: reg.mobileNumber,
           parentEmail: reg.email,
@@ -93,14 +91,6 @@ export async function PATCH(req: NextRequest) {
           item.approvedAt = new Date().toISOString();
         }
         dbState.users.push(newStudentUser);
-
-        // Associate with family studentIds
-        if (reg.familyId && dbState.families) {
-          const fam = dbState.families.find((f) => f.id === reg.familyId);
-          if (fam && !fam.studentIds.includes(newStudentUser.id)) {
-            fam.studentIds.push(newStudentUser.id);
-          }
-        }
       });
 
       // Dispatch credentials notification (WhatsApp, SMS, and Email)

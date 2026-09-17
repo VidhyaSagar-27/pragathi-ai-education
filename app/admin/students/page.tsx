@@ -21,8 +21,10 @@ import {
   Calendar,
   Sparkles,
   MessageSquare,
+  Camera,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
+import StudentPhotoModal from '@/components/StudentPhotoModal';
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -30,6 +32,10 @@ export default function AdminStudentsPage() {
   const [activeTab, setActiveTab] = useState<'enrolled' | 'pending'>('enrolled');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Student Photo Modal State
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [activePhotoStudent, setActivePhotoStudent] = useState<User | null>(null);
 
   // Add / Edit Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -84,6 +90,39 @@ export default function AdminStudentsPage() {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
+
+  const handleOpenPhotoModal = (stu: User) => {
+    setActivePhotoStudent(stu);
+    setPhotoModalOpen(true);
+  };
+
+  const handlePhotoSaved = (newUrl: string | null) => {
+    if (!activePhotoStudent) return;
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === activePhotoStudent.id) {
+          const baseDetails = s.studentDetails || {
+            classGrade: '10',
+            schoolName: '',
+            parentName: '',
+            location: '',
+            group: 'Foundation Batch A',
+          };
+          return {
+            ...s,
+            studentDetails: {
+              ...baseDetails,
+              photoUrl: newUrl || undefined,
+            },
+          };
+        }
+        return s;
+      })
+    );
+    if (editingId === activePhotoStudent.id) {
+      setPhotoUrl(newUrl || '');
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingId(null);
@@ -486,10 +525,11 @@ export default function AdminStudentsPage() {
                 <table className="w-full text-left text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[11px] font-semibold">
                     <tr>
-                      <th className="px-6 py-4">Student Details</th>
+                      <th className="px-6 py-4">Student & Photo</th>
                       <th className="px-6 py-4">School & Grade</th>
                       <th className="px-6 py-4">Parent & Contact</th>
                       <th className="px-6 py-4">Cohort Group</th>
+                      <th className="px-6 py-4 text-center">Photo</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -499,7 +539,11 @@ export default function AdminStudentsPage() {
                       <tr key={stu.id} className="hover:bg-slate-50/80 transition">
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 rounded-xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-700 shrink-0">
+                            <div
+                              onClick={() => handleOpenPhotoModal(stu)}
+                              className="relative group w-11 h-11 rounded-2xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-800 shrink-0 cursor-pointer shadow-xs"
+                              title="Click to change or capture photo"
+                            >
                               {stu.studentDetails?.photoUrl ? (
                                 <img
                                   src={stu.studentDetails.photoUrl}
@@ -507,8 +551,11 @@ export default function AdminStudentsPage() {
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                stu.name.charAt(0)
+                                <span className="text-base">{stu.name.charAt(0).toUpperCase()}</span>
                               )}
+                              <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Camera className="w-4 h-4" />
+                              </div>
                             </div>
                             <div>
                               <div className="font-bold text-slate-900">{stu.name}</div>
@@ -530,6 +577,17 @@ export default function AdminStudentsPage() {
                           <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">
                             {stu.studentDetails?.group || 'Foundation Batch'}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPhotoModal(stu)}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 text-xs font-bold transition shadow-2xs cursor-pointer"
+                            title="Capture or upload student photo from camera or library"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-teal-600" />
+                            <span>{stu.studentDetails?.photoUrl ? 'Update Photo' : 'Add Photo'}</span>
+                          </button>
                         </td>
                         <td className="px-6 py-4">
                           <button
@@ -707,14 +765,62 @@ export default function AdminStudentsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Student Photo URL</label>
-                <input
-                  type="text"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="https://... or data:image/..."
-                  className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl"
-                />
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Student Photo</label>
+                <div className="flex items-center space-x-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
+                    {photoUrl ? (
+                      <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingId) {
+                            const currentStu = students.find((s) => s.id === editingId);
+                            if (currentStu) handleOpenPhotoModal(currentStu);
+                          } else {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (ev: any) => {
+                              const file = ev.target?.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (e) => {
+                                  if (e.target?.result) {
+                                    setPhotoUrl(String(e.target.result));
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            };
+                            input.click();
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold inline-flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>{photoUrl ? 'Change Photo (Camera/Library)' : 'Capture / Upload Photo'}</span>
+                      </button>
+                      {photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoUrl('')}
+                          className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Both Admin and Instructor can capture student photos using live camera or select from file library.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end space-x-3">
@@ -895,6 +1001,25 @@ export default function AdminStudentsPage() {
         </div>
       )}
 
+      {/* Student Photo Camera & Library Modal */}
+      <StudentPhotoModal
+        isOpen={photoModalOpen}
+        onClose={() => {
+          setPhotoModalOpen(false);
+          setActivePhotoStudent(null);
+        }}
+        student={
+          activePhotoStudent
+            ? {
+                id: activePhotoStudent.id,
+                name: activePhotoStudent.name,
+                email: activePhotoStudent.email,
+                photoUrl: activePhotoStudent.studentDetails?.photoUrl,
+              }
+            : null
+        }
+        onPhotoSaved={handlePhotoSaved}
+      />
     </div>
   );
 }

@@ -49,8 +49,6 @@ export async function GET(req: NextRequest) {
       }
     };
 
-    let matchedFamilyId: string | undefined;
-
     // 1. Check all registrations
     for (const reg of db.registrations || []) {
       const rPhone = normalizePhone(reg.mobileNumber);
@@ -64,8 +62,6 @@ export async function GET(req: NextRequest) {
         rId === lowerIdentifier;
 
       if (matches) {
-        if (reg.familyId) matchedFamilyId = reg.familyId;
-
         // Find linked user if approved
         const linkedUser = (db.users || []).find(
           (u) =>
@@ -96,7 +92,6 @@ export async function GET(req: NextRequest) {
           createdAt: reg.createdAt,
           approvedAt: reg.approvedAt || (reg.status === 'APPROVED' ? reg.createdAt : undefined),
           notes: reg.notes,
-          familyId: reg.familyId,
         });
       }
     }
@@ -114,8 +109,6 @@ export async function GET(req: NextRequest) {
           uId === lowerIdentifier;
 
         if (matches) {
-          if (user.studentDetails?.familyId) matchedFamilyId = user.studentDetails.familyId;
-
           addStudentItem({
             id: user.id,
             studentCode: user.studentDetails?.studentCode || 'STU',
@@ -130,62 +123,7 @@ export async function GET(req: NextRequest) {
             temporaryPassword: 'Pragathi2026!',
             createdAt: user.createdAt,
             approvedAt: user.createdAt,
-            familyId: user.studentDetails?.familyId,
           });
-        }
-      }
-    }
-
-    // 3. If matched with a Family, bring in all other siblings in this family
-    if (matchedFamilyId) {
-      const family = (db.families || []).find((f) => f.id === matchedFamilyId);
-      if (family) {
-        // Collect registrations in family
-        for (const reg of db.registrations || []) {
-          if (reg.familyId === matchedFamilyId) {
-            const loginEmail =
-              reg.assignedEmail ||
-              `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`;
-            addStudentItem({
-              id: reg.id,
-              studentCode: reg.studentCode || 'STU',
-              name: reg.studentName,
-              status: reg.status,
-              mobileNumber: reg.mobileNumber,
-              schoolName: reg.schoolName,
-              classGrade: reg.classGrade,
-              location: reg.location,
-              photoUrl: reg.photoUrl,
-              loginEmail,
-              temporaryPassword: reg.temporaryPassword || 'Pragathi2026!',
-              createdAt: reg.createdAt,
-              approvedAt: reg.approvedAt,
-              notes: reg.notes,
-              familyId: reg.familyId,
-            });
-          }
-        }
-
-        // Collect users in family
-        for (const user of db.users || []) {
-          if (user.role === 'STUDENT' && user.studentDetails?.familyId === matchedFamilyId) {
-            addStudentItem({
-              id: user.id,
-              studentCode: user.studentDetails?.studentCode || 'STU',
-              name: user.name,
-              status: user.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
-              mobileNumber: user.phone || user.studentDetails?.parentPhone || '',
-              schoolName: user.studentDetails?.schoolName || 'PRAGATHI AI School',
-              classGrade: user.studentDetails?.classGrade || '10',
-              location: user.studentDetails?.location || '',
-              photoUrl: user.studentDetails?.photoUrl,
-              loginEmail: user.email,
-              temporaryPassword: 'Pragathi2026!',
-              createdAt: user.createdAt,
-              approvedAt: user.createdAt,
-              familyId: user.studentDetails?.familyId,
-            });
-          }
         }
       }
     }
@@ -218,7 +156,6 @@ export async function GET(req: NextRequest) {
         student: primaryStudent,
         familyStudents,
         totalChildren: familyStudents.length,
-        familyId: matchedFamilyId,
         message:
           primaryStudent.status === 'PENDING'
             ? 'Your registration application is under review by PRAGATHI AI administrators. Once accepted, your login credentials will be displayed here immediately and sent via WhatsApp/SMS.'

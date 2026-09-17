@@ -22,7 +22,6 @@ import {
   Family,
   DuplicateAttemptLog,
 } from './types';
-import { syncAllFamilies } from '@/lib/family/duplicateEngine';
 import { INBUILT_ASSIGNMENTS, INBUILT_QUIZZES } from './initialContent';
 
 const INITIAL_MODULES: ModuleItem[] = [
@@ -323,8 +322,6 @@ export async function getDb(forceFresh = false): Promise<DatabaseSchema> {
     }
     if (!db.families) {
       db.families = [];
-      syncAllFamilies(db);
-      needsUpdate = true;
     }
     if (!db.duplicateLogs) {
       db.duplicateLogs = [];

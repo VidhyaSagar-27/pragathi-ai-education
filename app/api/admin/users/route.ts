@@ -9,12 +9,17 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
-  if (!session || session.role !== 'ADMIN') {
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
   const { searchParams } = new URL(req.url);
-  const role = searchParams.get('role');
+  let role = searchParams.get('role');
+
+  // Instructors are scoped to viewing students
+  if (session.role === 'INSTRUCTOR') {
+    role = 'STUDENT';
+  }
 
   const db = await getDb();
   let users = db.users || [];

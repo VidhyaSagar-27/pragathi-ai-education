@@ -12,10 +12,15 @@ import {
   Send,
   PenTool,
   Search,
+  ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { User } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
-import CommunicationModal, { CommunicationMode } from '@/components/CommunicationModal';
+import CommunicationModal, {
+  CommunicationMode,
+  CommunicationAction,
+} from '@/components/CommunicationModal';
 
 export default function InstructorStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -30,15 +35,31 @@ export default function InstructorStudentsPage() {
   const [commModalOpen, setCommModalOpen] = useState(false);
   const [commMode, setCommMode] = useState<CommunicationMode>('INDIVIDUAL');
   const [commTargetStudent, setCommTargetStudent] = useState<User | null>(null);
+  const [commInitialAction, setCommInitialAction] = useState<CommunicationAction>('CUSTOM_MESSAGE');
+  const [commInitialChannels, setCommInitialChannels] = useState<{ wa?: boolean; email?: boolean }>({
+    wa: true,
+    email: true,
+  });
 
-  const fetchStudents = () => {
-    fetch('/api/admin/users?role=STUDENT')
-      .then((r) => (r.ok ? r.json() : { users: [] }))
-      .then((data) => {
+  const fetchStudents = async () => {
+    setLoading(true);
+    try {
+      // First try dedicated instructor students route
+      const res = await fetch('/api/instructor/students?t=' + Date.now(), { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
         setStudents(data.users || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      } else {
+        // Fallback to admin users query
+        const fallback = await fetch('/api/admin/users?role=STUDENT&t=' + Date.now(), { cache: 'no-store' });
+        const fallbackData = await fallback.json();
+        setStudents(fallbackData.users || []);
+      }
+    } catch (err) {
+      console.error('Failed to load enrolled students:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -68,21 +89,31 @@ export default function InstructorStudentsPage() {
     );
   };
 
-  const handleOpenComm = (stu: User) => {
+  const handleOpenComm = (
+    stu: User,
+    action: CommunicationAction = 'CUSTOM_MESSAGE',
+    channels: { wa?: boolean; email?: boolean } = { wa: true, email: true }
+  ) => {
     setCommTargetStudent(stu);
     setCommMode('INDIVIDUAL');
+    setCommInitialAction(action);
+    setCommInitialChannels(channels);
     setCommModalOpen(true);
   };
 
   const handleOpenBroadcast = () => {
     setCommTargetStudent(null);
     setCommMode('BROADCAST');
+    setCommInitialAction('CUSTOM_MESSAGE');
+    setCommInitialChannels({ wa: true, email: true });
     setCommModalOpen(true);
   };
 
   const handleOpenManual = () => {
     setCommTargetStudent(null);
     setCommMode('MANUAL');
+    setCommInitialAction('CUSTOM_MESSAGE');
+    setCommInitialChannels({ wa: true, email: true });
     setCommModalOpen(true);
   };
 
@@ -112,11 +143,21 @@ export default function InstructorStudentsPage() {
             Enrolled Students Roster
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Active students in your cohort. Send individual or broadcast notices via WhatsApp & Email directly to students.
+            Active students in your cohort. Message students individually via WhatsApp & Email or broadcast announcements to the entire class.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Refresh */}
+          <button
+            type="button"
+            onClick={fetchStudents}
+            className="p-2.5 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl transition shadow-2xs hover:bg-slate-50 cursor-pointer"
+            title="Refresh student list"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
           {/* Manual Send */}
           <button
             type="button"
@@ -134,7 +175,7 @@ export default function InstructorStudentsPage() {
             onClick={handleOpenBroadcast}
             disabled={students.length === 0}
             className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm cursor-pointer disabled:opacity-50"
-            title="Broadcast announcement to all enrolled students"
+            title="Broadcast announcement to all enrolled students via WhatsApp & Email"
           >
             <Send className="w-4 h-4" />
             <span>Broadcast Students ({students.length})</span>
@@ -165,7 +206,7 @@ export default function InstructorStudentsPage() {
                   <th className="px-6 py-4">Parent / Guardian</th>
                   <th className="px-6 py-4">Contact Phone</th>
                   <th className="px-6 py-4">Cohort Group</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 text-right">Email & WhatsApp Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -210,7 +251,7 @@ export default function InstructorStudentsPage() {
                     <td className="px-6 py-4 text-slate-700">
                       {stu.studentDetails?.parentName || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 text-slate-700">
+                    <td className="px-6 py-4 text-slate-700 font-mono">
                       {stu.phone || stu.studentDetails?.parentPhone || 'N/A'}
                     </td>
                     <td className="px-6 py-4">
@@ -218,26 +259,49 @@ export default function InstructorStudentsPage() {
                         {stu.studentDetails?.group || 'Foundation Batch'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      {/* Send Message Button */}
+                    <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
+                      {/* WhatsApp Quick Send Button */}
                       <button
                         type="button"
-                        onClick={() => handleOpenComm(stu)}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 text-xs font-bold transition shadow-2xs cursor-pointer"
-                        title="Send WhatsApp & Email message to student"
+                        onClick={() => handleOpenComm(stu, 'CUSTOM_MESSAGE', { wa: true, email: false })}
+                        className="p-1.5 text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2.5 shadow-2xs"
+                        title="Send WhatsApp Message"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-[11px] font-bold">WhatsApp</span>
+                      </button>
+
+                      {/* Email Quick Send Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenComm(stu, 'CUSTOM_MESSAGE', { wa: false, email: true })}
+                        className="p-1.5 text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2.5 shadow-2xs"
+                        title="Send Email"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-teal-600" />
+                        <span className="text-[11px] font-bold">Email</span>
+                      </button>
+
+                      {/* Full Dispatch Credentials / Notice Modal */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenComm(stu, 'CUSTOM_MESSAGE', { wa: true, email: true })}
+                        className="p-1.5 text-brand-navy hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2.5 shadow-2xs"
+                        title="Dispatch Message or Credentials via WhatsApp & Email"
                       >
                         <Send className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Message</span>
+                        <span className="text-[11px] font-bold">Dispatch</span>
                       </button>
 
                       {/* Photo Button */}
                       <button
                         type="button"
                         onClick={() => handleOpenPhotoModal(stu)}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+                        title="Update student photo"
                       >
                         <Camera className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{stu.studentDetails?.photoUrl ? 'Photo' : '+ Photo'}</span>
+                        <span>Photo</span>
                       </button>
                     </td>
                   </tr>
@@ -289,6 +353,8 @@ export default function InstructorStudentsPage() {
         onSuccess={fetchStudents}
         mode={commMode}
         targetRole="STUDENT"
+        initialAction={commInitialAction}
+        initialChannels={commInitialChannels}
         targetUser={
           commTargetStudent
             ? {

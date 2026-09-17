@@ -25,10 +25,100 @@ export async function POST(req: NextRequest) {
       newPassword,
       customSubject,
       customMessage,
+      recipientScope = 'INDIVIDUAL', // 'INDIVIDUAL' | 'BROADCAST' | 'SELECTED'
+      channels: rawChannels,
+      selectedStudentIds,
     } = body;
+
+    const channels: ('WHATSAPP' | 'EMAIL')[] =
+      Array.isArray(rawChannels) && rawChannels.length > 0
+        ? rawChannels.filter((c) => c === 'WHATSAPP' || c === 'EMAIL')
+        : ['WHATSAPP', 'EMAIL'];
 
     const db = await getDb();
     const origin = req.nextUrl?.origin || 'https://pragathi-ai-education.vercel.app';
+
+    // =========================================================================
+    // BROADCAST / SELECTED BATCH DISPATCH
+    // =========================================================================
+    if (recipientScope === 'BROADCAST' || recipientScope === 'SELECTED') {
+      let targetStudents = (db.users || []).filter((u) => u.role === 'STUDENT');
+
+      if (recipientScope === 'SELECTED' && Array.isArray(selectedStudentIds) && selectedStudentIds.length > 0) {
+        targetStudents = targetStudents.filter(
+          (u) =>
+            selectedStudentIds.includes(u.id) ||
+            (u.studentDetails?.studentId && selectedStudentIds.includes(u.studentDetails.studentId))
+        );
+      }
+
+      if (targetStudents.length === 0) {
+        return NextResponse.json(
+          { error: 'No enrolled students found matching the selected broadcast criteria.' },
+          { status: 400 }
+        );
+      }
+
+      if (actionType === 'CUSTOM_MESSAGE' && !customMessage?.trim()) {
+        return NextResponse.json({ error: 'Broadcast message content cannot be empty.' }, { status: 400 });
+      }
+
+      let emailSuccessCount = 0;
+      let waSuccessCount = 0;
+      const batchLogs: any[] = [];
+
+      for (const s of targetStudents) {
+        const sPhone = s.phone || s.studentDetails?.parentPhone;
+        const sEmail = s.email;
+        const sId = s.studentDetails?.studentId || s.id;
+
+        const autoRes = await triggerAutomationEvent({
+          event: actionType === 'SEND_CREDENTIALS' ? 'CREDENTIALS_DISPATCH' : 'CUSTOM_MESSAGE',
+          studentId: sId,
+          studentName: s.name,
+          recipientMobile: sPhone,
+          recipientEmail: sEmail,
+          performedBy: session.name || session.email || 'Admin',
+          channels,
+          metadata: {
+            subject: customSubject || 'Important Announcement from PRAGATHI AI',
+            message: customMessage || '',
+            classGrade: s.studentDetails?.classGrade || '10',
+            section: s.studentDetails?.section || 'A',
+            parentName: s.studentDetails?.parentName || 'Parent',
+            loginEmail: s.email,
+            temporaryPassword: 'Pragathi2026!',
+            origin,
+          },
+        });
+
+        if (autoRes.results?.EMAIL?.status === 'SENT') emailSuccessCount++;
+        if (autoRes.results?.WHATSAPP?.status === 'DELIVERED') waSuccessCount++;
+
+        batchLogs.push({
+          studentId: sId,
+          studentName: s.name,
+          results: autoRes.results,
+        });
+      }
+
+      const channelSummary = channels.join(' & ');
+      return NextResponse.json({
+        success: true,
+        message: `Broadcast successfully completed to ${targetStudents.length} students via ${channelSummary}.`,
+        scope: recipientScope,
+        totalRecipients: targetStudents.length,
+        delivered: {
+          email: emailSuccessCount,
+          whatsapp: waSuccessCount,
+        },
+        batchLogs,
+      });
+    }
+
+    // =========================================================================
+    // INDIVIDUAL DISPATCH
+    // =========================================================================
 
     // Find student if studentUserId or userId provided
     const targetUserId = studentUserId || body.userId;
@@ -56,6 +146,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const channelSummary = channels.join(' & ');
+
     // 1. ACTION: SEND_CREDENTIALS
     if (actionType === 'SEND_CREDENTIALS') {
       const loginEmail = studentUser?.email || registration?.assignedEmail || targetEmail;
@@ -69,6 +161,7 @@ export async function POST(req: NextRequest) {
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
         performedBy: session.name || session.email || 'Admin',
+        channels,
         metadata: {
           classGrade: studentUser?.studentDetails?.classGrade || registration?.classGrade || '10',
           section: studentUser?.studentDetails?.section || registration?.section || 'A',
@@ -79,10 +172,25 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
+      const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+
       return NextResponse.json({
         success: true,
-        message: `Credentials dispatched to ${targetName} via WhatsApp & Email.`,
+        message: `Credentials dispatched to ${targetName} via ${channelSummary}.`,
         automation: automationResult.results,
+        delivery: {
+          email: {
+            dispatched: emailSent,
+            messageId: automationResult.results?.EMAIL?.providerMessageId,
+            error: automationResult.results?.EMAIL?.errorReason,
+          },
+          whatsapp: {
+            dispatched: waDelivered,
+            messageId: automationResult.results?.WHATSAPP?.providerMessageId,
+            error: automationResult.results?.WHATSAPP?.errorReason,
+          },
+        },
       });
     }
 
@@ -118,6 +226,7 @@ export async function POST(req: NextRequest) {
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
         performedBy: session.name || session.email || 'Admin',
+        channels,
         metadata: {
           loginEmail,
           temporaryPassword: rawPw,
@@ -125,11 +234,26 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
+      const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+
       return NextResponse.json({
         success: true,
-        message: `Password reset and sent to ${targetName} successfully.`,
+        message: `Password reset and sent to ${targetName} via ${channelSummary}.`,
         newPassword: rawPw,
         automation: automationResult.results,
+        delivery: {
+          email: {
+            dispatched: emailSent,
+            messageId: automationResult.results?.EMAIL?.providerMessageId,
+            error: automationResult.results?.EMAIL?.errorReason,
+          },
+          whatsapp: {
+            dispatched: waDelivered,
+            messageId: automationResult.results?.WHATSAPP?.providerMessageId,
+            error: automationResult.results?.WHATSAPP?.errorReason,
+          },
+        },
       });
     }
 
@@ -146,6 +270,7 @@ export async function POST(req: NextRequest) {
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
         performedBy: session.name || session.email || 'Admin',
+        channels,
         metadata: {
           subject: customSubject || 'Official Message from PRAGATHI AI',
           message: customMessage,
@@ -158,7 +283,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Message sent to ${targetName} via WhatsApp & Email.`,
+        message: `Message sent to ${targetName} via ${channelSummary}.`,
         automation: automationResult.results,
         delivery: {
           email: {

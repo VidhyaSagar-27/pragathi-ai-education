@@ -50,6 +50,7 @@ export interface TriggerEventOptions {
   recipientMobile?: string;
   recipientEmail?: string;
   performedBy?: string;
+  channels?: ('WHATSAPP' | 'EMAIL' | 'IN_APP')[];
   metadata?: Record<string, any>;
 }
 
@@ -431,9 +432,13 @@ export async function triggerAutomationEvent(
 
   // 2. Channel Execution via Promise.allSettled
   const newLogs: AutomationLog[] = [];
+  const requestedChannels =
+    options.channels && options.channels.length > 0
+      ? options.channels
+      : ['WHATSAPP', 'EMAIL', 'IN_APP'];
 
   // Channel A: WhatsApp
-  if (whatsappContent && recipientMobile) {
+  if (requestedChannels.includes('WHATSAPP') && whatsappContent && recipientMobile) {
     const logId = `auto_wa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
       const waRes = await dispatchWhatsApp({
@@ -485,7 +490,7 @@ export async function triggerAutomationEvent(
   }
 
   // Channel B: Email
-  if (emailContent && recipientEmail && recipientEmail.includes('@')) {
+  if (requestedChannels.includes('EMAIL') && emailContent && recipientEmail && recipientEmail.includes('@')) {
     const logId = `auto_em_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
       const emRes = await dispatchEmail({
@@ -539,7 +544,7 @@ export async function triggerAutomationEvent(
   }
 
   // Channel C: In-App Notification
-  if (inAppContent && studentId) {
+  if (requestedChannels.includes('IN_APP') && inAppContent && studentId) {
     const logId = `auto_app_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const notifId = `inapp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 

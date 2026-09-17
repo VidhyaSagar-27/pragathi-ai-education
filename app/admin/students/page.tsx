@@ -73,9 +73,21 @@ export default function AdminStudentsPage() {
   const [commNewPassword, setCommNewPassword] = useState('Pragathi2026!');
   const [commCustomSubject, setCommCustomSubject] = useState('');
   const [commCustomMessage, setCommCustomMessage] = useState('');
+  const [commChannelWa, setCommChannelWa] = useState(true);
+  const [commChannelEmail, setCommChannelEmail] = useState(true);
   const [commSending, setCommSending] = useState(false);
   const [commSuccess, setCommSuccess] = useState<string | null>(null);
   const [commError, setCommError] = useState<string | null>(null);
+
+  // Broadcast Modal State (Dispatch to all at once)
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  const [broadcastSubject, setBroadcastSubject] = useState('Important Announcement from PRAGATHI AI');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastChannelWa, setBroadcastChannelWa] = useState(true);
+  const [broadcastChannelEmail, setBroadcastChannelEmail] = useState(true);
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastSuccess, setBroadcastSuccess] = useState<string | null>(null);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
 
   const handleOpenCommModal = (stu: User) => {
     setCommTargetStudent(stu);
@@ -83,6 +95,8 @@ export default function AdminStudentsPage() {
     setCommNewPassword('Pragathi2026!');
     setCommCustomSubject('');
     setCommCustomMessage('');
+    setCommChannelWa(true);
+    setCommChannelEmail(true);
     setCommSuccess(null);
     setCommError(null);
     setCommModalOpen(true);
@@ -91,6 +105,14 @@ export default function AdminStudentsPage() {
   const handleSendComm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commTargetStudent) return;
+    const channels: ('WHATSAPP' | 'EMAIL')[] = [];
+    if (commChannelWa) channels.push('WHATSAPP');
+    if (commChannelEmail) channels.push('EMAIL');
+    if (channels.length === 0) {
+      setCommError('Please select at least one delivery channel (WhatsApp or Email).');
+      return;
+    }
+
     setCommSending(true);
     setCommSuccess(null);
     setCommError(null);
@@ -100,9 +122,11 @@ export default function AdminStudentsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          recipientScope: 'INDIVIDUAL',
           studentId: commTargetStudent.studentDetails?.studentId,
           userId: commTargetStudent.id,
           actionType: commActionType,
+          channels,
           newPassword: commActionType === 'RESET_PASSWORD' ? commNewPassword : undefined,
           customSubject: commActionType === 'CUSTOM_MESSAGE' ? commCustomSubject : undefined,
           customMessage: commActionType === 'CUSTOM_MESSAGE' ? commCustomMessage : undefined,
@@ -112,12 +136,65 @@ export default function AdminStudentsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch communication');
 
-      setCommSuccess(data.message || 'Dispatched successfully via WhatsApp and Email!');
+      setCommSuccess(data.message || `Dispatched successfully via ${channels.join(' & ')}!`);
       loadData();
     } catch (err: any) {
       setCommError(err.message || 'Error dispatching communication');
     } finally {
       setCommSending(false);
+    }
+  };
+
+  const handleOpenBroadcast = () => {
+    setBroadcastSubject('Important Announcement from PRAGATHI AI');
+    setBroadcastMessage('');
+    setBroadcastChannelWa(true);
+    setBroadcastChannelEmail(true);
+    setBroadcastSuccess(null);
+    setBroadcastError(null);
+    setBroadcastModalOpen(true);
+  };
+
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const channels: ('WHATSAPP' | 'EMAIL')[] = [];
+    if (broadcastChannelWa) channels.push('WHATSAPP');
+    if (broadcastChannelEmail) channels.push('EMAIL');
+    if (channels.length === 0) {
+      setBroadcastError('Please select at least one delivery channel (WhatsApp or Email).');
+      return;
+    }
+    if (!broadcastMessage.trim()) {
+      setBroadcastError('Please enter an announcement body to broadcast.');
+      return;
+    }
+
+    setBroadcastSending(true);
+    setBroadcastSuccess(null);
+    setBroadcastError(null);
+
+    try {
+      const res = await fetch('/api/admin/communications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientScope: 'BROADCAST',
+          actionType: 'CUSTOM_MESSAGE',
+          channels,
+          customSubject: broadcastSubject,
+          customMessage: broadcastMessage,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch broadcast');
+
+      setBroadcastSuccess(data.message || `Broadcast completed to all students!`);
+      loadData();
+    } catch (err: any) {
+      setBroadcastError(err.message || 'Error dispatching broadcast');
+    } finally {
+      setBroadcastSending(false);
     }
   };
 
@@ -369,13 +446,22 @@ export default function AdminStudentsPage() {
             Review incoming student registration applications, provision accounts, and manage enrolled students.
           </p>
         </div>
-        <button
-          onClick={handleOpenAdd}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Student Account</span>
-        </button>
+        <div className="flex items-center space-x-2.5">
+          <button
+            onClick={handleOpenBroadcast}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
+          >
+            <Send className="w-4 h-4 text-teal-400" />
+            <span>Broadcast to All ({students.length})</span>
+          </button>
+          <button
+            onClick={handleOpenAdd}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Student Account</span>
+          </button>
+        </div>
       </div>
 
       {/* Pending Applications Alert Banner */}
@@ -1151,6 +1237,63 @@ export default function AdminStudentsPage() {
                   </div>
                 )}
 
+                {/* Delivery Channel Selection */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Select Delivery Channel(s) *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                        commChannelWa
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={commChannelWa}
+                        onChange={(e) => setCommChannelWa(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500"
+                      />
+                      <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <div className="truncate">
+                        <span className="block font-bold">WhatsApp</span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          +91 {commTargetStudent.phone?.replace(/\D/g, '').slice(-10) || 'Mobile'}
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                        commChannelEmail
+                          ? 'bg-teal-50 border-teal-300 text-teal-950 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={commChannelEmail}
+                        onChange={(e) => setCommChannelEmail(e.target.checked)}
+                        className="w-4 h-4 text-teal-600 rounded-sm focus:ring-teal-500"
+                      />
+                      <Mail className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                      <div className="truncate">
+                        <span className="block font-bold">Email</span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {commTargetStudent.email}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                  {!commChannelWa && !commChannelEmail && (
+                    <span className="text-[11px] text-rose-600 mt-1 block">
+                      ⚠️ Please check at least one channel (WhatsApp or Email).
+                    </span>
+                  )}
+                </div>
+
                 {/* Action selector */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -1237,7 +1380,7 @@ export default function AdminStudentsPage() {
                         required
                         value={commCustomMessage}
                         onChange={(e) => setCommCustomMessage(e.target.value)}
-                        placeholder="Enter notice text to send via WhatsApp and Email..."
+                        placeholder="Enter notice text to send..."
                         className="w-full text-xs sm:text-sm p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
@@ -1246,7 +1389,7 @@ export default function AdminStudentsPage() {
 
                 {commActionType === 'SEND_CREDENTIALS' && (
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Will trigger an automated multi-channel dispatch sending this student's login ID, registered email, and direct 1-click access links to their WhatsApp mobile number and email.
+                    Will trigger an automated dispatch sending this student's login ID, registered email, and direct 1-click access links.
                   </p>
                 )}
 
@@ -1263,11 +1406,238 @@ export default function AdminStudentsPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={commSending}
+                    disabled={commSending || (!commChannelWa && !commChannelEmail)}
                     className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{commSending ? 'Dispatching...' : 'Dispatch via WhatsApp & Email'}</span>
+                    <span>
+                      {commSending
+                        ? 'Dispatching...'
+                        : commChannelWa && commChannelEmail
+                        ? 'Dispatch via WhatsApp & Email'
+                        : commChannelWa
+                        ? 'Dispatch via WhatsApp Only'
+                        : commChannelEmail
+                        ? 'Dispatch via Email Only'
+                        : 'Select a Channel'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Broadcast Modal (Dispatch to All Enrolled Students) */}
+      {broadcastModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+                  Broadcast Command Center
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-0.5 flex items-center space-x-2">
+                  <Send className="w-4 h-4 text-teal-600" />
+                  <span>Broadcast Notice to All Students</span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBroadcastModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {broadcastSuccess ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+                  <div className="font-bold text-sm flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>Broadcast Dispatched Successfully!</span>
+                  </div>
+                  <p className="text-xs text-emerald-950">{broadcastSuccess}</p>
+                  <p className="text-[11px] text-emerald-700 pt-1">
+                    Delivered simultaneously to all active students across the selected channels.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBroadcastModalOpen(false)}
+                  className="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSendBroadcast} className="space-y-4">
+                <div className="p-3 bg-teal-50/60 border border-teal-200 rounded-xl text-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-teal-900 font-bold block">Target Audience:</span>
+                    <span className="text-teal-700 text-[11px]">
+                      All Enrolled Students ({students.length} students currently registered)
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 bg-teal-600 text-white font-bold rounded-lg text-[10px] uppercase">
+                    Mass Dispatch
+                  </span>
+                </div>
+
+                {broadcastError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{broadcastError}</span>
+                  </div>
+                )}
+
+                {/* Delivery Channel Toggles */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Select Broadcast Channel(s) *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                        broadcastChannelWa
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={broadcastChannelWa}
+                        onChange={(e) => setBroadcastChannelWa(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500"
+                      />
+                      <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="block font-bold">WhatsApp</span>
+                        <span className="text-[10px] text-slate-500 block">
+                          Official Meta Cloud API
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                        broadcastChannelEmail
+                          ? 'bg-teal-50 border-teal-300 text-teal-950 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={broadcastChannelEmail}
+                        onChange={(e) => setBroadcastChannelEmail(e.target.checked)}
+                        className="w-4 h-4 text-teal-600 rounded-sm focus:ring-teal-500"
+                      />
+                      <Mail className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                      <div>
+                        <span className="block font-bold">Email</span>
+                        <span className="text-[10px] text-slate-500 block">
+                          Official Gmail API
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Quick Announcement Templates
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBroadcastSubject('Module Exam & Quiz Schedule Announcement');
+                        setBroadcastMessage('Dear Students,\n\nPlease note that your upcoming Module Quiz is scheduled this week. Log in to your Pragathi AI portal to review your study materials and complete the quiz on time.');
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+                    >
+                      📝 Quiz / Exam Notice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBroadcastSubject('Important Class Schedule Update');
+                        setBroadcastMessage('Dear Students,\n\nPlease review the updated live class timing on your student dashboard under the Curriculum section. Ensure you join on time.');
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+                    >
+                      ⏰ Class Schedule
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBroadcastSubject('Holiday & Session Rescheduling Notice');
+                        setBroadcastMessage('Dear Students,\n\nPlease note that classes will remain suspended on the upcoming holiday. Classes will resume as per regular schedule the following day.');
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+                    >
+                      🏖️ Holiday Notice
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subject & Message inputs */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Notice Subject / Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={broadcastSubject}
+                    onChange={(e) => setBroadcastSubject(e.target.value)}
+                    placeholder="e.g. Important Announcement from PRAGATHI AI"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Notice Body / Message *
+                  </label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Write the announcement to broadcast to all students..."
+                    className="w-full text-xs sm:text-sm p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={broadcastSending || (!broadcastChannelWa && !broadcastChannelEmail)}
+                    className="px-5 py-2 bg-brand-navy hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5 text-teal-400" />
+                    <span>
+                      {broadcastSending
+                        ? `Broadcasting to ${students.length} students...`
+                        : broadcastChannelWa && broadcastChannelEmail
+                        ? `Broadcast to All via WhatsApp & Email`
+                        : broadcastChannelWa
+                        ? `Broadcast via WhatsApp Only`
+                        : broadcastChannelEmail
+                        ? `Broadcast via Email Only`
+                        : 'Select Channel'}
+                    </span>
                   </button>
                 </div>
               </form>

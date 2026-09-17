@@ -36,6 +36,22 @@ export default function AdminAutomationPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [retryingLogId, setRetryingLogId] = useState<string | null>(null);
 
+  // Direct Dispatcher State (Individual & Broadcast)
+  const [students, setStudents] = useState<any[]>([]);
+  const [dispatchScope, setDispatchScope] = useState<'INDIVIDUAL' | 'BROADCAST'>('INDIVIDUAL');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [manualName, setManualName] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [dispatchChannelWa, setDispatchChannelWa] = useState(true);
+  const [dispatchChannelEmail, setDispatchChannelEmail] = useState(true);
+  const [dispatchAction, setDispatchAction] = useState<'CUSTOM_MESSAGE' | 'SEND_CREDENTIALS'>('CUSTOM_MESSAGE');
+  const [dispatchSubject, setDispatchSubject] = useState('Important Announcement from PRAGATHI AI');
+  const [dispatchMessage, setDispatchMessage] = useState('');
+  const [dispatchSending, setDispatchSending] = useState(false);
+  const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
+
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     setRefreshing(true);
@@ -55,9 +71,88 @@ export default function AdminAutomationPage() {
     }
   };
 
+  const loadStudents = async () => {
+    try {
+      const res = await fetch(`/api/admin/users?role=STUDENT&_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok) {
+        setStudents(data.users || []);
+      }
+    } catch (err) {
+      console.error('Failed to load students:', err);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    loadStudents();
   }, []);
+
+  const handleDirectDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const channels: ('WHATSAPP' | 'EMAIL')[] = [];
+    if (dispatchChannelWa) channels.push('WHATSAPP');
+    if (dispatchChannelEmail) channels.push('EMAIL');
+    if (channels.length === 0) {
+      setDispatchError('Please select at least one delivery channel (WhatsApp or Email).');
+      return;
+    }
+
+    if (dispatchScope === 'INDIVIDUAL') {
+      if (!selectedStudentId && !manualPhone && !manualEmail) {
+        setDispatchError('Please select an enrolled student or enter a recipient phone/email.');
+        return;
+      }
+    }
+
+    if (dispatchAction === 'CUSTOM_MESSAGE' && !dispatchMessage.trim()) {
+      setDispatchError('Please enter a message to send.');
+      return;
+    }
+
+    setDispatchSending(true);
+    setDispatchSuccess(null);
+    setDispatchError(null);
+
+    try {
+      const payload: any = {
+        recipientScope: dispatchScope,
+        actionType: dispatchAction,
+        channels,
+        customSubject: dispatchSubject,
+        customMessage: dispatchMessage,
+      };
+
+      if (dispatchScope === 'INDIVIDUAL') {
+        if (selectedStudentId) {
+          payload.studentUserId = selectedStudentId;
+        } else {
+          payload.recipientName = manualName || 'Recipient';
+          payload.recipientPhone = manualPhone;
+          payload.recipientEmail = manualEmail;
+        }
+      }
+
+      const res = await fetch('/api/admin/communications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Dispatch failed');
+
+      setDispatchSuccess(data.message || 'Notification dispatched successfully!');
+      if (dispatchAction === 'CUSTOM_MESSAGE') {
+        setDispatchMessage('');
+      }
+      loadData(false);
+    } catch (err: any) {
+      setDispatchError(err.message || 'Error dispatching notification');
+    } finally {
+      setDispatchSending(false);
+    }
+  };
 
   const handleRetry = async (logId: string) => {
     setRetryingLogId(logId);
@@ -245,6 +340,327 @@ export default function AdminAutomationPage() {
           </div>
         </div>
       )}
+
+      {/* Direct Notification Dispatch Console (Individual & Broadcast) */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
+          <div>
+            <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+              Multi-Channel Dispatch Hub
+            </span>
+            <h2 className="text-lg font-bold text-slate-900 mt-0.5 flex items-center space-x-2">
+              <Send className="w-4 h-4 text-teal-600" />
+              <span>Direct Notification Dispatcher</span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Send notifications individually to a specific recipient or broadcast to all enrolled students via WhatsApp and Email.
+            </p>
+          </div>
+
+          {/* Scope Toggle: Individual vs Broadcast */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl w-fit">
+            <button
+              type="button"
+              onClick={() => setDispatchScope('INDIVIDUAL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dispatchScope === 'INDIVIDUAL'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👤 Individual Student
+            </button>
+            <button
+              type="button"
+              onClick={() => setDispatchScope('BROADCAST')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dispatchScope === 'BROADCAST'
+                  ? 'bg-brand-navy text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📢 Broadcast All ({students.length})
+            </button>
+          </div>
+        </div>
+
+        {dispatchSuccess && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-start space-x-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">{dispatchSuccess}</p>
+              <p className="text-[11px] text-emerald-700 mt-0.5">
+                Delivery logs updated below in real-time.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {dispatchError && (
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{dispatchError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleDirectDispatch} className="space-y-4">
+          {/* Target Selection */}
+          {dispatchScope === 'INDIVIDUAL' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Select Enrolled Student
+                </label>
+                <select
+                  value={selectedStudentId}
+                  onChange={(e) => {
+                    setSelectedStudentId(e.target.value);
+                    if (e.target.value) {
+                      setManualPhone('');
+                      setManualEmail('');
+                      setManualName('');
+                    }
+                  }}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">-- Choose from Enrolled Students ({students.length}) --</option>
+                  {students.map((stu) => (
+                    <option key={stu.id} value={stu.id}>
+                      {stu.name} ({stu.studentDetails?.studentId || 'ID Pending'}) — {stu.email}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Or enter manual recipient details below if not in the student directory.
+                </span>
+              </div>
+
+              {!selectedStudentId && (
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Recipient Name
+                    </label>
+                    <input
+                      type="text"
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      placeholder="e.g. Student"
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="text"
+                      value={manualPhone}
+                      onChange={(e) => setManualPhone(e.target.value)}
+                      placeholder="9618611522"
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={manualEmail}
+                      onChange={(e) => setManualEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl flex items-center justify-between text-xs">
+              <div>
+                <p className="font-bold text-teal-950 flex items-center space-x-1.5">
+                  <span>📢 Broadcast Audience: All Enrolled Students</span>
+                  <span className="px-2 py-0.5 bg-teal-200 text-teal-900 rounded-full text-[10px] font-black">
+                    {students.length} Recipients
+                  </span>
+                </p>
+                <p className="text-teal-700 text-[11px] mt-0.5">
+                  Notification will dispatch simultaneously to all enrolled students registered in the platform.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Delivery Channels */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Select Delivery Channel(s) *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label
+                className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                  dispatchChannelWa
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-2xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={dispatchChannelWa}
+                  onChange={(e) => setDispatchChannelWa(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500"
+                />
+                <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="block font-bold">WhatsApp Automation</span>
+                  <span className="text-[10px] text-slate-500 block">
+                    Official Meta Cloud API (ID: 1372882829235916)
+                  </span>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition text-xs font-semibold ${
+                  dispatchChannelEmail
+                    ? 'bg-teal-50 border-teal-300 text-teal-950 shadow-2xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={dispatchChannelEmail}
+                  onChange={(e) => setDispatchChannelEmail(e.target.checked)}
+                  className="w-4 h-4 text-teal-600 rounded-sm focus:ring-teal-500"
+                />
+                <Mail className="w-4 h-4 text-teal-600 shrink-0" />
+                <div>
+                  <span className="block font-bold">Gmail API Email Automation</span>
+                  <span className="text-[10px] text-slate-500 block">
+                    Official Sender: hello.pragathiai@gmail.com
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Quick Presets */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Notice Templates
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDispatchAction('CUSTOM_MESSAGE');
+                  setDispatchSubject('Module Exam & Quiz Schedule Announcement');
+                  setDispatchMessage('Dear Students,\n\nPlease note that your upcoming Module Quiz is scheduled this week. Log in to your Pragathi AI portal to review your study materials and complete the quiz on time.');
+                }}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+              >
+                📝 Quiz / Exam Notice
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDispatchAction('CUSTOM_MESSAGE');
+                  setDispatchSubject('Important Class Schedule Update');
+                  setDispatchMessage('Dear Students,\n\nPlease review the updated live class timing on your student dashboard under the Curriculum section. Ensure you join on time.');
+                }}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+              >
+                ⏰ Class Schedule
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDispatchAction('CUSTOM_MESSAGE');
+                  setDispatchSubject('Holiday & Session Rescheduling Notice');
+                  setDispatchMessage('Dear Students,\n\nPlease note that classes will remain suspended on the upcoming holiday. Regular sessions resume as scheduled the following day.');
+                }}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition cursor-pointer"
+              >
+                🏖️ Holiday Notice
+              </button>
+              {dispatchScope === 'INDIVIDUAL' && selectedStudentId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDispatchAction('SEND_CREDENTIALS');
+                    setDispatchSubject('Your Pragathi AI Student Login Credentials');
+                  }}
+                  className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg text-[11px] font-bold border border-teal-200 transition cursor-pointer"
+                >
+                  🔑 Student Login Credentials
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Subject & Body */}
+          {dispatchAction === 'CUSTOM_MESSAGE' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Notice Subject / Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={dispatchSubject}
+                  onChange={(e) => setDispatchSubject(e.target.value)}
+                  placeholder="e.g. Important Announcement from PRAGATHI AI"
+                  className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Notice Body / Message *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={dispatchMessage}
+                  onChange={(e) => setDispatchMessage(e.target.value)}
+                  placeholder="Write the message content to dispatch..."
+                  className="w-full text-xs p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="submit"
+              disabled={dispatchSending || (!dispatchChannelWa && !dispatchChannelEmail)}
+              className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-2 cursor-pointer disabled:opacity-50 shadow-sm"
+            >
+              <Send className="w-4 h-4" />
+              <span>
+                {dispatchSending
+                  ? 'Dispatching in Progress...'
+                  : dispatchScope === 'BROADCAST'
+                  ? `Broadcast to All (${students.length}) via ${
+                      dispatchChannelWa && dispatchChannelEmail
+                        ? 'WhatsApp & Email'
+                        : dispatchChannelWa
+                        ? 'WhatsApp Only'
+                        : 'Email Only'
+                    }`
+                  : `Dispatch to Individual via ${
+                      dispatchChannelWa && dispatchChannelEmail
+                        ? 'WhatsApp & Email'
+                        : dispatchChannelWa
+                        ? 'WhatsApp Only'
+                        : 'Email Only'
+                    }`}
+              </span>
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Filter and Search */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center gap-3">

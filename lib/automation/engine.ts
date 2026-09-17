@@ -81,25 +81,63 @@ async function dispatchWhatsApp({
   }
 
   const db = await getDb().catch(() => null);
+  const waConfig = db?.settings?.whatsappConfig;
+  const waProvider = waConfig?.provider || 'META';
+
+  const ultramsgInstance = waConfig?.ultramsgInstanceId || process.env.ULTRAMSG_INSTANCE_ID;
+  const ultramsgToken = waConfig?.ultramsgToken || process.env.ULTRAMSG_TOKEN;
+
+  // 1. UltraMsg (QR-Linked Personal WhatsApp Gateway)
+  if ((waProvider === 'ULTRAMSG' || (!process.env.WHATSAPP_API_TOKEN && ultramsgInstance)) && ultramsgInstance && ultramsgToken) {
+    try {
+      const url = `https://api.ultramsg.com/${ultramsgInstance}/messages/chat`;
+      const params = new URLSearchParams();
+      params.append('token', ultramsgToken);
+      params.append('to', `+${normalizedPhone}`);
+      params.append('body', message);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && (resData.sent === 'true' || resData.id || resData.message === 'ok')) {
+        return {
+          status: 'DELIVERED',
+          providerMessageId: String(resData.id || `um_${Date.now()}`),
+        };
+      } else {
+        const errMsg = resData.error || resData.message || `UltraMsg returned HTTP ${res.status}`;
+        console.warn('[UltraMsg WhatsApp Dispatch Failed]:', errMsg);
+        return { status: 'FAILED', error: errMsg };
+      }
+    } catch (err: any) {
+      console.warn('[UltraMsg Network Error]:', err.message);
+      return { status: 'FAILED', error: err.message };
+    }
+  }
+
   const metaToken =
     process.env.WHATSAPP_API_TOKEN ||
-    db?.settings?.whatsappConfig?.metaAccessToken ||
-    db?.settings?.whatsappConfig?.metaApiToken;
+    waConfig?.metaAccessToken ||
+    waConfig?.metaApiToken;
   const metaPhoneId =
     process.env.WHATSAPP_PHONE_NUMBER_ID ||
-    db?.settings?.whatsappConfig?.metaPhoneNumberId;
+    waConfig?.metaPhoneNumberId;
   const twilioSid =
     process.env.TWILIO_ACCOUNT_SID ||
-    db?.settings?.whatsappConfig?.twilioAccountSid;
+    waConfig?.twilioAccountSid;
   const twilioAuth =
     process.env.TWILIO_AUTH_TOKEN ||
-    db?.settings?.whatsappConfig?.twilioAuthToken;
+    waConfig?.twilioAuthToken;
   const twilioNumber =
     process.env.TWILIO_WHATSAPP_NUMBER ||
-    db?.settings?.whatsappConfig?.twilioFromNumber ||
-    db?.settings?.whatsappConfig?.twilioWhatsAppNumber;
+    waConfig?.twilioFromNumber ||
+    waConfig?.twilioWhatsAppNumber;
 
-  // 1. Meta WhatsApp Cloud API (Graph API)
+  // 2. Meta WhatsApp Cloud API (Graph API)
   if (metaToken && metaPhoneId) {
     try {
       const url = `https://graph.facebook.com/v19.0/${metaPhoneId}/messages`;

@@ -21,7 +21,7 @@ export interface AutomatedWhatsAppOptions {
 export interface AutomatedWhatsAppResult {
   success: boolean;
   messageId: string;
-  provider: 'META_CLOUD_API' | 'TWILIO' | 'CUSTOM_GATEWAY' | 'SIMULATED_ENGINE';
+  provider: 'META_CLOUD_API' | 'TWILIO' | 'ULTRAMSG' | 'CUSTOM_GATEWAY' | 'SIMULATED_ENGINE';
   status: 'SENT' | 'SIMULATED' | 'FAILED';
   error?: string;
 }
@@ -60,6 +60,39 @@ export async function sendAutomatedWhatsAppMessage({
   try {
     const db = await getDb();
     const waConfig = db?.settings?.whatsappConfig;
+    const waProvider = waConfig?.provider || 'META';
+
+    const ultramsgInstance = waConfig?.ultramsgInstanceId || process.env.ULTRAMSG_INSTANCE_ID;
+    const ultramsgToken = waConfig?.ultramsgToken || process.env.ULTRAMSG_TOKEN;
+
+    // 1. Check UltraMsg (QR-Linked Personal WhatsApp Gateway)
+    if ((waProvider === 'ULTRAMSG' || (!waConfig?.metaAccessToken && ultramsgInstance)) && ultramsgInstance && ultramsgToken) {
+      try {
+        const url = `https://api.ultramsg.com/${ultramsgInstance}/messages/chat`;
+        const params = new URLSearchParams();
+        params.append('token', ultramsgToken);
+        params.append('to', `+${normalizedPhone}`);
+        params.append('body', message);
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && (resData.sent === 'true' || resData.id || resData.message === 'ok')) {
+          provider = 'ULTRAMSG';
+          status = 'SENT';
+          messageId = String(resData.id || `um_${Date.now()}`);
+        } else {
+          errorMsg = resData.error || resData.message || 'UltraMsg returned an error';
+        }
+      } catch (err: any) {
+        console.warn('[UltraMsg WhatsApp Dispatch Failed]:', err.message);
+        errorMsg = err.message;
+      }
+    }
 
     const metaToken =
       waConfig?.metaAccessToken ||
@@ -71,8 +104,8 @@ export async function sendAutomatedWhatsAppMessage({
     const twilioAuth = waConfig?.twilioAuthToken || process.env.TWILIO_AUTH_TOKEN;
     const twilioFrom = waConfig?.twilioFromNumber || process.env.TWILIO_WHATSAPP_NUMBER;
 
-    // 1. Check Meta WhatsApp Cloud API (Graph API)
-    if (metaToken && metaPhoneId) {
+    // 2. Check Meta WhatsApp Cloud API (Graph API)
+    if (provider !== 'ULTRAMSG' && metaToken && metaPhoneId) {
       try {
         const url = `https://graph.facebook.com/v19.0/${metaPhoneId}/messages`;
         const res = await fetch(url, {

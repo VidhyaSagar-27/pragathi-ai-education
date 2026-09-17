@@ -347,7 +347,7 @@ export interface CertificateItem {
 }
 
 export interface WhatsAppConfig {
-  provider?: 'META' | 'TWILIO';
+  provider?: 'META' | 'TWILIO' | 'ULTRAMSG';
   metaApiToken?: string;
   metaAccessToken?: string;
   metaPhoneNumberId?: string;
@@ -355,6 +355,8 @@ export interface WhatsAppConfig {
   twilioAuthToken?: string;
   twilioWhatsAppNumber?: string;
   twilioFromNumber?: string;
+  ultramsgInstanceId?: string;
+  ultramsgToken?: string;
 }
 
 export interface GmailConfig {

@@ -20,6 +20,7 @@ import {
   Globe,
   Copy,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import { WebsiteSettings, WhatsAppConfig, EmailConfig, GmailConfig } from '@/lib/db/types';
 
@@ -432,21 +433,51 @@ export default function AdminSettingsPage() {
 
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Primary Provider
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Primary Delivery Provider
               </label>
-              <div className="flex items-center space-x-4">
-                <label className="inline-flex items-center space-x-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <label className={`p-3 rounded-xl border cursor-pointer transition text-xs font-semibold flex items-center space-x-2.5 ${
+                  wa.provider === 'ULTRAMSG'
+                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-2xs font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}>
                   <input
                     type="radio"
                     name="waProvider"
-                    checked={wa.provider !== 'TWILIO'}
+                    checked={wa.provider === 'ULTRAMSG'}
+                    onChange={() => updateWhatsApp({ provider: 'ULTRAMSG' })}
+                    className="text-emerald-600"
+                  />
+                  <div>
+                    <span className="block font-bold">QR Linked Devices</span>
+                    <span className="text-[10px] text-slate-500 block">Your WhatsApp (+91 9618611522)</span>
+                  </div>
+                </label>
+
+                <label className={`p-3 rounded-xl border cursor-pointer transition text-xs font-semibold flex items-center space-x-2.5 ${
+                  wa.provider === 'META' || (!wa.provider && !wa.ultramsgInstanceId)
+                    ? 'bg-teal-50 border-teal-400 text-teal-950 shadow-2xs font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}>
+                  <input
+                    type="radio"
+                    name="waProvider"
+                    checked={wa.provider === 'META' || (!wa.provider && !wa.ultramsgInstanceId)}
                     onChange={() => updateWhatsApp({ provider: 'META' })}
                     className="text-teal-600"
                   />
-                  <span>Meta WhatsApp Cloud API (Recommended)</span>
+                  <div>
+                    <span className="block font-bold">Meta Cloud API</span>
+                    <span className="text-[10px] text-slate-500 block">Official Developer API</span>
+                  </div>
                 </label>
-                <label className="inline-flex items-center space-x-2 text-xs font-medium text-slate-700 cursor-pointer">
+
+                <label className={`p-3 rounded-xl border cursor-pointer transition text-xs font-semibold flex items-center space-x-2.5 ${
+                  wa.provider === 'TWILIO'
+                    ? 'bg-slate-100 border-slate-400 text-slate-950 shadow-2xs font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}>
                   <input
                     type="radio"
                     name="waProvider"
@@ -454,12 +485,79 @@ export default function AdminSettingsPage() {
                     onChange={() => updateWhatsApp({ provider: 'TWILIO' })}
                     className="text-teal-600"
                   />
-                  <span>Twilio WhatsApp</span>
+                  <div>
+                    <span className="block font-bold">Twilio Gateway</span>
+                    <span className="text-[10px] text-slate-500 block">Twilio Programmable SMS</span>
+                  </div>
                 </label>
               </div>
             </div>
 
-            {wa.provider !== 'TWILIO' ? (
+            {wa.provider === 'ULTRAMSG' && (
+              <div className="space-y-3 pt-2">
+                <div className="p-3.5 bg-emerald-50/80 border border-emerald-300 rounded-xl text-xs space-y-2">
+                  <div className="font-bold text-emerald-950 flex items-center space-x-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>How to Link Your Personal WhatsApp (+91 9618611522) with QR Code</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-emerald-900 text-[11px] leading-relaxed">
+                    <li>
+                      Create a free trial instance at{' '}
+                      <a
+                        href="https://ultramsg.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold underline text-emerald-800"
+                      >
+                        UltraMsg.com
+                      </a>.
+                    </li>
+                    <li>
+                      Open WhatsApp on your phone (<strong>9618611522</strong>) → tap <strong>Settings (or ⋮)</strong> → <strong>Linked Devices</strong> → <strong>Link a Device</strong>.
+                    </li>
+                    <li>
+                      Point your camera and scan the QR code displayed in your UltraMsg dashboard.
+                    </li>
+                    <li>
+                      Copy the <strong>Instance ID</strong> and <strong>Token</strong> from UltraMsg and paste them below.
+                    </li>
+                  </ol>
+                  <p className="text-[10px] text-emerald-800 pt-1 font-medium">
+                    ✅ Your phone keeps its normal WhatsApp app. Messages are dispatched directly from your number to all students without sandbox whitelist restrictions!
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      UltraMsg Instance ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={wa.ultramsgInstanceId || ''}
+                      onChange={(e) => updateWhatsApp({ ultramsgInstanceId: e.target.value })}
+                      placeholder="e.g. instance104820"
+                      className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      UltraMsg Token *
+                    </label>
+                    <input
+                      type="password"
+                      value={wa.ultramsgToken || ''}
+                      onChange={(e) => updateWhatsApp({ ultramsgToken: e.target.value })}
+                      placeholder="e.g. abcdef1234567890"
+                      className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(wa.provider === 'META' || (!wa.provider && !wa.ultramsgInstanceId)) && (
               <div className="space-y-3 pt-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -490,7 +588,9 @@ export default function AdminSettingsPage() {
                   />
                 </div>
               </div>
-            ) : (
+            )}
+
+            {wa.provider === 'TWILIO' && (
               <div className="grid sm:grid-cols-3 gap-3 pt-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">

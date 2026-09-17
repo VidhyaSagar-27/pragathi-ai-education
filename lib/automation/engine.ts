@@ -411,62 +411,111 @@ export async function triggerAutomationEvent(
   } else if (event === 'PASSWORD_RESET') {
     const rawPw = metadata.temporaryPassword || metadata.newPassword || 'Pragathi2026!';
     const loginEmail = metadata.loginEmail || recipientEmail || '';
-    whatsappContent = `*PRAGATHI AI — PASSWORD RESET NOTICE*\n\nDear ${studentName},\nYour student portal password has been updated by administration.\n\n👤 *Login Email / ID*: ${loginEmail}\n🔑 *New Password*: ${rawPw}\n\n👉 *Direct Login*:\n${origin}/login?email=${encodeURIComponent(loginEmail)}&role=STUDENT\n\nPlease login and keep your credentials secure.`;
+    const targetRole = metadata.role || 'STUDENT';
+    const loginUrl = `${origin}/login?email=${encodeURIComponent(loginEmail)}&role=${targetRole}`;
+
+    whatsappContent = `*PRAGATHI AI — PASSWORD RESET NOTICE*\n\nHello *${studentName}*,\n\nYour account password has been updated by administration.\n\n👤 *Login ID*: ${loginEmail}\n🔑 *New Password*: ${rawPw}\n\n👉 *Direct Login*:\n${loginUrl}\n\nPlease sign in and keep your credentials secure.\n\nWarm regards,\n*Team Pragathi AI*`;
     emailContent = {
       subject: `Pragathi AI – Password Reset for ${studentName}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
           <h2 style="color: #0f766e; margin-top: 0;">PRAGATHI AI — Password Reset Notice</h2>
-          <p>Dear <strong>${studentName}</strong>,</p>
+          <p>Hello <strong>${studentName}</strong>,</p>
           <p>Your password for the Pragathi AI portal has been updated by the administration.</p>
           <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 12px; margin: 18px 0;">
-            <p style="margin: 4px 0; font-size: 14px;"><strong>Login Email:</strong> <code style="font-size: 15px; font-weight: bold;">${loginEmail}</code></p>
+            <p style="margin: 4px 0; font-size: 14px;"><strong>Login ID:</strong> <code style="font-size: 15px; font-weight: bold;">${loginEmail}</code></p>
             <p style="margin: 4px 0; font-size: 14px;"><strong>New Password:</strong> <code style="font-size: 15px; color: #0f766e; font-weight: bold;">${rawPw}</code></p>
           </div>
-          <p><a href="${origin}/login?email=${encodeURIComponent(loginEmail)}&role=STUDENT" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px;">Sign In to Student Portal</a></p>
+          <p><a href="${loginUrl}" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px;">Sign In to Portal</a></p>
           <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you did not request this change, please contact administration at support@pragathiai.com immediately.</p>
         </div>
       `,
-      text: `Dear ${studentName}, your password for Pragathi AI has been reset. Email: ${loginEmail}, New Password: ${rawPw}. Sign in at ${origin}/login`,
+      text: `Hello ${studentName},\n\nYour password for Pragathi AI has been reset.\nLogin ID: ${loginEmail}\nNew Password: ${rawPw}\nSign in at: ${loginUrl}`,
     };
     inAppContent = {
       title: 'Password Updated',
       message: 'Your account password has been updated by administration.',
     };
   } else if (event === 'CREDENTIALS_DISPATCH') {
-    const acceptedPayload = {
-      studentName,
-      studentId: studentId || 'PAI26-XXXX',
-      registrationId,
-      classGrade: metadata.classGrade || '10',
-      section: metadata.section || 'A',
-      parentName: metadata.parentName || 'Parent',
-      mobileNumber: recipientMobile || '',
-      email: recipientEmail,
-      loginEmail: metadata.loginEmail || recipientEmail || `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`,
-      temporaryPassword: metadata.temporaryPassword || 'Pragathi2026!',
-      portalUrl,
-    };
-    whatsappContent = formatWhatsAppRegistrationAccepted(acceptedPayload);
-    emailContent = formatEmailRegistrationAccepted(acceptedPayload);
-    inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.studentId);
+    if (metadata.role === 'INSTRUCTOR') {
+      const loginEmail = metadata.loginEmail || recipientEmail || '';
+      const rawPw = metadata.temporaryPassword || 'Faculty2026!';
+      const facultyUrl = `${origin}/login?email=${encodeURIComponent(loginEmail)}&role=INSTRUCTOR`;
+
+      whatsappContent =
+        `🎓 *Pragathi AI Education — Faculty Credentials*\n\n` +
+        `Hello *${studentName}*,\n\n` +
+        `Your Pragathi AI Faculty / Instructor account is active.\n\n` +
+        `🔑 *Faculty Login Credentials:*\n` +
+        `• Login ID: ${loginEmail}\n` +
+        `• Password: ${rawPw}\n\n` +
+        `👉 *Instructor Portal Login:*\n` +
+        `${facultyUrl}\n\n` +
+        `You can now access student rosters, manage curriculum, review submissions, and communicate with students.\n\n` +
+        `Warm regards,\n*Team Pragathi AI*`;
+
+      emailContent = {
+        subject: `Pragathi AI – Faculty Login Credentials (${studentName})`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <h2 style="color: #0f766e; margin-top: 0;">Welcome to Pragathi AI Faculty</h2>
+            <p>Hello <strong>${studentName}</strong>,</p>
+            <p>Your Pragathi AI Instructor account has been set up.</p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 12px; margin: 18px 0;">
+              <p style="margin: 4px 0; font-size: 14px;"><strong>Login ID:</strong> <code style="font-size: 15px; font-weight: bold;">${loginEmail}</code></p>
+              <p style="margin: 4px 0; font-size: 14px;"><strong>Password:</strong> <code style="font-size: 15px; color: #0f766e; font-weight: bold;">${rawPw}</code></p>
+            </div>
+            <p><a href="${facultyUrl}" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px;">Sign In to Faculty Portal</a></p>
+            <p style="font-size: 12px; color: #64748b; margin-top: 20px;">Pragathi AI Education</p>
+          </div>
+        `,
+        text: `Hello ${studentName},\n\nYour Pragathi AI Faculty account is active.\nLogin ID: ${loginEmail}\nPassword: ${rawPw}\nSign in: ${facultyUrl}`,
+      };
+      inAppContent = {
+        title: 'Faculty Account Active',
+        message: 'Your instructor account is ready.',
+      };
+    } else {
+      const acceptedPayload = {
+        studentName,
+        studentId: studentId || 'PAI26-XXXX',
+        registrationId,
+        classGrade: metadata.classGrade || '10',
+        section: metadata.section || 'A',
+        parentName: metadata.parentName || 'Parent',
+        mobileNumber: recipientMobile || '',
+        email: recipientEmail,
+        loginEmail: metadata.loginEmail || recipientEmail || `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`,
+        temporaryPassword: metadata.temporaryPassword || 'Pragathi2026!',
+        portalUrl,
+      };
+      whatsappContent = formatWhatsAppRegistrationAccepted(acceptedPayload);
+      emailContent = formatEmailRegistrationAccepted(acceptedPayload);
+      inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.studentId);
+    }
   } else if (event === 'CUSTOM_MESSAGE') {
     const title = metadata.subject || metadata.title || 'Official Notification from PRAGATHI AI';
     const body = metadata.message || 'Important update from PRAGATHI AI administration.';
-    whatsappContent = `*PRAGATHI AI — OFFICIAL NOTIFICATION*\n\nDear ${studentName},\n\n${body}\n\n👉 *Portal Link*:\n${origin}/login\n\nPragathi AI Administration`;
+    const instructorName = metadata.instructorName;
+    const signature = instructorName
+      ? `Instructor: *${instructorName}*\nPragathi AI Education`
+      : `Team Pragathi AI`;
+
+    whatsappContent = `*PRAGATHI AI — OFFICIAL NOTIFICATION*\n\nHello *${studentName}*,\n\n${body}\n\n👉 *Portal Link*:\n${origin}/login\n\n${signature}`;
     emailContent = {
       subject: title,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
           <h2 style="color: #0f766e; margin-top: 0;">${title}</h2>
-          <p>Dear <strong>${studentName}</strong>,</p>
+          <p>Hello <strong>${studentName}</strong>,</p>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 12px; margin: 18px 0; line-height: 1.6; font-size: 14px; color: #1e293b;">
             ${body.replace(/\n/g, '<br/>')}
           </div>
-          <p><a href="${origin}/login" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px;">Open Student Portal</a></p>
+          <p><a href="${origin}/login" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px;">Open Portal</a></p>
+          <p style="font-size: 12px; color: #64748b; margin-top: 20px;">${signature.replace(/\n/g, '<br/>')}</p>
         </div>
       `,
-      text: `Dear ${studentName},\n\n${body}\n\nVisit ${origin}/login`,
+      text: `Hello ${studentName},\n\n${body}\n\nVisit ${origin}/login\n\n${signature}`,
     };
     inAppContent = {
       title,

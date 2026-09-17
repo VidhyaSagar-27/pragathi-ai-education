@@ -24,9 +24,11 @@ import {
   Camera,
   Send,
   AlertTriangle,
+  PenTool,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
+import CommunicationModal from '@/components/CommunicationModal';
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -34,6 +36,7 @@ export default function AdminStudentsPage() {
   const [activeTab, setActiveTab] = useState<'enrolled' | 'pending'>('enrolled');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [manualCommOpen, setManualCommOpen] = useState(false);
 
   // Student Photo Modal State
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -453,7 +456,15 @@ export default function AdminStudentsPage() {
             Review incoming student registration applications, provision accounts, and manage enrolled students.
           </p>
         </div>
-        <div className="flex items-center space-x-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setManualCommOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 shadow-2xs w-fit cursor-pointer"
+            title="Type custom student name, mobile, or email to message directly"
+          >
+            <PenTool className="w-4 h-4 text-teal-600" />
+            <span>Manual Send</span>
+          </button>
           <button
             onClick={handleOpenBroadcast}
             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
@@ -1757,6 +1768,16 @@ export default function AdminStudentsPage() {
             : null
         }
         onPhotoSaved={handlePhotoSaved}
+      />
+
+      {/* Manual Ad-Hoc Communication Modal */}
+      <CommunicationModal
+        isOpen={manualCommOpen}
+        onClose={() => setManualCommOpen(false)}
+        onSuccess={loadData}
+        mode="MANUAL"
+        targetRole="STUDENT"
+        currentUserRole="ADMIN"
       />
     </div>
   );

@@ -42,8 +42,8 @@ export function formatWhatsAppRegistrationAccepted(p: RegistrationAcceptedPayloa
   const sectionText = p.section || 'A';
   return (
     `🎓 *Pragathi AI Foundation Program*\n\n` +
-    `Dear Parent,\n` +
-    `Your child *${p.studentName}* has been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
+    `Hello *${p.studentName}*,\n\n` +
+    `Congratulations! You have been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
     `📋 *Admission Details:*\n` +
     `• Student ID: *${p.studentId}*\n` +
     `• Class: *${p.classGrade}*\n` +
@@ -61,12 +61,12 @@ export function formatWhatsAppRegistrationAccepted(p: RegistrationAcceptedPayloa
 export function formatWhatsAppRegistrationSubmitted(p: RegistrationSubmittedPayload): string {
   return (
     `📋 *Pragathi AI — Application Received*\n\n` +
-    `Dear Parent,\n` +
-    `Thank you for registering *${p.studentName}* for the Pragathi AI Foundation Program.\n\n` +
+    `Hello *${p.studentName}*,\n\n` +
+    `Thank you for applying to the Pragathi AI Foundation Program.\n\n` +
     `• Registration ID: *${p.registrationId}*\n` +
     `• Class / Grade: *${p.classGrade}*\n` +
     `• Status: *PENDING REVIEW*\n\n` +
-    `Our academic team is reviewing the submission. Once accepted, you will receive login credentials automatically on this WhatsApp number.\n\n` +
+    `Our academic team is reviewing your application. Once accepted, you will receive login credentials automatically on this WhatsApp number.\n\n` +
     `👉 *Check Application Status Anytime:*\n` +
     `${p.statusUrl}\n\n` +
     `Warm regards,\n*Team Pragathi AI*`
@@ -76,8 +76,8 @@ export function formatWhatsAppRegistrationSubmitted(p: RegistrationSubmittedPayl
 export function formatWhatsAppRegistrationRejected(p: RegistrationRejectedPayload): string {
   return (
     `📢 *Pragathi AI — Application Update*\n\n` +
-    `Dear Parent,\n` +
-    `Regarding the application for *${p.studentName}*` +
+    `Hello *${p.studentName}*,\n\n` +
+    `Regarding your application` +
     (p.registrationId ? ` (ID: ${p.registrationId})` : '') +
     `:\n\n` +
     `Status: *NOT ACCEPTED*\n` +
@@ -128,8 +128,8 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
       <p style="margin: 6px 0 0; color: #cbd5e1; font-size: 14px;">Foundation Program for School Students</p>
     </div>
     <div class="content">
-      <p>Dear Parent / Guardian (<strong>${p.parentName}</strong>),</p>
-      <p>We are delighted to confirm that your child <strong>${p.studentName}</strong> has been officially accepted into the <strong>Pragathi AI Foundation Program</strong>.</p>
+      <p>Hello <strong>${p.studentName}</strong>,</p>
+      <p>Congratulations! We are delighted to confirm that you have been officially accepted into the <strong>Pragathi AI Foundation Program</strong>.</p>
       
       <div class="card">
         <div class="row"><span class="label">Permanent Student ID:</span><span class="value" style="color: #0d9488; font-size: 16px;">${p.studentId}</span></div>
@@ -149,7 +149,7 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
           <div class="cred-label">Temporary Password:</div>
           <div class="cred-val">${p.temporaryPassword}</div>
         </div>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #94a3b8;">* Students can update their password after initial sign-in.</p>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #94a3b8;">* You can update your password after your initial sign-in.</p>
       </div>
 
       <div style="text-align: center; margin: 28px 0;">
@@ -157,7 +157,7 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
       </div>
 
       <p style="font-size: 13px; color: #475569; line-height: 1.6;">
-        Through this program, students gain hands-on training across all 7 comprehensive AI curriculum modules, interactive quizzes, programming labs, and receive an authentic certificate upon completion.
+        Through this program, you will gain hands-on training across all 7 comprehensive AI curriculum modules, interactive quizzes, programming labs, and receive an authentic certificate upon completion.
       </p>
     </div>
     <div class="footer">
@@ -171,8 +171,8 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
 
   const text =
     `PRAGATHI AI FOUNDATION PROGRAM - REGISTRATION ACCEPTED\n\n` +
-    `Dear ${p.parentName},\n` +
-    `Your child ${p.studentName} has been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
+    `Hello ${p.studentName},\n\n` +
+    `Congratulations! You have been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
     `Student ID: ${p.studentId}\n` +
     `Class: ${p.classGrade}\n` +
     `Section: ${sectionText}\n` +
@@ -189,12 +189,12 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
 export function formatEmailRegistrationSubmitted(p: RegistrationSubmittedPayload): { subject: string; html: string; text: string } {
   const subject = `Pragathi AI – Application Received (${p.registrationId})`;
   const text =
-    `Dear ${p.parentName},\n\n` +
-    `Thank you for submitting an application for ${p.studentName}.\n` +
+    `Hello ${p.studentName},\n\n` +
+    `Thank you for applying for the Pragathi AI Foundation Program.\n` +
     `Registration ID: ${p.registrationId}\n` +
     `Class: ${p.classGrade}\n\n` +
     `Status: PENDING REVIEW\n` +
-    `Our admissions team is reviewing the submission. You can check application status at:\n` +
+    `Our admissions team is reviewing your application. You can check application status at:\n` +
     `${p.statusUrl}\n\n` +
     `Team Pragathi AI`;
 
@@ -205,8 +205,8 @@ export function formatEmailRegistrationSubmitted(p: RegistrationSubmittedPayload
 <body style="font-family: sans-serif; background: #f8fafc; padding: 20px;">
   <div style="max-width: 550px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;">
     <h2 style="color: #0A192F;">Application Received</h2>
-    <p>Dear <strong>${p.parentName}</strong>,</p>
-    <p>We have successfully received the enrollment registration for <strong>${p.studentName}</strong>.</p>
+    <p>Hello <strong>${p.studentName}</strong>,</p>
+    <p>We have successfully received your enrollment application for the Pragathi AI Foundation Program.</p>
     <div style="background: #f1f5f9; padding: 14px; border-radius: 8px; margin: 16px 0;">
       <div><strong>Registration ID:</strong> <span style="font-family: monospace; color: #0d9488;">${p.registrationId}</span></div>
       <div><strong>Class:</strong> ${p.classGrade}</div>

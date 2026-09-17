@@ -9,14 +9,15 @@ export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   const session = getSessionFromRequest(req);
-  if (!session || session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
+    return NextResponse.json({ error: 'Unauthorized. Requires Admin or Instructor session.' }, { status: 403, headers: noCacheHeaders });
   }
 
   try {
     const body = await req.json();
     const {
       studentUserId,
+      userId,
       registrationId,
       recipientPhone,
       recipientEmail,
@@ -25,9 +26,12 @@ export async function POST(req: NextRequest) {
       newPassword,
       customSubject,
       customMessage,
-      recipientScope = 'INDIVIDUAL', // 'INDIVIDUAL' | 'BROADCAST' | 'SELECTED'
+      recipientScope = 'INDIVIDUAL', // 'INDIVIDUAL' | 'BROADCAST' | 'SELECTED' | 'MANUAL'
+      targetRole = 'STUDENT', // 'STUDENT' | 'INSTRUCTOR'
+      role, // role override
       channels: rawChannels,
       selectedStudentIds,
+      selectedUserIds,
     } = body;
 
     const channels: ('WHATSAPP' | 'EMAIL')[] =
@@ -38,23 +42,28 @@ export async function POST(req: NextRequest) {
     const db = await getDb();
     const origin = req.nextUrl?.origin || 'https://pragathi-ai-education.vercel.app';
 
+    // Instructors can only broadcast to students; only admins can broadcast to faculty
+    const effectiveBroadcastRole =
+      session.role === 'ADMIN' && targetRole === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+
     // =========================================================================
-    // BROADCAST / SELECTED BATCH DISPATCH
+    // 1. BROADCAST / SELECTED BATCH DISPATCH
     // =========================================================================
     if (recipientScope === 'BROADCAST' || recipientScope === 'SELECTED') {
-      let targetStudents = (db.users || []).filter((u) => u.role === 'STUDENT');
+      let targetUsers = (db.users || []).filter((u) => u.role === effectiveBroadcastRole);
 
-      if (recipientScope === 'SELECTED' && Array.isArray(selectedStudentIds) && selectedStudentIds.length > 0) {
-        targetStudents = targetStudents.filter(
+      const selectedIds = selectedStudentIds || selectedUserIds;
+      if (recipientScope === 'SELECTED' && Array.isArray(selectedIds) && selectedIds.length > 0) {
+        targetUsers = targetUsers.filter(
           (u) =>
-            selectedStudentIds.includes(u.id) ||
-            (u.studentDetails?.studentId && selectedStudentIds.includes(u.studentDetails.studentId))
+            selectedIds.includes(u.id) ||
+            (u.studentDetails?.studentId && selectedIds.includes(u.studentDetails.studentId))
         );
       }
 
-      if (targetStudents.length === 0) {
+      if (targetUsers.length === 0) {
         return NextResponse.json(
-          { error: 'No enrolled students found matching the selected broadcast criteria.' },
+          { error: `No ${effectiveBroadcastRole.toLowerCase()}s found matching the selected broadcast criteria.` },
           { status: 400 }
         );
       }
@@ -67,27 +76,33 @@ export async function POST(req: NextRequest) {
       let waSuccessCount = 0;
       const batchLogs: any[] = [];
 
-      for (const s of targetStudents) {
-        const sPhone = s.phone || s.studentDetails?.parentPhone;
-        const sEmail = s.email;
-        const sId = s.studentDetails?.studentId || s.id;
+      for (const u of targetUsers) {
+        const sPhone = u.phone || u.studentDetails?.parentPhone;
+        const sEmail = u.email;
+        const sId = u.studentDetails?.studentId || u.id;
 
         const autoRes = await triggerAutomationEvent({
           event: actionType === 'SEND_CREDENTIALS' ? 'CREDENTIALS_DISPATCH' : 'CUSTOM_MESSAGE',
           studentId: sId,
-          studentName: s.name,
+          studentName: u.name,
           recipientMobile: sPhone,
           recipientEmail: sEmail,
-          performedBy: session.name || session.email || 'Admin',
+          performedBy: session.name || session.email || (session.role === 'INSTRUCTOR' ? 'Instructor' : 'Admin'),
           channels,
           metadata: {
-            subject: customSubject || 'Important Announcement from PRAGATHI AI',
+            role: effectiveBroadcastRole,
+            instructorName: session.role === 'INSTRUCTOR' ? session.name : undefined,
+            subject:
+              customSubject ||
+              (effectiveBroadcastRole === 'INSTRUCTOR'
+                ? 'Important Notice for Faculty'
+                : 'Important Announcement from PRAGATHI AI'),
             message: customMessage || '',
-            classGrade: s.studentDetails?.classGrade || '10',
-            section: s.studentDetails?.section || 'A',
-            parentName: s.studentDetails?.parentName || 'Parent',
-            loginEmail: s.email,
-            temporaryPassword: 'Pragathi2026!',
+            classGrade: u.studentDetails?.classGrade || '10',
+            section: u.studentDetails?.section || 'A',
+            parentName: u.studentDetails?.parentName || 'Parent',
+            loginEmail: u.email,
+            temporaryPassword: effectiveBroadcastRole === 'INSTRUCTOR' ? 'Faculty2026!' : 'Pragathi2026!',
             origin,
           },
         });
@@ -96,26 +111,27 @@ export async function POST(req: NextRequest) {
         if (autoRes.results?.WHATSAPP?.status === 'DELIVERED') waSuccessCount++;
 
         batchLogs.push({
-          studentId: sId,
-          studentName: s.name,
+          userId: u.id,
+          name: u.name,
           results: autoRes.results,
         });
       }
 
+      const roleLabel = effectiveBroadcastRole === 'INSTRUCTOR' ? 'faculty members' : 'students';
       let broadcastMsg = '';
       if (channels.includes('EMAIL') && channels.includes('WHATSAPP')) {
-        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetStudents.length}, WhatsApp delivered to ${waSuccessCount}/${targetStudents.length}.`;
+        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetUsers.length}, WhatsApp delivered to ${waSuccessCount}/${targetUsers.length} ${roleLabel}.`;
       } else if (channels.includes('EMAIL')) {
-        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetStudents.length} students.`;
+        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetUsers.length} ${roleLabel}.`;
       } else {
-        broadcastMsg = `Broadcast finished: WhatsApp delivered to ${waSuccessCount}/${targetStudents.length} students.`;
+        broadcastMsg = `Broadcast finished: WhatsApp delivered to ${waSuccessCount}/${targetUsers.length} ${roleLabel}.`;
       }
 
       return NextResponse.json({
         success: true,
         message: broadcastMsg,
         scope: recipientScope,
-        totalRecipients: targetStudents.length,
+        totalRecipients: targetUsers.length,
         delivered: {
           email: emailSuccessCount,
           whatsapp: waSuccessCount,
@@ -125,27 +141,37 @@ export async function POST(req: NextRequest) {
     }
 
     // =========================================================================
-    // INDIVIDUAL DISPATCH
+    // 2. INDIVIDUAL & MANUAL DISPATCH
     // =========================================================================
-
-    // Find student if studentUserId or userId provided
-    const targetUserId = studentUserId || body.userId;
-    const studentUser = targetUserId
+    const targetUserId = studentUserId || userId;
+    let userRecord = targetUserId
       ? db.users.find((u) => u.id === targetUserId || u.studentDetails?.studentId === targetUserId)
       : null;
+
+    // In MANUAL mode, look up existing user by phone or email if not provided by ID
+    if (!userRecord && (recipientEmail || recipientPhone)) {
+      const cleanPhone = recipientPhone ? String(recipientPhone).replace(/\D/g, '') : '';
+      userRecord =
+        (db.users || []).find((u) => {
+          if (recipientEmail && u.email && u.email.toLowerCase() === recipientEmail.toLowerCase()) return true;
+          if (cleanPhone && u.phone && u.phone.replace(/\D/g, '').endsWith(cleanPhone.slice(-10))) return true;
+          return false;
+        }) || null;
+    }
 
     // Find registration if registrationId provided
     const registration = registrationId
       ? (db.registrations || []).find((r) => r.id === registrationId || r.registrationId === registrationId)
       : null;
 
-    const targetName =
-      studentUser?.name || registration?.studentName || recipientName || 'Student';
+    const effectiveRole = role || userRecord?.role || (targetRole === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT');
+    const defaultName = effectiveRole === 'INSTRUCTOR' ? 'Faculty Member' : 'Student';
+    const targetName = recipientName || userRecord?.name || registration?.studentName || defaultName;
     const targetPhone =
-      recipientPhone || studentUser?.phone || studentUser?.studentDetails?.parentPhone || registration?.mobileNumber;
+      recipientPhone || userRecord?.phone || userRecord?.studentDetails?.parentPhone || registration?.mobileNumber;
     const targetEmail =
-      recipientEmail || studentUser?.email || registration?.assignedEmail || registration?.email;
-    const studentId = studentUser?.studentDetails?.studentId || registration?.studentId;
+      recipientEmail || userRecord?.email || registration?.assignedEmail || registration?.email;
+    const targetId = userRecord?.studentDetails?.studentId || registration?.studentId || userRecord?.id;
 
     if (!targetPhone && !targetEmail) {
       return NextResponse.json(
@@ -154,26 +180,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const channelSummary = channels.join(' & ');
-
-    // 1. ACTION: SEND_CREDENTIALS
+    // -------------------------------------------------------------------------
+    // 2A. ACTION: SEND_CREDENTIALS
+    // -------------------------------------------------------------------------
     if (actionType === 'SEND_CREDENTIALS') {
-      const loginEmail = studentUser?.email || registration?.assignedEmail || targetEmail;
-      const rawPassword = studentUser ? 'Pragathi2026!' : registration?.temporaryPassword || 'Pragathi2026!';
+      const loginEmail = userRecord?.email || registration?.assignedEmail || targetEmail;
+      const rawPassword =
+        effectiveRole === 'INSTRUCTOR'
+          ? newPassword || 'Faculty2026!'
+          : userRecord
+          ? 'Pragathi2026!'
+          : registration?.temporaryPassword || 'Pragathi2026!';
 
       const automationResult = await triggerAutomationEvent({
         event: 'CREDENTIALS_DISPATCH',
-        studentId,
+        studentId: targetId,
         studentName: targetName,
         registrationId: registration?.registrationId,
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
-        performedBy: session.name || session.email || 'Admin',
+        performedBy: session.name || session.email || (session.role === 'INSTRUCTOR' ? 'Instructor' : 'Admin'),
         channels,
         metadata: {
-          classGrade: studentUser?.studentDetails?.classGrade || registration?.classGrade || '10',
-          section: studentUser?.studentDetails?.section || registration?.section || 'A',
-          parentName: studentUser?.studentDetails?.parentName || registration?.parentName || 'Parent',
+          role: effectiveRole,
+          classGrade: userRecord?.studentDetails?.classGrade || registration?.classGrade || '10',
+          section: userRecord?.studentDetails?.section || registration?.section || 'A',
+          parentName: userRecord?.studentDetails?.parentName || registration?.parentName || 'Parent',
           loginEmail,
           temporaryPassword: rawPassword,
           origin,
@@ -228,15 +260,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. ACTION: RESET_PASSWORD
+    // -------------------------------------------------------------------------
+    // 2B. ACTION: RESET_PASSWORD
+    // -------------------------------------------------------------------------
     if (actionType === 'RESET_PASSWORD') {
-      const rawPw = newPassword || `Pragathi${Math.floor(1000 + Math.random() * 9000)}!`;
+      const defaultPw = effectiveRole === 'INSTRUCTOR' ? 'Faculty2026!' : `Pragathi${Math.floor(1000 + Math.random() * 9000)}!`;
+      const rawPw = newPassword || defaultPw;
       const salt = bcrypt.genSaltSync(10);
       const passwordHash = bcrypt.hashSync(rawPw, salt);
 
-      if (studentUser) {
+      if (userRecord) {
         await updateDb((dbState) => {
-          const u = dbState.users.find((user) => user.id === studentUser.id);
+          const u = dbState.users.find((user) => user.id === userRecord.id);
           if (u) {
             u.passwordHash = passwordHash;
             u.updatedAt = new Date().toISOString();
@@ -252,16 +287,17 @@ export async function POST(req: NextRequest) {
       }
 
       const automationResult = await triggerAutomationEvent({
-        event: 'CREDENTIALS_DISPATCH',
-        studentId,
+        event: 'PASSWORD_RESET',
+        studentId: targetId,
         studentName: targetName,
         registrationId: registration?.registrationId,
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
-        performedBy: session.name || session.email || 'Admin',
+        performedBy: session.name || session.email || (session.role === 'INSTRUCTOR' ? 'Instructor' : 'Admin'),
         channels,
         metadata: {
-          loginEmail: studentUser?.email || registration?.assignedEmail || targetEmail,
+          role: effectiveRole,
+          loginEmail: userRecord?.email || registration?.assignedEmail || targetEmail,
           temporaryPassword: rawPw,
           origin,
         },
@@ -316,22 +352,33 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. ACTION: CUSTOM_MESSAGE
+    // -------------------------------------------------------------------------
+    // 2C. ACTION: CUSTOM_MESSAGE
+    // -------------------------------------------------------------------------
     if (actionType === 'CUSTOM_MESSAGE') {
       if (!customMessage?.trim()) {
         return NextResponse.json({ error: 'Message content cannot be empty.' }, { status: 400 });
       }
 
+      const defaultSubject =
+        effectiveRole === 'INSTRUCTOR'
+          ? 'Official Notice for Faculty'
+          : session.role === 'INSTRUCTOR'
+          ? `Message from Instructor ${session.name || ''}`
+          : 'Official Message from PRAGATHI AI';
+
       const automationResult = await triggerAutomationEvent({
         event: 'CUSTOM_MESSAGE',
-        studentId,
+        studentId: targetId,
         studentName: targetName,
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
-        performedBy: session.name || session.email || 'Admin',
+        performedBy: session.name || session.email || (session.role === 'INSTRUCTOR' ? 'Instructor' : 'Admin'),
         channels,
         metadata: {
-          subject: customSubject || 'Official Message from PRAGATHI AI',
+          role: effectiveRole,
+          instructorName: session.role === 'INSTRUCTOR' ? session.name : undefined,
+          subject: customSubject || defaultSubject,
           message: customMessage,
           origin,
         },

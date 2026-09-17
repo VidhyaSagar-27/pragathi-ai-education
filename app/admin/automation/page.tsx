@@ -51,6 +51,7 @@ export default function AdminAutomationPage() {
   const [dispatchSending, setDispatchSending] = useState(false);
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
+  const [dispatchDelivery, setDispatchDelivery] = useState<any>(null);
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -143,6 +144,7 @@ export default function AdminAutomationPage() {
       if (!res.ok) throw new Error(data.error || 'Dispatch failed');
 
       setDispatchSuccess(data.message || 'Notification dispatched successfully!');
+      setDispatchDelivery(data.delivery || data.delivered || null);
       if (dispatchAction === 'CUSTOM_MESSAGE') {
         setDispatchMessage('');
       }
@@ -385,13 +387,38 @@ export default function AdminAutomationPage() {
         </div>
 
         {dispatchSuccess && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-start space-x-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">{dispatchSuccess}</p>
-              <p className="text-[11px] text-emerald-700 mt-0.5">
-                Delivery logs updated below in real-time.
-              </p>
+          <div className={`p-4 rounded-xl text-xs space-y-2 ${
+            (dispatchDelivery?.whatsapp?.dispatched === false || (typeof dispatchDelivery?.whatsapp === 'number' && dispatchDelivery?.whatsapp === 0)) && dispatchChannelWa
+              ? 'bg-amber-50 border border-amber-200 text-amber-900'
+              : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+          }`}>
+            <div className="flex items-start space-x-2.5">
+              {(dispatchDelivery?.whatsapp?.dispatched === false || (typeof dispatchDelivery?.whatsapp === 'number' && dispatchDelivery?.whatsapp === 0)) && dispatchChannelWa ? (
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <p className="font-bold">{dispatchSuccess}</p>
+                <p className="text-[11px] opacity-90 mt-0.5">
+                  Delivery logs updated below in real-time.
+                </p>
+                {dispatchDelivery?.whatsapp?.error && (
+                  <div className="mt-2 p-2.5 bg-amber-100/80 border border-amber-300 rounded-lg text-[11px] text-amber-950">
+                    <strong>WhatsApp Gateway Status:</strong> {dispatchDelivery.whatsapp.error}
+                    {dispatchDelivery.whatsapp.error.includes('allowed') && (
+                      <p className="mt-1 text-[10px] text-amber-800">
+                        💡 <strong>Meta Sandbox Restriction:</strong> In Meta developer test mode, recipient numbers must be added to your <em>Allowed Recipient Phone Numbers</em> list in Meta Developer Console before Meta will permit delivery.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {typeof dispatchDelivery?.whatsapp === 'number' && dispatchDelivery?.whatsapp === 0 && dispatchChannelWa && (
+                  <div className="mt-2 p-2.5 bg-amber-100/80 border border-amber-300 rounded-lg text-[11px] text-amber-950">
+                    💡 <strong>Meta Sandbox Restriction:</strong> WhatsApp delivered to 0 recipients because student phone numbers are not in your Meta Developer Console allowed recipient list.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

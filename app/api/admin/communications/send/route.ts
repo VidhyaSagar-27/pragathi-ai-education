@@ -102,10 +102,18 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const channelSummary = channels.join(' & ');
+      let broadcastMsg = '';
+      if (channels.includes('EMAIL') && channels.includes('WHATSAPP')) {
+        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetStudents.length}, WhatsApp delivered to ${waSuccessCount}/${targetStudents.length}.`;
+      } else if (channels.includes('EMAIL')) {
+        broadcastMsg = `Broadcast finished: Email delivered to ${emailSuccessCount}/${targetStudents.length} students.`;
+      } else {
+        broadcastMsg = `Broadcast finished: WhatsApp delivered to ${waSuccessCount}/${targetStudents.length} students.`;
+      }
+
       return NextResponse.json({
         success: true,
-        message: `Broadcast successfully completed to ${targetStudents.length} students via ${channelSummary}.`,
+        message: broadcastMsg,
         scope: recipientScope,
         totalRecipients: targetStudents.length,
         delivered: {
@@ -174,21 +182,47 @@ export async function POST(req: NextRequest) {
 
       const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
       const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+      const waError = automationResult.results?.WHATSAPP?.errorReason;
+      const emailError = automationResult.results?.EMAIL?.errorReason;
+
+      let msg = '';
+      let partialFailure = false;
+      if (channels.includes('EMAIL') && channels.includes('WHATSAPP')) {
+        if (emailSent && waDelivered) {
+          msg = `Credentials dispatched to ${targetName} via Email & WhatsApp.`;
+        } else if (emailSent && !waDelivered) {
+          partialFailure = true;
+          msg = `Credentials sent via Email. WhatsApp not delivered: ${waError || 'Blocked by provider'}.`;
+        } else if (!emailSent && waDelivered) {
+          partialFailure = true;
+          msg = `Credentials delivered via WhatsApp. Email failed: ${emailError || 'Failed'}.`;
+        } else {
+          partialFailure = true;
+          msg = `Failed to deliver credentials via both Email (${emailError}) and WhatsApp (${waError}).`;
+        }
+      } else if (channels.includes('EMAIL')) {
+        partialFailure = !emailSent;
+        msg = emailSent ? `Credentials sent to ${targetName} via Email.` : `Email failed: ${emailError}`;
+      } else {
+        partialFailure = !waDelivered;
+        msg = waDelivered ? `Credentials delivered to ${targetName} via WhatsApp.` : `WhatsApp failed: ${waError}`;
+      }
 
       return NextResponse.json({
-        success: true,
-        message: `Credentials dispatched to ${targetName} via ${channelSummary}.`,
+        success: !partialFailure || emailSent || waDelivered,
+        partialFailure,
+        message: msg,
         automation: automationResult.results,
         delivery: {
           email: {
             dispatched: emailSent,
             messageId: automationResult.results?.EMAIL?.providerMessageId,
-            error: automationResult.results?.EMAIL?.errorReason,
+            error: emailError,
           },
           whatsapp: {
             dispatched: waDelivered,
             messageId: automationResult.results?.WHATSAPP?.providerMessageId,
-            error: automationResult.results?.WHATSAPP?.errorReason,
+            error: waError,
           },
         },
       });
@@ -217,18 +251,17 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const loginEmail = studentUser?.email || registration?.assignedEmail || targetEmail;
-
       const automationResult = await triggerAutomationEvent({
-        event: 'PASSWORD_RESET',
+        event: 'CREDENTIALS_DISPATCH',
         studentId,
         studentName: targetName,
+        registrationId: registration?.registrationId,
         recipientMobile: targetPhone,
         recipientEmail: targetEmail,
         performedBy: session.name || session.email || 'Admin',
         channels,
         metadata: {
-          loginEmail,
+          loginEmail: studentUser?.email || registration?.assignedEmail || targetEmail,
           temporaryPassword: rawPw,
           origin,
         },
@@ -236,22 +269,48 @@ export async function POST(req: NextRequest) {
 
       const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
       const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+      const waError = automationResult.results?.WHATSAPP?.errorReason;
+      const emailError = automationResult.results?.EMAIL?.errorReason;
+
+      let msg = '';
+      let partialFailure = false;
+      if (channels.includes('EMAIL') && channels.includes('WHATSAPP')) {
+        if (emailSent && waDelivered) {
+          msg = `Password reset and dispatched to ${targetName} via Email & WhatsApp.`;
+        } else if (emailSent && !waDelivered) {
+          partialFailure = true;
+          msg = `Password reset and sent via Email. WhatsApp not delivered: ${waError || 'Blocked by provider'}.`;
+        } else if (!emailSent && waDelivered) {
+          partialFailure = true;
+          msg = `Password reset and delivered via WhatsApp. Email failed: ${emailError || 'Failed'}.`;
+        } else {
+          partialFailure = true;
+          msg = `Password reset but failed to deliver via Email (${emailError}) and WhatsApp (${waError}).`;
+        }
+      } else if (channels.includes('EMAIL')) {
+        partialFailure = !emailSent;
+        msg = emailSent ? `Password reset and sent to ${targetName} via Email.` : `Email failed: ${emailError}`;
+      } else {
+        partialFailure = !waDelivered;
+        msg = waDelivered ? `Password reset and delivered to ${targetName} via WhatsApp.` : `WhatsApp failed: ${waError}`;
+      }
 
       return NextResponse.json({
-        success: true,
-        message: `Password reset and sent to ${targetName} via ${channelSummary}.`,
+        success: !partialFailure || emailSent || waDelivered,
+        partialFailure,
+        message: msg,
         newPassword: rawPw,
         automation: automationResult.results,
         delivery: {
           email: {
             dispatched: emailSent,
             messageId: automationResult.results?.EMAIL?.providerMessageId,
-            error: automationResult.results?.EMAIL?.errorReason,
+            error: emailError,
           },
           whatsapp: {
             dispatched: waDelivered,
             messageId: automationResult.results?.WHATSAPP?.providerMessageId,
-            error: automationResult.results?.WHATSAPP?.errorReason,
+            error: waError,
           },
         },
       });
@@ -280,21 +339,47 @@ export async function POST(req: NextRequest) {
 
       const emailSent = automationResult.results?.EMAIL?.status === 'SENT';
       const waDelivered = automationResult.results?.WHATSAPP?.status === 'DELIVERED';
+      const waError = automationResult.results?.WHATSAPP?.errorReason;
+      const emailError = automationResult.results?.EMAIL?.errorReason;
+
+      let msg = '';
+      let partialFailure = false;
+      if (channels.includes('EMAIL') && channels.includes('WHATSAPP')) {
+        if (emailSent && waDelivered) {
+          msg = `Message dispatched to ${targetName} via Email & WhatsApp.`;
+        } else if (emailSent && !waDelivered) {
+          partialFailure = true;
+          msg = `Message sent via Email. WhatsApp not delivered: ${waError || 'Blocked by provider'}.`;
+        } else if (!emailSent && waDelivered) {
+          partialFailure = true;
+          msg = `Message delivered via WhatsApp. Email failed: ${emailError || 'Failed'}.`;
+        } else {
+          partialFailure = true;
+          msg = `Failed to deliver message via Email (${emailError}) and WhatsApp (${waError}).`;
+        }
+      } else if (channels.includes('EMAIL')) {
+        partialFailure = !emailSent;
+        msg = emailSent ? `Message sent to ${targetName} via Email.` : `Email failed: ${emailError}`;
+      } else {
+        partialFailure = !waDelivered;
+        msg = waDelivered ? `Message delivered to ${targetName} via WhatsApp.` : `WhatsApp failed: ${waError}`;
+      }
 
       return NextResponse.json({
-        success: true,
-        message: `Message sent to ${targetName} via ${channelSummary}.`,
+        success: !partialFailure || emailSent || waDelivered,
+        partialFailure,
+        message: msg,
         automation: automationResult.results,
         delivery: {
           email: {
             dispatched: emailSent,
             messageId: automationResult.results?.EMAIL?.providerMessageId,
-            error: automationResult.results?.EMAIL?.errorReason,
+            error: emailError,
           },
           whatsapp: {
             dispatched: waDelivered,
             messageId: automationResult.results?.WHATSAPP?.providerMessageId,
-            error: automationResult.results?.WHATSAPP?.errorReason,
+            error: waError,
           },
         },
       });

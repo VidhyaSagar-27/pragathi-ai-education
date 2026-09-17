@@ -122,6 +122,12 @@ async function dispatchWhatsApp({
       if (res.ok && data.messages?.[0]?.id) {
         return { status: 'DELIVERED', providerMessageId: data.messages[0].id };
       } else {
+        if (data.error?.code === 131030 || data.error?.error_subcode === 131030) {
+          const errMsg = `Meta Sandbox Restriction: Recipient (+${normalizedPhone}) is not in your allowed phone numbers list in Meta Developer Dashboard.`;
+          console.warn('[WhatsApp Meta API Block]:', errMsg);
+          return { status: 'FAILED', error: errMsg };
+        }
+
         const is24hLimit =
           data.error?.code === 131047 ||
           data.error?.error_subcode === 131047 ||

@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Camera,
   Send,
+  AlertTriangle,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
@@ -78,6 +79,7 @@ export default function AdminStudentsPage() {
   const [commSending, setCommSending] = useState(false);
   const [commSuccess, setCommSuccess] = useState<string | null>(null);
   const [commError, setCommError] = useState<string | null>(null);
+  const [commDelivery, setCommDelivery] = useState<any>(null);
 
   // Broadcast Modal State (Dispatch to all at once)
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
@@ -88,6 +90,7 @@ export default function AdminStudentsPage() {
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState<string | null>(null);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [broadcastDelivery, setBroadcastDelivery] = useState<any>(null);
 
   const handleOpenCommModal = (stu: User) => {
     setCommTargetStudent(stu);
@@ -99,6 +102,7 @@ export default function AdminStudentsPage() {
     setCommChannelEmail(true);
     setCommSuccess(null);
     setCommError(null);
+    setCommDelivery(null);
     setCommModalOpen(true);
   };
 
@@ -137,6 +141,7 @@ export default function AdminStudentsPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch communication');
 
       setCommSuccess(data.message || `Dispatched successfully via ${channels.join(' & ')}!`);
+      setCommDelivery(data.delivery || null);
       loadData();
     } catch (err: any) {
       setCommError(err.message || 'Error dispatching communication');
@@ -152,6 +157,7 @@ export default function AdminStudentsPage() {
     setBroadcastChannelEmail(true);
     setBroadcastSuccess(null);
     setBroadcastError(null);
+    setBroadcastDelivery(null);
     setBroadcastModalOpen(true);
   };
 
@@ -190,6 +196,7 @@ export default function AdminStudentsPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch broadcast');
 
       setBroadcastSuccess(data.message || `Broadcast completed to all students!`);
+      setBroadcastDelivery(data.delivered || null);
       loadData();
     } catch (err: any) {
       setBroadcastError(err.message || 'Error dispatching broadcast');
@@ -1188,15 +1195,74 @@ export default function AdminStudentsPage() {
 
             {commSuccess ? (
               <div className="space-y-4 py-2">
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+                <div className={`p-4 rounded-xl space-y-3 ${
+                  commDelivery?.whatsapp?.dispatched === false && commChannelWa
+                    ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                    : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                }`}>
                   <div className="font-bold text-sm flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Communication Dispatched Successfully!</span>
+                    {commDelivery?.whatsapp?.dispatched === false && commChannelWa ? (
+                      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    )}
+                    <span>{commDelivery?.whatsapp?.dispatched === false && commChannelWa ? 'Delivery Report with Notice' : 'Communication Dispatched Successfully!'}</span>
                   </div>
-                  <p className="text-xs text-emerald-950">{commSuccess}</p>
-                  <p className="text-[11px] text-emerald-700 pt-1">
-                    Multi-channel delivery triggered for both WhatsApp (+91 {commTargetStudent.phone || 'registered number'}) and Email ({commTargetStudent.email}).
-                  </p>
+                  <p className="text-xs leading-relaxed">{commSuccess}</p>
+
+                  {/* Channel Breakdown */}
+                  {commDelivery && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200/60 text-xs">
+                      {commChannelEmail && (
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center space-x-1 font-medium text-slate-700">
+                            <Mail className="w-3.5 h-3.5 text-teal-600" />
+                            <span>Email ({commTargetStudent.email}):</span>
+                          </span>
+                          {commDelivery.email?.dispatched ? (
+                            <span className="font-semibold text-emerald-700 flex items-center">
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Sent (Gmail API)
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-rose-600 flex items-center">
+                              <AlertCircle className="w-3.5 h-3.5 mr-1" /> Failed ({commDelivery.email?.error || 'Error'})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {commChannelWa && (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center space-x-1 font-medium text-slate-700">
+                              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WhatsApp (+91 {commTargetStudent.phone?.replace(/\D/g, '').slice(-10)}):</span>
+                            </span>
+                            {commDelivery.whatsapp?.dispatched ? (
+                              <span className="font-semibold text-emerald-700 flex items-center">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Delivered (Meta API)
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-amber-700 flex items-center">
+                                <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600" /> Blocked / Not Delivered
+                              </span>
+                            )}
+                          </div>
+                          {commDelivery.whatsapp?.error && (
+                            <div className="p-2.5 bg-amber-100/70 border border-amber-300 rounded-lg text-[11px] text-amber-900 mt-1">
+                              <p className="font-semibold">⚠️ WhatsApp Gateway Feedback:</p>
+                              <p className="mt-0.5">{commDelivery.whatsapp.error}</p>
+                              {commDelivery.whatsapp.error.includes('allowed') && (
+                                <p className="mt-1 text-[10px] text-amber-800">
+                                  💡 <strong>Meta Sandbox Restriction:</strong> In Meta developer test mode, recipient numbers must be added to your <em>Allowed Recipient Phone Numbers</em> list in Meta Developer Console before Meta will permit delivery.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1454,15 +1520,42 @@ export default function AdminStudentsPage() {
 
             {broadcastSuccess ? (
               <div className="space-y-4 py-2">
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+                <div className={`p-4 rounded-xl space-y-3 ${
+                  broadcastDelivery && broadcastDelivery.whatsapp === 0 && broadcastChannelWa
+                    ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                    : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                }`}>
                   <div className="font-bold text-sm flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Broadcast Dispatched Successfully!</span>
+                    {broadcastDelivery && broadcastDelivery.whatsapp === 0 && broadcastChannelWa ? (
+                      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    )}
+                    <span>Broadcast Report</span>
                   </div>
-                  <p className="text-xs text-emerald-950">{broadcastSuccess}</p>
-                  <p className="text-[11px] text-emerald-700 pt-1">
-                    Delivered simultaneously to all active students across the selected channels.
-                  </p>
+                  <p className="text-xs leading-relaxed">{broadcastSuccess}</p>
+
+                  {broadcastDelivery && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                      {broadcastChannelEmail && (
+                        <div className="p-2.5 bg-white/90 rounded-xl border border-teal-200">
+                          <span className="text-slate-500 block text-[11px] font-medium">Email Deliveries:</span>
+                          <span className="font-bold text-teal-900 text-sm">{broadcastDelivery.email} / {students.length} Sent</span>
+                        </div>
+                      )}
+                      {broadcastChannelWa && (
+                        <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200">
+                          <span className="text-slate-500 block text-[11px] font-medium">WhatsApp Deliveries:</span>
+                          <span className="font-bold text-amber-900 text-sm">{broadcastDelivery.whatsapp} / {students.length} Delivered</span>
+                          {broadcastDelivery.whatsapp === 0 && (
+                            <p className="text-[10px] text-amber-800 mt-1">
+                              * Blocked by Meta Test Sandbox: numbers must be in Meta Developer console allowed list.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

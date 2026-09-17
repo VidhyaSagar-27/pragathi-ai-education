@@ -61,7 +61,10 @@ export async function sendAutomatedWhatsAppMessage({
     const db = await getDb();
     const waConfig = db?.settings?.whatsappConfig;
 
-    const metaToken = waConfig?.metaAccessToken || process.env.WHATSAPP_API_TOKEN;
+    const metaToken =
+      waConfig?.metaAccessToken ||
+      waConfig?.metaApiToken ||
+      process.env.WHATSAPP_API_TOKEN;
     const metaPhoneId = waConfig?.metaPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
     const twilioSid = waConfig?.twilioAccountSid || process.env.TWILIO_ACCOUNT_SID;

@@ -80,11 +80,23 @@ async function dispatchWhatsApp({
   }
 
   const db = await getDb().catch(() => null);
-  const metaToken = process.env.WHATSAPP_API_TOKEN || db?.settings?.whatsappConfig?.metaApiToken;
-  const metaPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || db?.settings?.whatsappConfig?.metaPhoneNumberId;
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID || db?.settings?.whatsappConfig?.twilioAccountSid;
-  const twilioAuth = process.env.TWILIO_AUTH_TOKEN || db?.settings?.whatsappConfig?.twilioAuthToken;
-  const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER || db?.settings?.whatsappConfig?.twilioWhatsAppNumber;
+  const metaToken =
+    process.env.WHATSAPP_API_TOKEN ||
+    db?.settings?.whatsappConfig?.metaAccessToken ||
+    db?.settings?.whatsappConfig?.metaApiToken;
+  const metaPhoneId =
+    process.env.WHATSAPP_PHONE_NUMBER_ID ||
+    db?.settings?.whatsappConfig?.metaPhoneNumberId;
+  const twilioSid =
+    process.env.TWILIO_ACCOUNT_SID ||
+    db?.settings?.whatsappConfig?.twilioAccountSid;
+  const twilioAuth =
+    process.env.TWILIO_AUTH_TOKEN ||
+    db?.settings?.whatsappConfig?.twilioAuthToken;
+  const twilioNumber =
+    process.env.TWILIO_WHATSAPP_NUMBER ||
+    db?.settings?.whatsappConfig?.twilioFromNumber ||
+    db?.settings?.whatsappConfig?.twilioWhatsAppNumber;
 
   // 1. Meta WhatsApp Cloud API (Graph API)
   if (metaToken && metaPhoneId) {

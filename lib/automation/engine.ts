@@ -121,6 +121,35 @@ async function dispatchWhatsApp({
       if (res.ok && data.messages?.[0]?.id) {
         return { status: 'DELIVERED', providerMessageId: data.messages[0].id };
       } else {
+        const is24hLimit =
+          data.error?.code === 131047 ||
+          data.error?.error_subcode === 131047 ||
+          data.error?.message?.includes('24 hour');
+
+        if (is24hLimit) {
+          console.log('[Meta API Engine]: Outside 24h window, dispatching template fallback');
+          const tmplRes = await fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${metaToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: normalizedPhone,
+              type: 'template',
+              template: {
+                name: 'hello_world',
+                language: { code: 'en_US' },
+              },
+            }),
+          });
+          const tmplData = await tmplRes.json().catch(() => ({}));
+          if (tmplRes.ok && tmplData.messages?.[0]?.id) {
+            return { status: 'DELIVERED', providerMessageId: tmplData.messages[0].id };
+          }
+        }
+
         const errMsg = data.error?.message || `Meta API returned HTTP ${res.status}`;
         console.warn('[WhatsApp Meta API Failed]:', errMsg);
         return { status: 'FAILED', error: errMsg };

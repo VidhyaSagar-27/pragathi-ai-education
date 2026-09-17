@@ -50,7 +50,7 @@ export async function sendAutomatedWhatsAppMessage({
   mediaUrl,
   metadata,
 }: AutomatedWhatsAppOptions): Promise<AutomatedWhatsAppResult> {
-  const messageId = `wa_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  let messageId = `wa_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const normalizedPhone = normalizeWhatsAppNumber(recipientMobile);
 
   let provider: AutomatedWhatsAppResult['provider'] = 'SIMULATED_ENGINE';
@@ -90,13 +90,49 @@ export async function sendAutomatedWhatsAppMessage({
           }),
         });
 
-        if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && resData.messages?.[0]?.id) {
           provider = 'META_CLOUD_API';
           status = 'SENT';
+          messageId = resData.messages[0].id;
         } else {
-          const errData = await res.json().catch(() => ({}));
-          console.warn('[WhatsApp Meta API Error]', errData);
-          errorMsg = JSON.stringify(errData);
+          // If free-text fails because outside 24h customer window, try hello_world template fallback
+          const is24hLimit =
+            resData.error?.code === 131047 ||
+            resData.error?.error_subcode === 131047 ||
+            resData.error?.message?.includes('24 hour');
+
+          if (is24hLimit) {
+            console.log('[Meta API]: Outside 24h window, dispatching template fallback');
+            const tmplRes = await fetch(url, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${metaToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                to: normalizedPhone,
+                type: 'template',
+                template: {
+                  name: 'hello_world',
+                  language: { code: 'en_US' },
+                },
+              }),
+            });
+            const tmplData = await tmplRes.json().catch(() => ({}));
+            if (tmplRes.ok && tmplData.messages?.[0]?.id) {
+              provider = 'META_CLOUD_API';
+              status = 'SENT';
+              messageId = tmplData.messages[0].id;
+            } else {
+              errorMsg = resData.error?.message || 'Meta API returned an error';
+            }
+          } else {
+            const errData = resData;
+            console.warn('[WhatsApp Meta API Error]', errData);
+            errorMsg = errData.error?.message || JSON.stringify(errData);
+          }
         }
       } catch (err: any) {
         console.warn('[WhatsApp Meta Cloud Dispatch Failed, fallback to system engine]:', err.message);

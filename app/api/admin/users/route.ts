@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb, generateNextRollNumber, noCacheHeaders } from '@/lib/db';
+import {
+  getDb,
+  updateDb,
+  generateNextRollNumber,
+  syncRollNumberSequence,
+  getRollNumberStatus,
+  updateSequenceIfHigher,
+  noCacheHeaders,
+} from '@/lib/db';
 import { User, UserRole, UserStatus } from '@/lib/db/types';
 import { triggerAutomationEvent } from '@/lib/automation/engine';
 
@@ -80,7 +88,17 @@ export async function POST(req: NextRequest) {
     let enrichedStudentDetails = studentDetails;
 
     if (isStudent) {
-      rollNumber = studentDetails?.rollNumber || (await generateNextRollNumber());
+      if (studentDetails?.rollNumber) {
+        rollNumber = String(studentDetails.rollNumber).trim().toUpperCase();
+        const numMatch = rollNumber.match(/PRG(\d+)/i);
+        if (numMatch) {
+          await updateSequenceIfHigher('student_roll_number', parseInt(numMatch[1], 10));
+        }
+      } else {
+        const rollStatus = await getRollNumberStatus();
+        rollNumber = rollStatus.vacantRollNumbers.length > 0 ? rollStatus.vacantRollNumbers[0] : await generateNextRollNumber();
+      }
+
       enrichedStudentDetails = {
         ...studentDetails,
         rollNumber,
@@ -213,11 +231,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    let deletedStuRoll: string | undefined;
+
     await updateDb((dbState) => {
       const userToDelete = dbState.users.find((u) => u.id === id);
       dbState.users = (dbState.users || []).filter((u) => u.id !== id);
       if (userToDelete && userToDelete.role === 'STUDENT') {
-        const stuRoll = userToDelete.rollNumber || userToDelete.studentDetails?.rollNumber || userToDelete.studentDetails?.studentId;
+        deletedStuRoll = userToDelete.rollNumber || userToDelete.studentDetails?.rollNumber || userToDelete.studentDetails?.studentId;
+        const stuRoll = deletedStuRoll;
         dbState.registrations = (dbState.registrations || []).filter((r) => {
           if (stuRoll && r.studentId === stuRoll) return false;
           if (r.id === userToDelete.id) return false;
@@ -230,7 +251,15 @@ export async function DELETE(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ success: true, message: 'User deleted successfully' }, { headers: noCacheHeaders });
+    if (deletedStuRoll) {
+      await syncRollNumberSequence(deletedStuRoll);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'User deleted successfully',
+      freedRollNumber: deletedStuRoll || null,
+    }, { headers: noCacheHeaders });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete user' }, { status: 500, headers: noCacheHeaders });
   }

@@ -19,6 +19,7 @@ import {
   Bell,
   RotateCw,
 } from 'lucide-react';
+import { useDataSync } from '@/lib/utils/syncEvents';
 
 export default function AdminOverviewPage() {
   const [data, setData] = useState<{
@@ -99,12 +100,10 @@ export default function AdminOverviewPage() {
     }
   };
 
+  useDataSync(() => fetchOverview(), { entity: 'students', pollIntervalMs: 10000 });
+
   useEffect(() => {
     fetchOverview();
-
-    const onFocus = () => fetchOverview();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   if (loading) {

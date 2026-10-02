@@ -468,32 +468,157 @@ export async function generateNextRollNumber(): Promise<string> {
   return formatRollNumber(seq);
 }
 
-export async function peekNextRollNumber(): Promise<string> {
+export interface RollNumberStatus {
+  nextRollNumber: string;
+  nextSequentialRollNumber: string;
+  vacantRollNumbers: string[];
+  hasVacant: boolean;
+  activeCount: number;
+  activeRollNumbers: string[];
+}
+
+export async function getRollNumberStatus(): Promise<RollNumberStatus> {
   await ensureSequenceTable();
+  const db = await getDb();
+
+  const activeStudents = (db.users || []).filter((u) => u.role === 'STUDENT');
+  const activeNumbersSet = new Set<number>();
+  const activeRollNumbers: string[] = [];
+
+  for (const stu of activeStudents) {
+    const r = stu.rollNumber || stu.studentDetails?.rollNumber || stu.studentDetails?.studentId || '';
+    const match = r.match(/PRG(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      activeNumbersSet.add(num);
+      activeRollNumbers.push(formatRollNumber(num));
+    }
+  }
+
+  activeRollNumbers.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  // Get sequence value from Postgres
+  let sequenceVal = 0;
   try {
     const sql = getSqlClient();
     const rows = await sql`
       SELECT last_value FROM app_sequences WHERE name = 'student_roll_number' LIMIT 1;
     `;
     if (rows && rows.length > 0 && rows[0].last_value !== undefined) {
-      const nextVal = Number(rows[0].last_value) + 1;
-      return formatRollNumber(nextVal);
+      sequenceVal = Number(rows[0].last_value);
     }
   } catch (err) {
-    console.warn('Could not peek sequence from Postgres:', err);
+    console.warn('Could not read sequence from Postgres:', err);
   }
 
-  // Fallback
+  const maxActive = activeNumbersSet.size > 0 ? Math.max(...Array.from(activeNumbersSet)) : 0;
+  const maxIssued = Math.max(sequenceVal, maxActive);
+
+  // If there are no active students at all, sequence should start from PRG001
+  if (activeStudents.length === 0) {
+    return {
+      nextRollNumber: 'PRG001',
+      nextSequentialRollNumber: sequenceVal > 0 ? formatRollNumber(sequenceVal + 1) : 'PRG001',
+      vacantRollNumbers: sequenceVal > 0 ? [formatRollNumber(1)] : [],
+      hasVacant: sequenceVal > 0,
+      activeCount: 0,
+      activeRollNumbers: [],
+    };
+  }
+
+  // Find all vacant numbers from 1 to maxIssued
+  const vacantNumbers: number[] = [];
+  for (let i = 1; i <= maxIssued; i++) {
+    if (!activeNumbersSet.has(i)) {
+      vacantNumbers.push(i);
+    }
+  }
+
+  const vacantRollNumbers = vacantNumbers.map((n) => formatRollNumber(n));
+  const nextSequentialNum = maxIssued + 1;
+  const nextSequentialRollNumber = formatRollNumber(nextSequentialNum);
+
+  // Default suggested roll number: first vacant if any, else next sequential
+  const recommendedRollNumber = vacantRollNumbers.length > 0 ? vacantRollNumbers[0] : nextSequentialRollNumber;
+
+  return {
+    nextRollNumber: recommendedRollNumber,
+    nextSequentialRollNumber,
+    vacantRollNumbers,
+    hasVacant: vacantRollNumbers.length > 0,
+    activeCount: activeStudents.length,
+    activeRollNumbers,
+  };
+}
+
+export async function peekNextRollNumber(): Promise<string> {
+  const status = await getRollNumberStatus();
+  return status.nextRollNumber;
+}
+
+export async function syncRollNumberSequence(deletedRollNumber?: string): Promise<void> {
+  await ensureSequenceTable();
   const db = await getDb();
-  const maxRollNum = (db.users || [])
-    .filter((u) => u.role === 'STUDENT' && (u.rollNumber || u.studentDetails?.rollNumber))
-    .map((u) => {
-      const r = u.rollNumber || u.studentDetails?.rollNumber || '';
-      const match = r.match(/PRG(\d+)/i);
-      return match ? parseInt(match[1], 10) : 0;
-    })
-    .reduce((max, curr) => Math.max(max, curr), 0);
-  return formatRollNumber(maxRollNum + 1);
+  const activeStudents = (db.users || []).filter((u) => u.role === 'STUDENT');
+
+  if (activeStudents.length === 0) {
+    // If all students were removed, reset sequence to 0 so next is cleanly PRG001
+    try {
+      const sql = getSqlClient();
+      await sql`
+        INSERT INTO app_sequences (name, last_value)
+        VALUES ('student_roll_number', 0)
+        ON CONFLICT (name) DO UPDATE
+        SET last_value = 0;
+      `;
+    } catch (err) {
+      console.warn('Could not reset sequence to 0 in Postgres:', err);
+    }
+    invalidateDbCache();
+    return;
+  }
+
+  // If students remain, find the maximum roll number among remaining active students
+  let maxActive = 0;
+  for (const stu of activeStudents) {
+    const r = stu.rollNumber || stu.studentDetails?.rollNumber || '';
+    const match = r.match(/PRG(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxActive) maxActive = num;
+    }
+  }
+
+  // If the deleted roll number was the highest, bring last_value down to maxActive
+  try {
+    const sql = getSqlClient();
+    await sql`
+      UPDATE app_sequences
+      SET last_value = ${maxActive}
+      WHERE name = 'student_roll_number' AND last_value > ${maxActive};
+    `;
+  } catch (err) {
+    console.warn('Could not sync sequence down in Postgres:', err);
+  }
+  invalidateDbCache();
+}
+
+export async function updateSequenceIfHigher(
+  sequenceName: 'student_roll_number' | 'registration_id' | 'student_id',
+  val: number
+): Promise<void> {
+  await ensureSequenceTable();
+  try {
+    const sql = getSqlClient();
+    await sql`
+      INSERT INTO app_sequences (name, last_value)
+      VALUES (${sequenceName}, ${val})
+      ON CONFLICT (name) DO UPDATE
+      SET last_value = GREATEST(app_sequences.last_value, ${val});
+    `;
+  } catch (err) {
+    console.warn(`Could not update sequence ${sequenceName} if higher:`, err);
+  }
 }
 
 export async function generateRegistrationId(): Promise<string> {

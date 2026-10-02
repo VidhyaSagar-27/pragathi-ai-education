@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { compressProfileImage } from '@/lib/utils/imageCompression';
+import { broadcastDataChange } from '@/lib/utils/syncEvents';
 
 interface FastRegisterStudentModalProps {
   isOpen: boolean;
@@ -31,6 +32,22 @@ export default function FastRegisterStudentModal({
   onStudentCreated,
 }: FastRegisterStudentModalProps) {
   const [nextRoll, setNextRoll] = useState<string>('PRG001');
+  const [rollStatus, setRollStatus] = useState<{
+    nextRollNumber: string;
+    nextSequentialRollNumber: string;
+    vacantRollNumbers: string[];
+    hasVacant: boolean;
+    activeCount: number;
+  }>({
+    nextRollNumber: 'PRG001',
+    nextSequentialRollNumber: 'PRG001',
+    vacantRollNumbers: [],
+    hasVacant: false,
+    activeCount: 0,
+  });
+  const [rollMode, setRollMode] = useState<'DEFAULT' | 'NEXT_SEQUENCE' | 'CUSTOM'>('DEFAULT');
+  const [customRollInput, setCustomRollInput] = useState('');
+
   const [name, setName] = useState('');
   const [schoolName, setSchoolName] = useState('');
   const [classGrade, setClassGrade] = useState('');
@@ -58,15 +75,14 @@ export default function FastRegisterStudentModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Fetch next roll number when modal opens
+  // Fetch roll number status when modal opens
   const fetchNextRoll = async () => {
     try {
       const res = await fetch(`/api/admin/students/register?_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.nextRollNumber) {
-          setNextRoll(data.nextRollNumber);
-        }
+        setRollStatus(data);
+        setNextRoll(data.nextRollNumber || 'PRG001');
       }
     } catch (e) {
       console.warn('Could not fetch next roll number preview:', e);
@@ -79,8 +95,21 @@ export default function FastRegisterStudentModal({
       setErrorMsg(null);
       setCreatedResult(null);
       setCopied(false);
+      setRollMode('DEFAULT');
+      setCustomRollInput('');
     }
   }, [isOpen]);
+
+  // Compute the chosen roll number based on mode
+  const getEffectiveRollNumber = () => {
+    if (rollMode === 'CUSTOM' && customRollInput.trim()) {
+      return customRollInput.trim().toUpperCase();
+    }
+    if (rollMode === 'NEXT_SEQUENCE') {
+      return rollStatus.nextSequentialRollNumber;
+    }
+    return rollStatus.nextRollNumber || 'PRG001';
+  };
 
   // Handle image file selection (from camera or gallery)
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,6 +145,8 @@ export default function FastRegisterStudentModal({
       return;
     }
 
+    const effectiveRoll = getEffectiveRollNumber();
+
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/admin/students/register', {
@@ -129,6 +160,7 @@ export default function FastRegisterStudentModal({
           phone: cleanPhone,
           email: email.trim() || undefined,
           photoData: photoData || undefined,
+          selectedRollNumber: effectiveRoll,
         }),
       });
 
@@ -145,6 +177,7 @@ export default function FastRegisterStudentModal({
         email: email.trim() || undefined,
       });
 
+      broadcastDataChange('students', 'create');
       onStudentCreated();
     } catch (err: any) {
       setErrorMsg(err.message || 'An error occurred during student registration.');
@@ -172,6 +205,8 @@ export default function FastRegisterStudentModal({
     setCreatedResult(null);
     setErrorMsg(null);
     setCopied(false);
+    setRollMode('DEFAULT');
+    setCustomRollInput('');
     fetchNextRoll();
   };
 
@@ -285,16 +320,164 @@ export default function FastRegisterStudentModal({
               </div>
             )}
 
-            {/* Next Roll Number Badge */}
-            <div className="flex items-center justify-between p-3 bg-teal-50 border border-teal-200 rounded-xl">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-teal-600" />
-                <span className="text-xs font-semibold text-teal-900">Auto-Generated Roll Number:</span>
+            {/* Roll Number Assignment Options */}
+            {rollStatus.hasVacant ? (
+              <div className="p-4 bg-gradient-to-br from-amber-50 to-teal-50/40 border border-amber-300 rounded-2xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-amber-950 font-bold text-xs">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Roll Number Assignment Options</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900">
+                    Removed Number Available
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  A previously removed student roll number is vacant. Choose whether to reuse the removed number, continue with the next sequence, or enter a custom number:
+                </p>
+
+                <div className="space-y-2 pt-1">
+                  {/* Option 1: Reuse Removed Number (Recommended) */}
+                  <label
+                    className={`flex items-start space-x-3 p-2.5 rounded-xl border cursor-pointer transition ${
+                      rollMode === 'DEFAULT'
+                        ? 'bg-white border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
+                        : 'bg-white/60 border-slate-200 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="rollSelection"
+                      checked={rollMode === 'DEFAULT'}
+                      onChange={() => setRollMode('DEFAULT')}
+                      className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <strong className="text-slate-900">
+                          Reuse Removed Number:{' '}
+                          <span className="font-mono text-teal-700 font-black">
+                            {rollStatus.vacantRollNumbers[0]}
+                          </span>
+                        </strong>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Assigns vacant roll number from the recently deleted student.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 2: Continue Next Sequence */}
+                  <label
+                    className={`flex items-start space-x-3 p-2.5 rounded-xl border cursor-pointer transition ${
+                      rollMode === 'NEXT_SEQUENCE'
+                        ? 'bg-white border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
+                        : 'bg-white/60 border-slate-200 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="rollSelection"
+                      checked={rollMode === 'NEXT_SEQUENCE'}
+                      onChange={() => setRollMode('NEXT_SEQUENCE')}
+                      className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 text-xs">
+                      <strong className="text-slate-900">
+                        Continue Next Sequence:{' '}
+                        <span className="font-mono text-slate-700 font-bold">
+                          {rollStatus.nextSequentialRollNumber}
+                        </span>
+                      </strong>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Leaves removed number gap and proceeds with the next sequential number.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 3: Custom Roll Number */}
+                  <label
+                    className={`flex items-start space-x-3 p-2.5 rounded-xl border cursor-pointer transition ${
+                      rollMode === 'CUSTOM'
+                        ? 'bg-white border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
+                        : 'bg-white/60 border-slate-200 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="rollSelection"
+                      checked={rollMode === 'CUSTOM'}
+                      onChange={() => setRollMode('CUSTOM')}
+                      className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 text-xs">
+                      <strong className="text-slate-900">Specify Custom Roll Number</strong>
+                      {rollMode === 'CUSTOM' && (
+                        <div className="mt-2">
+                          <input
+                            type="text"
+                            placeholder="e.g. PRG001"
+                            value={customRollInput}
+                            onChange={(e) => setCustomRollInput(e.target.value.toUpperCase())}
+                            className="w-full sm:w-44 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
               </div>
-              <span className="text-sm font-black font-mono px-3 py-1 bg-teal-600 text-white rounded-lg shadow-2xs">
-                {nextRoll}
-              </span>
-            </div>
+            ) : (
+              /* When no roll numbers are vacant */
+              <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="w-4 h-4 text-teal-600" />
+                    <span className="text-xs font-semibold text-teal-900">
+                      Assigned Roll Number:
+                    </span>
+                    <span className="text-xs font-black font-mono px-2.5 py-1 bg-teal-600 text-white rounded-lg shadow-2xs">
+                      {rollMode === 'CUSTOM' && customRollInput.trim()
+                        ? customRollInput.trim()
+                        : rollStatus.nextRollNumber}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (rollMode === 'CUSTOM') {
+                        setRollMode('DEFAULT');
+                        setCustomRollInput('');
+                      } else {
+                        setRollMode('CUSTOM');
+                        setCustomRollInput(rollStatus.nextRollNumber);
+                      }
+                    }}
+                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                  >
+                    {rollMode === 'CUSTOM' ? 'Use Auto Number' : 'Customize Number'}
+                  </button>
+                </div>
+
+                {rollMode === 'CUSTOM' && (
+                  <div className="pt-2 border-t border-teal-200 flex items-center space-x-2">
+                    <span className="text-[11px] text-teal-800 font-medium shrink-0">
+                      Enter Custom Number:
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="e.g. PRG001"
+                      value={customRollInput}
+                      onChange={(e) => setCustomRollInput(e.target.value.toUpperCase())}
+                      className="w-36 px-2.5 py-1 bg-white border border-teal-300 rounded-lg text-xs font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Photo Capture & Upload Box */}
             <div>

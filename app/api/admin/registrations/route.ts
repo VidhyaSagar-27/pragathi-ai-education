@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb, generateStudentId, generateNextRollNumber, noCacheHeaders } from '@/lib/db';
+import {
+  getDb,
+  updateDb,
+  generateStudentId,
+  generateNextRollNumber,
+  getRollNumberStatus,
+  updateSequenceIfHigher,
+  noCacheHeaders,
+} from '@/lib/db';
 import { User, StudentRegistration, AuditLogEntry } from '@/lib/db/types';
 import { triggerAutomationEvent } from '@/lib/automation/engine';
 import { normalizePhone, normalizeEmail } from '@/lib/family/normalization';
@@ -129,8 +137,19 @@ export async function PATCH(req: NextRequest) {
         });
       }
 
-      // 1. Atomic Roll Number Generation (PRG001, PRG002...)
-      const rollNumber = await generateNextRollNumber();
+      // 1. Roll Number Generation (reuse vacant roll number or continue sequence)
+      let rollNumber: string;
+      const requestedRoll = (body.rollNumber || body.selectedRollNumber || '').toString().trim().toUpperCase();
+      if (requestedRoll) {
+        rollNumber = requestedRoll;
+        const numMatch = requestedRoll.match(/PRG(\d+)/i);
+        if (numMatch) {
+          await updateSequenceIfHigher('student_roll_number', parseInt(numMatch[1], 10));
+        }
+      } else {
+        const rollStatus = await getRollNumberStatus();
+        rollNumber = rollStatus.vacantRollNumbers.length > 0 ? rollStatus.vacantRollNumbers[0] : await generateNextRollNumber();
+      }
       const studentId = rollNumber;
 
       // 2. Resolve Student Email (optional, no fake email generated)

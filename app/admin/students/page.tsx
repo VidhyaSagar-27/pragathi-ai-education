@@ -40,6 +40,7 @@ import CommunicationModal from '@/components/CommunicationModal';
 import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
 import ResetBatchConfirmModal from '@/components/ResetBatchConfirmModal';
 import StudentDetailsModal from '@/components/StudentDetailsModal';
+import { useDataSync, broadcastDataChange } from '@/lib/utils/syncEvents';
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -250,11 +251,10 @@ export default function AdminStudentsPage() {
       .catch(() => setLoading(false));
   };
 
+  useDataSync(loadData, { entity: 'students', pollIntervalMs: 8000 });
+
   useEffect(() => {
     loadData();
-    const onFocus = () => loadData();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const handleOpenPhotoModal = (stu: User) => {
@@ -357,6 +357,7 @@ export default function AdminStudentsPage() {
         }
       }
 
+      broadcastDataChange('students', 'save');
       setModalOpen(false);
       loadData();
     } catch (err: any) {
@@ -373,6 +374,7 @@ export default function AdminStudentsPage() {
       body: JSON.stringify({ id: stu.id, status: newStatus }),
       cache: 'no-store',
     });
+    broadcastDataChange('students', 'toggle_status');
     loadData();
   };
 
@@ -380,6 +382,7 @@ export default function AdminStudentsPage() {
     if (!confirm('Are you sure you want to delete this student account?')) return;
     setStudents((prev) => prev.filter((s) => s.id !== id));
     await fetch(`/api/admin/users?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
+    broadcastDataChange('students', 'delete');
     loadData();
   };
 
@@ -413,6 +416,7 @@ export default function AdminStudentsPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to approve registration');
 
       setApprovedResult(data.createdStudent);
+      broadcastDataChange('students', 'approve');
       loadData();
     } catch (err: any) {
       alert(err.message);
@@ -428,6 +432,7 @@ export default function AdminStudentsPage() {
       body: JSON.stringify({ id, action: 'REJECT' }),
       cache: 'no-store',
     });
+    broadcastDataChange('students', 'reject');
     loadData();
   };
 
@@ -435,6 +440,7 @@ export default function AdminStudentsPage() {
     if (!confirm('Delete this registration record?')) return;
     setRegistrations((prev) => prev.filter((r) => r.id !== id));
     await fetch(`/api/admin/registrations?id=${id}&_t=${Date.now()}`, { method: 'DELETE', cache: 'no-store' });
+    broadcastDataChange('students', 'delete_reg');
     loadData();
   };
 

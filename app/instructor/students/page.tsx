@@ -21,6 +21,7 @@ import CommunicationModal, {
   CommunicationMode,
   CommunicationAction,
 } from '@/components/CommunicationModal';
+import { useDataSync } from '@/lib/utils/syncEvents';
 
 export default function InstructorStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -61,6 +62,8 @@ export default function InstructorStudentsPage() {
       setLoading(false);
     }
   };
+
+  useDataSync(fetchStudents, { entity: 'students', pollIntervalMs: 10000 });
 
   useEffect(() => {
     fetchStudents();

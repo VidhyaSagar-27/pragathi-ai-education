@@ -6,6 +6,8 @@ import {
   updateDb,
   generateNextRollNumber,
   peekNextRollNumber,
+  getRollNumberStatus,
+  updateSequenceIfHigher,
   generateRegistrationId,
   noCacheHeaders,
 } from '@/lib/db';
@@ -15,7 +17,7 @@ import { triggerAutomationEvent } from '@/lib/automation/engine';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// GET: Peek at the next auto-generated roll number for the UI preview
+// GET: Return comprehensive roll number status (recommended, next sequential, vacant numbers)
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
@@ -23,17 +25,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const nextRollNumber = await peekNextRollNumber();
-    return NextResponse.json({ nextRollNumber }, { headers: noCacheHeaders });
+    const status = await getRollNumberStatus();
+    return NextResponse.json(status, { headers: noCacheHeaders });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || 'Failed to peek roll number' },
+      { error: error?.message || 'Failed to get roll number status' },
       { status: 500, headers: noCacheHeaders }
     );
   }
 }
 
-// POST: Register a new student with auto-incrementing roll number and phone initial password
+// POST: Register a new student with auto-incrementing or admin-chosen roll number
 export async function POST(req: NextRequest) {
   const session = getSessionFromRequest(req);
   if (!session || session.role !== 'ADMIN') {
@@ -52,6 +54,8 @@ export async function POST(req: NextRequest) {
       photoData,
       location = '',
       group = 'Foundation Batch A',
+      selectedRollNumber,
+      rollNumber: customRoll,
     } = body;
 
     if (!name || !schoolName || !classGrade || !phone) {
@@ -77,8 +81,43 @@ export async function POST(req: NextRequest) {
     const cleanParent = parentName ? String(parentName).trim() : 'Parent / Guardian';
     const cleanLocation = location ? String(location).trim() : cleanSchool;
 
-    // 1. Atomically generate the next sequential roll number (PRG001, PRG002, etc.)
-    const rollNumber = await generateNextRollNumber();
+    // 1. Determine roll number: admin selected/specified or auto-generated
+    let rollNumber: string;
+    const requestedRoll = (selectedRollNumber || customRoll || '').toString().trim().toUpperCase();
+
+    const currentDb = await getDb();
+    if (requestedRoll) {
+      // Validate uniqueness against active students
+      const conflict = (currentDb.users || []).find(
+        (u) =>
+          u.role === 'STUDENT' &&
+          (u.rollNumber?.toUpperCase() === requestedRoll ||
+            u.studentDetails?.rollNumber?.toUpperCase() === requestedRoll)
+      );
+      if (conflict) {
+        return NextResponse.json(
+          {
+            error: `Roll Number ${requestedRoll} is already assigned to active student "${conflict.name}". Please pick a different roll number.`,
+          },
+          { status: 400 }
+        );
+      }
+      rollNumber = requestedRoll;
+
+      // Update Postgres sequence if this roll number's numeric value exceeds current sequence
+      const numMatch = requestedRoll.match(/PRG(\d+)/i);
+      if (numMatch) {
+        const numVal = parseInt(numMatch[1], 10);
+        await updateSequenceIfHigher('student_roll_number', numVal);
+      }
+    } else {
+      const status = await getRollNumberStatus();
+      if (status.vacantRollNumbers.length > 0) {
+        rollNumber = status.vacantRollNumbers[0];
+      } else {
+        rollNumber = await generateNextRollNumber();
+      }
+    }
 
     // 2. Hash phone number as INITIAL password
     const salt = bcrypt.genSaltSync(10);

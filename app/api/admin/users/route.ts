@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
 import { getDb, updateDb, generateNextRollNumber, noCacheHeaders } from '@/lib/db';
 import { User, UserRole, UserStatus } from '@/lib/db/types';
+import { triggerAutomationEvent } from '@/lib/automation/engine';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -108,6 +109,30 @@ export async function POST(req: NextRequest) {
     await updateDb((dbState) => {
       dbState.users.push(newUser);
     });
+
+    if (isStudent && cleanPhone) {
+      const origin = req.nextUrl?.origin || 'https://pragathi-ai-education.vercel.app';
+      const channels: ('WHATSAPP' | 'EMAIL')[] = cleanEmail ? ['WHATSAPP', 'EMAIL'] : ['WHATSAPP'];
+      triggerAutomationEvent({
+        event: 'CREDENTIALS_DISPATCH',
+        studentId: rollNumber,
+        studentName: newUser.name,
+        recipientMobile: cleanPhone,
+        recipientEmail: cleanEmail,
+        performedBy: session.name || session.email || 'Admin',
+        channels,
+        metadata: {
+          role: 'STUDENT',
+          rollNumber,
+          loginEmail: rollNumber,
+          temporaryPassword: cleanPhone,
+          classGrade: enrichedStudentDetails?.classGrade || '10',
+          schoolName: enrichedStudentDetails?.schoolName || '',
+          origin,
+          portalUrl: `${origin}/login?email=${encodeURIComponent(rollNumber || '')}&role=STUDENT`,
+        },
+      }).catch((err) => console.warn('Auto-dispatch error on student creation:', err));
+    }
 
     const { passwordHash: _, ...safeUser } = newUser;
     return NextResponse.json({ success: true, user: safeUser });

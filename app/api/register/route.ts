@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
     const {
       studentName,
       classGrade,
-      section,
       schoolName,
       parentName,
       mobileNumber,
@@ -104,7 +103,6 @@ export async function POST(req: NextRequest) {
       registrationId: officialRegId,
       studentName: cleanStudentName,
       classGrade: String(classGrade).trim(),
-      section: section ? String(section).trim() : 'A',
       schoolName: String(schoolName).trim(),
       parentName: String(parentName).trim(),
       mobileNumber: cleanPhone,
@@ -134,7 +132,7 @@ export async function POST(req: NextRequest) {
       performedBy: 'STUDENT_PORTAL',
       metadata: {
         classGrade: newRegistration.classGrade,
-        section: newRegistration.section,
+        schoolName: newRegistration.schoolName,
         parentName: newRegistration.parentName,
         origin,
       },

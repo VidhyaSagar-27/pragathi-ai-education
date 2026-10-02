@@ -10,6 +10,7 @@ import {
   noCacheHeaders,
 } from '@/lib/db';
 import { User, StudentRegistration } from '@/lib/db/types';
+import { triggerAutomationEvent } from '@/lib/automation/engine';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -45,7 +46,6 @@ export async function POST(req: NextRequest) {
       name,
       schoolName,
       classGrade,
-      section = 'A',
       parentName = '',
       phone,
       email,
@@ -74,7 +74,6 @@ export async function POST(req: NextRequest) {
     const cleanEmail = email ? String(email).trim().toLowerCase() : undefined;
     const cleanSchool = String(schoolName).trim();
     const cleanClass = String(classGrade).trim();
-    const cleanSection = section ? String(section).trim().toUpperCase() : 'A';
     const cleanParent = parentName ? String(parentName).trim() : 'Parent / Guardian';
     const cleanLocation = location ? String(location).trim() : cleanSchool;
 
@@ -103,7 +102,6 @@ export async function POST(req: NextRequest) {
         studentId: rollNumber,
         studentCode: rollNumber,
         classGrade: cleanClass,
-        section: cleanSection,
         schoolName: cleanSchool,
         parentName: cleanParent,
         parentPhone: cleanPhone,
@@ -123,9 +121,9 @@ export async function POST(req: NextRequest) {
       id: `reg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       registrationId: regSeqId,
       studentId: rollNumber,
+      rollNumber,
       studentName: cleanName,
       classGrade: cleanClass,
-      section: cleanSection,
       schoolName: cleanSchool,
       parentName: cleanParent,
       mobileNumber: cleanPhone,
@@ -147,13 +145,50 @@ export async function POST(req: NextRequest) {
       db.registrations.unshift(newRegistration);
     });
 
+    // 6. Automatically dispatch credentials to WhatsApp and Email
+    const origin = req.nextUrl?.origin || 'https://pragathi-ai-education.vercel.app';
+    const channels: ('WHATSAPP' | 'EMAIL')[] = cleanEmail ? ['WHATSAPP', 'EMAIL'] : ['WHATSAPP'];
+
+    let automationResult: any = null;
+    try {
+      automationResult = await triggerAutomationEvent({
+        event: 'CREDENTIALS_DISPATCH',
+        studentId: rollNumber,
+        studentName: cleanName,
+        registrationId: regSeqId,
+        recipientMobile: cleanPhone,
+        recipientEmail: cleanEmail,
+        performedBy: session.name || session.email || 'Admin',
+        channels,
+        metadata: {
+          role: 'STUDENT',
+          rollNumber,
+          loginEmail: rollNumber,
+          temporaryPassword: cleanPhone,
+          classGrade: cleanClass,
+          schoolName: cleanSchool,
+          origin,
+          portalUrl: `${origin}/login?email=${encodeURIComponent(rollNumber)}&role=STUDENT`,
+        },
+      });
+    } catch (autoErr: any) {
+      console.warn('Auto-dispatch failed during student registration:', autoErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Student registered successfully with Roll Number ${rollNumber}!`,
+      message: `Student registered successfully with Roll Number ${rollNumber}! Login details dispatched to WhatsApp & Email.`,
       credentials: {
         loginId: rollNumber,
         rollNumber,
         initialPassword: cleanPhone,
+      },
+      dispatched: {
+        whatsapp: true,
+        email: !!cleanEmail,
+        recipientPhone: cleanPhone,
+        recipientEmail: cleanEmail || null,
+        automation: automationResult?.results || null,
       },
       student: {
         id: newStudentUser.id,
@@ -163,7 +198,6 @@ export async function POST(req: NextRequest) {
         email: newStudentUser.email,
         schoolName: cleanSchool,
         classGrade: cleanClass,
-        section: cleanSection,
         photoUrl: newStudentUser.studentDetails?.photoUrl,
       },
     });

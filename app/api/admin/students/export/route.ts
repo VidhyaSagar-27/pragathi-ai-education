@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
         'Student Name': stu.name || '',
         'School Name': stu.studentDetails?.schoolName || '',
         'Class': stu.studentDetails?.classGrade || '',
-        'Section': stu.studentDetails?.section || 'A',
         'Parent / Guardian Name': stu.studentDetails?.parentName || '',
         'Phone Number': stu.phone || stu.studentDetails?.parentPhone || '',
         'Email Address': stu.email || '',
@@ -66,7 +65,6 @@ export async function GET(req: NextRequest) {
       { wch: 25 }, // Student Name
       { wch: 32 }, // School Name
       { wch: 10 }, // Class
-      { wch: 10 }, // Section
       { wch: 24 }, // Parent Name
       { wch: 16 }, // Phone Number
       { wch: 24 }, // Email Address

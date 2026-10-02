@@ -6,6 +6,8 @@
 export interface RegistrationAcceptedPayload {
   studentName: string;
   studentId: string;
+  rollNumber?: string;
+  schoolName?: string;
   registrationId?: string;
   classGrade: string;
   section?: string;
@@ -39,22 +41,25 @@ export interface RegistrationRejectedPayload {
 // ==========================================
 
 export function formatWhatsAppRegistrationAccepted(p: RegistrationAcceptedPayload): string {
-  const sectionText = p.section || 'A';
+  const rollNo = p.rollNumber || p.loginEmail || p.studentId;
+  const schoolText = p.schoolName ? `• School: *${p.schoolName}*\n` : '';
+
   return (
-    `🎓 *Pragathi AI Foundation Program*\n\n` +
+    `🎓 *Pragathi AI Education — Registration Details*\n\n` +
     `Hello *${p.studentName}*,\n\n` +
-    `Congratulations! You have been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
-    `📋 *Admission Details:*\n` +
-    `• Student ID: *${p.studentId}*\n` +
-    `• Class: *${p.classGrade}*\n` +
-    `• Section: *${sectionText}*\n\n` +
-    `🔑 *Your Student Account Credentials:*\n` +
-    `• Login ID: ${p.loginEmail}\n` +
-    `• Initial Password: ${p.temporaryPassword}\n\n` +
-    `👉 *Student Portal Login:*\n` +
+    `Welcome to Pragathi AI! Your student registration is complete and your account is active.\n\n` +
+    `📋 *Student Details:*\n` +
+    `• Roll Number (Login ID): *${rollNo}*\n` +
+    `• Class: *Grade ${p.classGrade}*\n` +
+    schoolText +
+    `\n` +
+    `🔑 *Your Student Login Credentials:*\n` +
+    `• Login ID: *${rollNo}*\n` +
+    `• Initial Password: *${p.temporaryPassword}*\n\n` +
+    `👉 *Direct Portal Login:*\n` +
     `${p.portalUrl}\n\n` +
-    `Your Pragathi AI student account is now active. Please sign in to access your modules, quizzes, and projects.\n\n` +
-    `Thank you,\n*Team Pragathi AI*`
+    `⚠️ *Important:* On your first sign-in, you will be prompted to set a new personal password.\n\n` +
+    `Warm regards,\n*Team Pragathi AI*`
   );
 }
 
@@ -92,8 +97,8 @@ export function formatWhatsAppRegistrationRejected(p: RegistrationRejectedPayloa
 // ==========================================
 
 export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload): { subject: string; html: string; text: string } {
-  const subject = `Pragathi AI Foundation Program – Registration Accepted (${p.studentId})`;
-  const sectionText = p.section || 'A';
+  const rollNo = p.rollNumber || p.loginEmail || p.studentId;
+  const subject = `Pragathi AI Education – Registration Details (${rollNo})`;
 
   const html = `
 <!DOCTYPE html>
@@ -129,27 +134,27 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
     </div>
     <div class="content">
       <p>Hello <strong>${p.studentName}</strong>,</p>
-      <p>Congratulations! We are delighted to confirm that you have been officially accepted into the <strong>Pragathi AI Foundation Program</strong>.</p>
+      <p>Congratulations! We are delighted to confirm that your registration for the <strong>Pragathi AI Education Platform</strong> is complete and your student account is active.</p>
       
       <div class="card">
-        <div class="row"><span class="label">Permanent Student ID:</span><span class="value" style="color: #0d9488; font-size: 16px;">${p.studentId}</span></div>
+        <div class="row"><span class="label">Roll Number:</span><span class="value" style="color: #0d9488; font-size: 16px;">${rollNo}</span></div>
         <div class="row"><span class="label">Student Name:</span><span class="value">${p.studentName}</span></div>
         <div class="row"><span class="label">Class / Grade:</span><span class="value">Grade ${p.classGrade}</span></div>
-        <div class="row"><span class="label">Section:</span><span class="value">${sectionText}</span></div>
+        ${p.schoolName ? `<div class="row"><span class="label">School:</span><span class="value">${p.schoolName}</span></div>` : ''}
         ${p.registrationId ? `<div class="row"><span class="label">Application Reference:</span><span class="value">${p.registrationId}</span></div>` : ''}
       </div>
 
       <div class="credentials">
         <div style="font-weight: 800; font-size: 15px; margin-bottom: 12px; color: #ffffff;">🔐 Official Student Login Credentials</div>
         <div class="cred-row">
-          <div class="cred-label">Login ID / Email:</div>
-          <div class="cred-val">${p.loginEmail}</div>
+          <div class="cred-label">Login ID / Roll Number:</div>
+          <div class="cred-val">${rollNo}</div>
         </div>
         <div class="cred-row">
-          <div class="cred-label">Temporary Password:</div>
+          <div class="cred-label">Initial Password:</div>
           <div class="cred-val">${p.temporaryPassword}</div>
         </div>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #94a3b8;">* You can update your password after your initial sign-in.</p>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #94a3b8;">* On your first sign-in, you will be prompted to set a new personal password.</p>
       </div>
 
       <div style="text-align: center; margin: 28px 0;">
@@ -170,17 +175,18 @@ export function formatEmailRegistrationAccepted(p: RegistrationAcceptedPayload):
 `;
 
   const text =
-    `PRAGATHI AI FOUNDATION PROGRAM - REGISTRATION ACCEPTED\n\n` +
+    `PRAGATHI AI EDUCATION - REGISTRATION DETAILS\n\n` +
     `Hello ${p.studentName},\n\n` +
-    `Congratulations! You have been successfully accepted into the Pragathi AI Foundation Program.\n\n` +
-    `Student ID: ${p.studentId}\n` +
-    `Class: ${p.classGrade}\n` +
-    `Section: ${sectionText}\n` +
+    `Congratulations! Your registration for Pragathi AI Education is complete and your student account is active.\n\n` +
+    `Roll Number: ${rollNo}\n` +
+    `Class: Grade ${p.classGrade}\n` +
+    (p.schoolName ? `School: ${p.schoolName}\n` : '') +
     (p.registrationId ? `Reference ID: ${p.registrationId}\n\n` : '\n') +
     `Your Student Account Credentials:\n` +
-    `Login Email: ${p.loginEmail}\n` +
-    `Temporary Password: ${p.temporaryPassword}\n\n` +
+    `Login ID / Roll Number: ${rollNo}\n` +
+    `Initial Password: ${p.temporaryPassword}\n\n` +
     `Student Portal: ${p.portalUrl}\n\n` +
+    `* Note: On your first login, you will be prompted to set a new personal password.\n\n` +
     `Thank you,\nTeam Pragathi AI`;
 
   return { subject, html, text };

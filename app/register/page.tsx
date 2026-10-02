@@ -410,42 +410,26 @@ function RegisterContent() {
                     />
                   </div>
 
-                  {/* Class / Grade & Section */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Class / Grade *
-                      </label>
-                      <select
-                        required
-                        value={formData.classGrade}
-                        onChange={(e) => setFormData({ ...formData, classGrade: e.target.value })}
-                        className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden font-medium"
-                      >
-                        <option value="">Select Grade</option>
-                        <option value="6">Grade 6</option>
-                        <option value="7">Grade 7</option>
-                        <option value="8">Grade 8</option>
-                        <option value="9">Grade 9</option>
-                        <option value="10">Grade 10</option>
-                        <option value="11">Grade 11</option>
-                        <option value="12">Grade 12</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Section (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.section}
-                        onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                        placeholder="e.g. Section A, B, or Rose"
-                        maxLength={15}
-                        className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                      />
-                    </div>
+                  {/* Class / Grade */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Class / Grade *
+                    </label>
+                    <select
+                      required
+                      value={formData.classGrade}
+                      onChange={(e) => setFormData({ ...formData, classGrade: e.target.value })}
+                      className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-hidden font-medium"
+                    >
+                      <option value="">Select Grade</option>
+                      <option value="6">Grade 6</option>
+                      <option value="7">Grade 7</option>
+                      <option value="8">Grade 8</option>
+                      <option value="9">Grade 9</option>
+                      <option value="10">Grade 10</option>
+                      <option value="11">Grade 11</option>
+                      <option value="12">Grade 12</option>
+                    </select>
                   </div>
 
                   {/* School Name */}

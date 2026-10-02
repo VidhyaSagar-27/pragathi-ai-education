@@ -159,7 +159,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 ) : null}
                 <span className="text-[10px] font-bold bg-white text-slate-700 border border-teal-200 px-1.5 py-0.5 rounded">
                   Grade {studentUser.studentDetails?.classGrade || 'Student'}
-                  {studentUser.studentDetails?.section ? ` • Sec ${studentUser.studentDetails.section}` : ''}
                 </span>
               </div>
 

@@ -187,11 +187,6 @@ export default function StudentProfilePage() {
                 <span className="text-xs font-black font-mono px-2.5 py-1 rounded-lg bg-teal-900 text-teal-100 shadow-2xs">
                   Roll No: {profile?.rollNumber || profile?.studentDetails?.rollNumber || profile?.studentDetails?.studentId || 'PRG'}
                 </span>
-                {profile?.studentDetails?.section && (
-                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                    Sec {profile.studentDetails.section}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -237,7 +232,6 @@ export default function StudentProfilePage() {
                 <span className="text-xs text-slate-400 block font-bold">School & Cohort</span>
                 <span className="text-slate-800 font-semibold">
                   {profile?.studentDetails?.schoolName || 'Enrolled School'} • Grade {profile?.studentDetails?.classGrade || 'N/A'}
-                  {profile?.studentDetails?.section ? ` (Sec ${profile.studentDetails.section})` : ''}
                 </span>
                 <span className="block text-[11px] text-teal-700 font-medium">
                   Group: {profile?.studentDetails?.group || 'Foundation Batch A'}

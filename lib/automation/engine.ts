@@ -366,27 +366,27 @@ export async function triggerAutomationEvent(
   if (event === 'REGISTRATION_ACCEPTED') {
     const acceptedPayload = {
       studentName,
-      studentId: studentId || 'PAI26-XXXX',
+      studentId: studentId || 'PRG001',
+      rollNumber: metadata.rollNumber || studentId || 'PRG001',
+      schoolName: metadata.schoolName || '',
       registrationId,
       classGrade: metadata.classGrade || '10',
-      section: metadata.section || 'A',
       parentName: metadata.parentName || 'Parent',
       mobileNumber: recipientMobile || '',
       email: recipientEmail,
-      loginEmail: metadata.loginEmail || recipientEmail || `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`,
-      temporaryPassword: metadata.temporaryPassword || 'Pragathi2026!',
+      loginEmail: metadata.loginEmail || metadata.rollNumber || studentId || '',
+      temporaryPassword: metadata.temporaryPassword || recipientMobile || 'Pragathi2026!',
       portalUrl,
     };
 
     whatsappContent = formatWhatsAppRegistrationAccepted(acceptedPayload);
     emailContent = formatEmailRegistrationAccepted(acceptedPayload);
-    inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.studentId);
+    inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.rollNumber || acceptedPayload.studentId);
   } else if (event === 'REGISTRATION_SUBMITTED') {
     const submittedPayload = {
       studentName,
       registrationId: registrationId || 'REG-2026-XXXX',
       classGrade: metadata.classGrade || '10',
-      section: metadata.section || 'A',
       parentName: metadata.parentName || 'Parent',
       mobileNumber: recipientMobile || '',
       email: recipientEmail,
@@ -478,20 +478,21 @@ export async function triggerAutomationEvent(
     } else {
       const acceptedPayload = {
         studentName,
-        studentId: studentId || 'PAI26-XXXX',
+        studentId: studentId || 'PRG001',
+        rollNumber: metadata.rollNumber || studentId || 'PRG001',
+        schoolName: metadata.schoolName || '',
         registrationId,
         classGrade: metadata.classGrade || '10',
-        section: metadata.section || 'A',
         parentName: metadata.parentName || 'Parent',
         mobileNumber: recipientMobile || '',
         email: recipientEmail,
-        loginEmail: metadata.loginEmail || recipientEmail || `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`,
-        temporaryPassword: metadata.temporaryPassword || 'Pragathi2026!',
+        loginEmail: metadata.loginEmail || metadata.rollNumber || studentId || '',
+        temporaryPassword: metadata.temporaryPassword || recipientMobile || 'Pragathi2026!',
         portalUrl,
       };
       whatsappContent = formatWhatsAppRegistrationAccepted(acceptedPayload);
       emailContent = formatEmailRegistrationAccepted(acceptedPayload);
-      inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.studentId);
+      inAppContent = formatInAppRegistrationAccepted(studentName, acceptedPayload.rollNumber || acceptedPayload.studentId);
     }
   } else if (event === 'CUSTOM_MESSAGE') {
     const title = metadata.subject || metadata.title || 'Official Notification from PRAGATHI AI';

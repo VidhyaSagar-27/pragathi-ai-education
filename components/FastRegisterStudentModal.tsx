@@ -34,7 +34,6 @@ export default function FastRegisterStudentModal({
   const [name, setName] = useState('');
   const [schoolName, setSchoolName] = useState('');
   const [classGrade, setClassGrade] = useState('');
-  const [section, setSection] = useState('A');
   const [parentName, setParentName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -51,6 +50,8 @@ export default function FastRegisterStudentModal({
     rollNumber: string;
     initialPassword: string;
     name: string;
+    phone: string;
+    email?: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -124,7 +125,6 @@ export default function FastRegisterStudentModal({
           name: name.trim(),
           schoolName: schoolName.trim(),
           classGrade: classGrade.trim(),
-          section: section.trim().toUpperCase() || 'A',
           parentName: parentName.trim(),
           phone: cleanPhone,
           email: email.trim() || undefined,
@@ -141,6 +141,8 @@ export default function FastRegisterStudentModal({
         rollNumber: data.credentials.rollNumber,
         initialPassword: data.credentials.initialPassword,
         name: data.student.name,
+        phone: cleanPhone,
+        email: email.trim() || undefined,
       });
 
       onStudentCreated();
@@ -230,6 +232,18 @@ export default function FastRegisterStudentModal({
                 <span className="text-base font-black font-mono text-slate-900 bg-white px-2.5 py-0.5 rounded-lg border border-slate-300">
                   {createdResult.initialPassword}
                 </span>
+              </div>
+            </div>
+
+            {/* Auto-Dispatch Confirmation Banner */}
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-start space-x-2.5 text-left">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-emerald-900">Credentials Dispatched Automatically</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Roll Number and login password sent to WhatsApp (<strong>{createdResult.phone}</strong>)
+                  {createdResult.email ? ` and Email (<strong>${createdResult.email}</strong>)` : ''}.
+                </p>
               </div>
             </div>
 
@@ -380,7 +394,7 @@ export default function FastRegisterStudentModal({
               />
             </div>
 
-            {/* School & Class / Section */}
+            {/* School & Class */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -396,32 +410,18 @@ export default function FastRegisterStudentModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Class / Grade *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={classGrade}
-                    onChange={(e) => setClassGrade(e.target.value)}
-                    placeholder="e.g. 9"
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Section
-                  </label>
-                  <input
-                    type="text"
-                    value={section}
-                    onChange={(e) => setSection(e.target.value)}
-                    placeholder="A"
-                    className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Class / Grade *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={classGrade}
+                  onChange={(e) => setClassGrade(e.target.value)}
+                  placeholder="e.g. 9 or 10"
+                  className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
               </div>
             </div>
 

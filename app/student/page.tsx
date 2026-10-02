@@ -155,10 +155,7 @@ export default function StudentDashboardPage() {
 
             {data.user?.studentDetails?.classGrade && (
               <div className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-white/10 text-slate-200 text-xs font-semibold border border-white/20">
-                <span>
-                  Grade {data.user.studentDetails.classGrade}
-                  {data.user.studentDetails.section ? ` • Sec ${data.user.studentDetails.section}` : ''}
-                </span>
+                <span>Grade {data.user.studentDetails.classGrade}</span>
               </div>
             )}
           </div>

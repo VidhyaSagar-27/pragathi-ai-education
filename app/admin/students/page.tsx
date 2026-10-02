@@ -57,7 +57,6 @@ export default function AdminStudentsPage() {
   // Table Filters & Export Dropdown
   const [filterSchool, setFilterSchool] = useState('');
   const [filterClass, setFilterClass] = useState('');
-  const [filterSection, setFilterSection] = useState('');
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   // Student Photo Modal State
@@ -465,9 +464,6 @@ export default function AdminStudentsPage() {
   const uniqueClasses = Array.from(
     new Set(students.map((s) => s.studentDetails?.classGrade).filter(Boolean))
   ) as string[];
-  const uniqueSections = Array.from(
-    new Set(students.map((s) => s.studentDetails?.section).filter(Boolean))
-  ) as string[];
 
   const filtered = students.filter((s) => {
     const rollNo = (s.rollNumber || s.studentDetails?.rollNumber || s.studentDetails?.studentId || '').toLowerCase();
@@ -488,7 +484,6 @@ export default function AdminStudentsPage() {
 
     if (filterSchool && s.studentDetails?.schoolName !== filterSchool) return false;
     if (filterClass && s.studentDetails?.classGrade !== filterClass) return false;
-    if (filterSection && (s.studentDetails?.section || 'A') !== filterSection) return false;
 
     return true;
   });
@@ -843,32 +838,13 @@ export default function AdminStudentsPage() {
                 </div>
               )}
 
-              {/* Section Filter */}
-              {uniqueSections.length > 0 && (
-                <div className="w-full md:w-32">
-                  <select
-                    value={filterSection}
-                    onChange={(e) => setFilterSection(e.target.value)}
-                    className="w-full text-xs sm:text-sm px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                  >
-                    <option value="">All Sec</option>
-                    {uniqueSections.map((sec) => (
-                      <option key={sec} value={sec}>
-                        Sec {sec}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {(searchQuery || filterSchool || filterClass || filterSection) && (
+              {(searchQuery || filterSchool || filterClass) && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearchQuery('');
                     setFilterSchool('');
                     setFilterClass('');
-                    setFilterSection('');
                   }}
                   className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer shrink-0"
                 >
@@ -898,7 +874,6 @@ export default function AdminStudentsPage() {
                       <th className="px-5 py-3.5">Student Name</th>
                       <th className="px-5 py-3.5">School</th>
                       <th className="px-5 py-3.5">Class</th>
-                      <th className="px-5 py-3.5">Section</th>
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -969,13 +944,6 @@ export default function AdminStudentsPage() {
                           <td className="px-5 py-3.5 text-slate-700 whitespace-nowrap">
                             <span className="font-semibold text-slate-800">
                               Grade {stu.studentDetails?.classGrade || '—'}
-                            </span>
-                          </td>
-
-                          {/* Section */}
-                          <td className="px-5 py-3.5 whitespace-nowrap">
-                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-semibold text-xs text-slate-700">
-                              Sec {stu.studentDetails?.section || 'A'}
                             </span>
                           </td>
 

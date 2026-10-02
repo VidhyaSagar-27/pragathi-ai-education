@@ -48,7 +48,6 @@ Roll Number / Login ID : ${rollNumber}
 Student Full Name      : ${student.name}
 School Name            : ${student.studentDetails?.schoolName || 'N/A'}
 Class / Grade          : Grade ${student.studentDetails?.classGrade || 'N/A'}
-Section                : Sec ${student.studentDetails?.section || 'A'}
 Parent / Guardian Name : ${student.studentDetails?.parentName || 'N/A'}
 Contact Phone Number   : ${student.phone || student.studentDetails?.parentPhone || 'N/A'}
 Email Address          : ${student.email || 'None (Optional)'}
@@ -110,7 +109,6 @@ Pragathi AI Learning Platform
               <div className="mt-1 flex items-center space-x-2">
                 <span className="text-xs font-semibold text-teal-700">
                   Grade {student.studentDetails?.classGrade || 'N/A'}
-                  {student.studentDetails?.section ? ` • Sec ${student.studentDetails.section}` : ''}
                 </span>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${

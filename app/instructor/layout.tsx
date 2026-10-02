@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function InstructorLayout({ children }: { children: React.ReactNode }) {
@@ -70,12 +71,23 @@ export default function InstructorLayout({ children }: { children: React.ReactNo
         <Link href="/" className="flex items-center space-x-2">
           <img src="/images/logo.png" alt="PRAGATHI AI" className="h-[52px] w-auto object-contain" />
         </Link>
-        <button
-          onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"
-        >
-          {mobileNavOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center space-x-2">
+          {instructorUser?.role === 'ADMIN' && (
+            <Link
+              href="/admin"
+              className="flex items-center space-x-1 px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg transition"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin</span>
+            </Link>
+          )}
+          <button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"
+          >
+            {mobileNavOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}
@@ -102,9 +114,20 @@ export default function InstructorLayout({ children }: { children: React.ReactNo
             <div className="my-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
               <p className="text-xs font-bold text-slate-900 truncate">{instructorUser.name}</p>
               <p className="text-[11px] text-teal-700 truncate">{instructorUser.email}</p>
-              <span className="inline-block mt-1 text-[10px] font-bold bg-brand-navy text-white px-2 py-0.5 rounded">
-                Faculty Role
+              <span className={`inline-block mt-1 text-[10px] font-bold text-white px-2 py-0.5 rounded ${
+                instructorUser.role === 'ADMIN' ? 'bg-purple-700' : 'bg-brand-navy'
+              }`}>
+                {instructorUser.role === 'ADMIN' ? 'Administrator' : 'Faculty Role'}
               </span>
+              {instructorUser.role === 'ADMIN' && (
+                <Link
+                  href="/admin"
+                  className="mt-2.5 flex items-center justify-center space-x-1.5 w-full py-1.5 px-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold shadow-xs transition"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Go to Admin Portal</span>
+                </Link>
+              )}
             </div>
           )}
 

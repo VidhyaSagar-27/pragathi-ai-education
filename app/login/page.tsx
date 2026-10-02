@@ -158,9 +158,10 @@ function LoginForm() {
       setPassword('');
 
       // Smart role-based destination resolution to prevent redirect loops
-      let destination = '/';
+      let destination = '/admin';
       if (userRole === 'ADMIN') {
-        if (callbackUrl && (callbackUrl.startsWith('/admin') || callbackUrl.startsWith('/instructor') || callbackUrl.startsWith('/student'))) {
+        // Administrator always goes to /admin, unless an explicit /admin subpath was requested
+        if (callbackUrl && callbackUrl.startsWith('/admin')) {
           destination = callbackUrl;
         } else {
           destination = '/admin';
@@ -180,8 +181,7 @@ function LoginForm() {
       }
 
       setLoading(false);
-      router.push(destination);
-      router.refresh();
+      window.location.href = destination;
     } catch (err: any) {
       setErrorMessage(err.message || 'Login failed. Please verify credentials.');
       setPassword(''); // Wipe sensitive password field on failure

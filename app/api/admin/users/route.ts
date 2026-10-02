@@ -168,10 +168,73 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, name, email, password, status, phone, studentDetails, instructorDetails } = body;
+    const {
+      id,
+      name,
+      email,
+      password,
+      status,
+      phone,
+      studentDetails,
+      instructorDetails,
+      allowRollNumberChange,
+      rollNumber: incomingRollNumber,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const existing = db.users.find((u) => u.id === id);
+    if (!existing) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    let targetRollToPersist: string | undefined;
+
+    // Roll Number Permission Protection
+    if (existing.role === 'STUDENT') {
+      const currentAllottedRoll =
+        existing.rollNumber ||
+        existing.studentDetails?.rollNumber ||
+        existing.studentDetails?.studentId;
+      const targetRoll = (
+        incomingRollNumber ||
+        studentDetails?.rollNumber ||
+        studentDetails?.studentId
+      )
+        ?.toString()
+        .trim()
+        .toUpperCase();
+
+      if (currentAllottedRoll && targetRoll && targetRoll !== currentAllottedRoll) {
+        if (!allowRollNumberChange) {
+          return NextResponse.json(
+            {
+              error: `PERMISSION REQUIRED: Roll Number ${currentAllottedRoll} is officially allotted to this student and cannot be altered without explicit permission.`,
+            },
+            { status: 403 }
+          );
+        }
+
+        // Validate that targetRoll is not already taken by another active student
+        const isConflict = db.users.some(
+          (u) =>
+            u.id !== id &&
+            u.role === 'STUDENT' &&
+            (u.rollNumber?.toUpperCase() === targetRoll ||
+              u.studentDetails?.rollNumber?.toUpperCase() === targetRoll)
+        );
+        if (isConflict) {
+          return NextResponse.json(
+            { error: `Roll Number ${targetRoll} is already allotted to another active student.` },
+            { status: 400 }
+          );
+        }
+
+        targetRollToPersist = targetRoll;
+      }
     }
 
     let updatedUser: User | null = null;
@@ -189,6 +252,43 @@ export async function PATCH(req: NextRequest) {
       if (studentDetails) current.studentDetails = { ...current.studentDetails, ...studentDetails };
       if (instructorDetails) current.instructorDetails = { ...current.instructorDetails, ...instructorDetails };
 
+      if (current.role === 'STUDENT') {
+        const currentAllottedRoll =
+          current.rollNumber ||
+          current.studentDetails?.rollNumber ||
+          current.studentDetails?.studentId;
+
+        if (targetRollToPersist && allowRollNumberChange) {
+          // Explicitly permitted roll number alteration
+          current.rollNumber = targetRollToPersist;
+          if (current.studentDetails) {
+            current.studentDetails.rollNumber = targetRollToPersist;
+            current.studentDetails.studentId = targetRollToPersist;
+            current.studentDetails.studentCode = targetRollToPersist;
+          }
+
+          // Cascade update to registrations and quizSubmissions
+          dbState.registrations = (dbState.registrations || []).map((r) =>
+            r.studentId === currentAllottedRoll
+              ? { ...r, studentId: targetRollToPersist!, rollNumber: targetRollToPersist }
+              : r
+          );
+          dbState.quizSubmissions = (dbState.quizSubmissions || []).map((q) =>
+            q.studentId === currentAllottedRoll
+              ? { ...q, studentId: targetRollToPersist! }
+              : q
+          );
+        } else if (currentAllottedRoll) {
+          // Preserve permanent allotment
+          current.rollNumber = currentAllottedRoll;
+          if (current.studentDetails) {
+            current.studentDetails.rollNumber = currentAllottedRoll;
+            current.studentDetails.studentId = currentAllottedRoll;
+            current.studentDetails.studentCode = currentAllottedRoll;
+          }
+        }
+      }
+
       if (password && password.trim().length >= 6) {
         const salt = bcrypt.genSaltSync(10);
         current.passwordHash = bcrypt.hashSync(password, salt);
@@ -197,6 +297,13 @@ export async function PATCH(req: NextRequest) {
       current.updatedAt = new Date().toISOString();
       updatedUser = current;
     });
+
+    if (targetRollToPersist && allowRollNumberChange) {
+      const numMatch = targetRollToPersist.match(/PRG(\d+)/i);
+      if (numMatch) {
+        await updateSequenceIfHigher('student_roll_number', parseInt(numMatch[1], 10));
+      }
+    }
 
     if (!updatedUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

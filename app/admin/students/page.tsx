@@ -7,6 +7,7 @@ import {
   Trash2,
   Edit,
   Key,
+  Lock,
   Power,
   Search,
   AlertCircle,
@@ -77,6 +78,9 @@ export default function AdminStudentsPage() {
   const [location, setLocation] = useState('');
   const [group, setGroup] = useState('Foundation Batch A');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [allottedRoll, setAllottedRoll] = useState('');
+  const [editRoll, setEditRoll] = useState('');
+  const [rollChangePermitted, setRollChangePermitted] = useState(false);
 
   // Password reset modal
   const [pwModalOpen, setPwModalOpen] = useState(false);
@@ -307,6 +311,10 @@ export default function AdminStudentsPage() {
 
   const handleOpenEdit = (stu: User) => {
     setEditingId(stu.id);
+    const roll = stu.rollNumber || stu.studentDetails?.rollNumber || stu.studentDetails?.studentId || '';
+    setAllottedRoll(roll);
+    setEditRoll(roll);
+    setRollChangePermitted(false);
     setName(stu.name);
     setEmail(stu.email || '');
     setPassword('');
@@ -334,10 +342,23 @@ export default function AdminStudentsPage() {
             email,
             phone,
             password: password || undefined,
-            studentDetails: { classGrade, schoolName, parentName, location, group, photoUrl },
+            allowRollNumberChange: rollChangePermitted,
+            rollNumber: rollChangePermitted ? editRoll : undefined,
+            studentDetails: {
+              classGrade,
+              schoolName,
+              parentName,
+              location,
+              group,
+              photoUrl,
+              rollNumber: rollChangePermitted ? editRoll : allottedRoll,
+            },
           }),
         });
-        if (!res.ok) throw new Error('Failed to update student');
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Failed to update student');
+        }
       } else {
         const res = await fetch('/api/admin/users', {
           method: 'POST',
@@ -1072,6 +1093,71 @@ export default function AdminStudentsPage() {
               <button onClick={() => setModalOpen(false)}>✕</button>
             </div>
             <form onSubmit={handleSaveStudent} className="p-6 space-y-4">
+              {/* Allotted Roll Number Protection Card */}
+              {editingId && allottedRoll && (
+                <div className="p-3.5 bg-gradient-to-r from-slate-50 to-teal-50/30 border border-slate-200 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Lock className="w-4 h-4 text-teal-700 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800">Allotted Roll Number:</span>
+                      <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-lg bg-teal-100 text-teal-900 border border-teal-300">
+                        {allottedRoll}
+                      </span>
+                    </div>
+
+                    {!rollChangePermitted ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            `⚠️ ALTERATION PERMISSION CONFIRMATION:\n\nRoll number "${allottedRoll}" has been officially allotted to this student.\n\nModifying it will alter their permanent Login ID and linked academic records.\n\nDo you grant explicit permission to alter this student's roll number?`
+                          );
+                          if (confirmed) {
+                            setRollChangePermitted(true);
+                          }
+                        }}
+                        className="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center space-x-1"
+                      >
+                        <Key className="w-3 h-3 text-amber-700" />
+                        <span>Unlock with Permission</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>Alteration Permitted</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {rollChangePermitted ? (
+                    <div className="pt-2 border-t border-slate-200 flex items-center space-x-3">
+                      <label className="text-xs font-bold text-slate-700 shrink-0">
+                        New Roll Number:
+                      </label>
+                      <input
+                        type="text"
+                        value={editRoll}
+                        onChange={(e) => setEditRoll(e.target.value.toUpperCase())}
+                        className="w-36 text-xs px-2.5 py-1 font-mono font-bold bg-white border border-teal-400 rounded-lg uppercase focus:ring-2 focus:ring-teal-500/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditRoll(allottedRoll);
+                          setRollChangePermitted(false);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-700 underline cursor-pointer"
+                      >
+                        Cancel / Re-lock
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      🔒 Allotted roll numbers are locked by default and cannot be altered without explicit admin permission.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Student Name *</label>

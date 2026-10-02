@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
 import { getDb, noCacheHeaders } from '@/lib/db';
 
@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
     return {
       id: stu.id,
       name: stu.name,
-      email: stu.email,
+      rollNumber: stu.rollNumber || stu.studentDetails?.rollNumber || '',
+      email: stu.email || '',
       phone: stu.phone || 'N/A',
       schoolName: stu.studentDetails?.schoolName || 'N/A',
       classGrade: stu.studentDetails?.classGrade || 'N/A',

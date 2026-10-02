@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -21,7 +21,8 @@ import {
 interface StudentReportItem {
   id: string;
   name: string;
-  email: string;
+  rollNumber?: string;
+  email?: string;
   phone: string;
   schoolName: string;
   classGrade: string;
@@ -144,8 +145,9 @@ export default function AdminReportsPage() {
   const filteredReports = reports.filter((r) => {
     const q = searchQuery.toLowerCase();
     return (
+      (r.rollNumber?.toLowerCase() || '').includes(q) ||
       r.name.toLowerCase().includes(q) ||
-      r.email.toLowerCase().includes(q) ||
+      (r.email?.toLowerCase() || '').includes(q) ||
       r.schoolName.toLowerCase().includes(q) ||
       r.phone.toLowerCase().includes(q) ||
       r.group.toLowerCase().includes(q)

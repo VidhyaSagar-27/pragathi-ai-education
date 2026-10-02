@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
     // 1. Verify student account in db.users
     const studentUser = (db.users || []).find((u) => {
       if (u.role !== 'STUDENT') return false;
-      if (u.email.toLowerCase() === cleanIdentifier) return true;
+      if (u.rollNumber && u.rollNumber.toLowerCase() === cleanIdentifier) return true;
+      if (u.email && u.email.toLowerCase() === cleanIdentifier) return true;
       if (last10 && u.phone) {
         const uDigits = u.phone.replace(/\D/g, '');
         if (uDigits.slice(-10) === last10) return true;
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Also verify student registration is APPROVED
     const registration = (db.registrations || []).find((r) => {
+      if (r.rollNumber && r.rollNumber.toLowerCase() === cleanIdentifier) return true;
       if (r.assignedEmail && r.assignedEmail.toLowerCase() === cleanIdentifier) return true;
       if (r.email && r.email.toLowerCase() === cleanIdentifier) return true;
       if (last10 && r.mobileNumber) {
@@ -75,7 +77,8 @@ export async function POST(req: NextRequest) {
     // Issue JWT
     const token = signJwtToken({
       userId: studentUser.id,
-      email: studentUser.email,
+      email: studentUser.email || '',
+      rollNumber: studentUser.rollNumber,
       name: studentUser.name,
       role: 'STUDENT',
     });
@@ -87,6 +90,8 @@ export async function POST(req: NextRequest) {
         id: studentUser.id,
         name: studentUser.name,
         email: studentUser.email,
+        rollNumber: studentUser.rollNumber,
+        mustChangePassword: studentUser.mustChangePassword,
         role: 'STUDENT',
       },
     });

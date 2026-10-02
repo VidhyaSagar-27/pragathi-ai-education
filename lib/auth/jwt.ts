@@ -5,7 +5,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pragathi_ai_super_secure_jwt_secre
 
 export interface TokenPayload {
   userId: string;
-  email: string;
+  email?: string;
+  rollNumber?: string;
   name: string;
   role: UserRole;
   iat?: number;

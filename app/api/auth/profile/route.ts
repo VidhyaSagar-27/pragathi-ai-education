@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { passwordHash, ...safeUser } = user;
-  return NextResponse.json({ user: safeUser }, { headers: noCacheHeaders });
+  const rollNo = user.rollNumber || user.studentDetails?.rollNumber || user.studentDetails?.studentId || '';
+  return NextResponse.json({ user: { ...safeUser, rollNumber: rollNo } }, { headers: noCacheHeaders });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -68,6 +69,10 @@ export async function PATCH(req: NextRequest) {
       if (password && typeof password === 'string' && password.length >= 6) {
         const salt = bcrypt.genSaltSync(10);
         user.passwordHash = bcrypt.hashSync(password, salt);
+        user.mustChangePassword = false;
+        if (user.studentDetails) {
+          user.studentDetails.mustChangePassword = false;
+        }
       }
 
       user.updatedAt = new Date().toISOString();

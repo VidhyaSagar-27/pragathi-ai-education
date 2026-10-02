@@ -119,8 +119,9 @@ export default function InstructorStudentsPage() {
 
   const filtered = students.filter(
     (s) =>
+      (s.rollNumber && s.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.email && s.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.phone && s.phone.includes(searchQuery)) ||
       (s.studentDetails?.schoolName && s.studentDetails.schoolName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.studentDetails?.parentName && s.studentDetails.parentName.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -237,8 +238,13 @@ export default function InstructorStudentsPage() {
                         <div>
                           <div className="font-bold text-slate-900 flex items-center space-x-1.5">
                             <span>{stu.name}</span>
+                            {stu.rollNumber && (
+                              <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-semibold">
+                                {stu.rollNumber}
+                              </span>
+                            )}
                           </div>
-                          <div className="text-xs text-slate-400">{stu.email}</div>
+                          <div className="text-xs text-slate-400">{stu.rollNumber || stu.email || 'Student'}</div>
                         </div>
                       </div>
                     </td>

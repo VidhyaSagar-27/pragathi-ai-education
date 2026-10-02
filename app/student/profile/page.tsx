@@ -18,6 +18,7 @@ import {
   MessageSquare,
   HelpCircle,
 } from 'lucide-react';
+import { compressProfileImage } from '@/lib/utils/imageCompression';
 
 export default function StudentProfilePage() {
   const [profile, setProfile] = useState<any>(null);
@@ -52,22 +53,21 @@ export default function StudentProfilePage() {
     loadProfile();
   }, []);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Photo must be smaller than 2MB');
-      return;
+    try {
+      const result = await compressProfileImage(file, {
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.82,
+      });
+      setPhotoUrl(result.dataUrl);
+    } catch (err) {
+      console.error('Photo compression error:', err);
+      alert('Could not process photo. Please choose another image.');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setPhotoUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSavePhoto = async () => {
@@ -184,8 +184,8 @@ export default function StudentProfilePage() {
                 Official Student Identity
               </span>
               <div className="mt-1 flex items-center space-x-1.5">
-                <span className="text-xs font-black font-mono px-2 py-0.5 rounded-md bg-teal-900 text-white shadow-2xs">
-                  {profile?.studentDetails?.studentId || profile?.id?.substring(0, 16)}
+                <span className="text-xs font-black font-mono px-2.5 py-1 rounded-lg bg-teal-900 text-teal-100 shadow-2xs">
+                  Roll No: {profile?.rollNumber || profile?.studentDetails?.rollNumber || profile?.studentDetails?.studentId || 'PRG'}
                 </span>
                 {profile?.studentDetails?.section && (
                   <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">

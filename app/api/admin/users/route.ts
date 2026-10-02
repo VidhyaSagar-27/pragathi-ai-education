@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
+import { getDb, updateDb, generateNextRollNumber, noCacheHeaders } from '@/lib/db';
 import { User, UserRole, UserStatus } from '@/lib/db/types';
 
 export const dynamic = 'force-dynamic';
@@ -51,25 +51,43 @@ export async function POST(req: NextRequest) {
       instructorDetails,
     } = body;
 
-    if (!name || !email || !password || !role) {
+    const isStudent = role === 'STUDENT';
+
+    if (!name || (!isStudent && !email) || !role) {
       return NextResponse.json(
-        { error: 'Name, email, password, and role are required.' },
+        { error: 'Name and role are required.' },
         { status: 400 }
       );
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : undefined;
+    const cleanPhone = phone ? String(phone).replace(/\D/g, '').slice(-10) : undefined;
     const db = await getDb();
 
-    if (db.users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+    if (cleanEmail && db.users.some((u) => u.email && u.email.toLowerCase() === cleanEmail)) {
       return NextResponse.json(
         { error: 'A user with this email address already exists.' },
         { status: 400 }
       );
     }
 
+    const rawPassword = password || cleanPhone || 'Pragathi2026!';
     const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(password, salt);
+    const passwordHash = bcrypt.hashSync(rawPassword, salt);
+
+    let rollNumber: string | undefined = undefined;
+    let enrichedStudentDetails = studentDetails;
+
+    if (isStudent) {
+      rollNumber = studentDetails?.rollNumber || (await generateNextRollNumber());
+      enrichedStudentDetails = {
+        ...studentDetails,
+        rollNumber,
+        studentId: rollNumber,
+        studentCode: rollNumber,
+        mustChangePassword: true,
+      };
+    }
 
     const newUser: User = {
       id: `usr_${role.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -78,8 +96,10 @@ export async function POST(req: NextRequest) {
       passwordHash,
       role: role as UserRole,
       status: 'ACTIVE',
-      phone: phone ? String(phone).trim() : undefined,
-      studentDetails: role === 'STUDENT' ? studentDetails : undefined,
+      phone: cleanPhone,
+      rollNumber,
+      mustChangePassword: isStudent,
+      studentDetails: isStudent ? enrichedStudentDetails : undefined,
       instructorDetails: role === 'INSTRUCTOR' ? instructorDetails : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -172,12 +192,16 @@ export async function DELETE(req: NextRequest) {
       const userToDelete = dbState.users.find((u) => u.id === id);
       dbState.users = (dbState.users || []).filter((u) => u.id !== id);
       if (userToDelete && userToDelete.role === 'STUDENT') {
-        dbState.registrations = (dbState.registrations || []).filter(
-          (r) =>
-            r.email?.toLowerCase() !== userToDelete.email.toLowerCase() &&
-            (!userToDelete.phone || r.mobileNumber !== userToDelete.phone)
+        const stuRoll = userToDelete.rollNumber || userToDelete.studentDetails?.rollNumber || userToDelete.studentDetails?.studentId;
+        dbState.registrations = (dbState.registrations || []).filter((r) => {
+          if (stuRoll && r.studentId === stuRoll) return false;
+          if (r.id === userToDelete.id) return false;
+          if (userToDelete.email && r.email?.toLowerCase() === userToDelete.email.toLowerCase()) return false;
+          return true;
+        });
+        dbState.quizSubmissions = (dbState.quizSubmissions || []).filter(
+          (q) => q.studentId !== id && q.studentId !== stuRoll
         );
-        dbState.quizSubmissions = (dbState.quizSubmissions || []).filter((q) => q.studentId !== id);
       }
     });
 

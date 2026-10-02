@@ -17,6 +17,9 @@ import {
   Trophy,
   Flame,
   Star,
+  Lock,
+  Key,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function StudentDashboardPage() {
@@ -40,6 +43,14 @@ export default function StudentDashboardPage() {
 
   const [loading, setLoading] = useState(true);
 
+  // Forced First-Login Password Change State
+  const [changePwModalOpen, setChangePwModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSuccess, setPwSuccess] = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch('/api/auth/me?t=' + Date.now()).then((r) => r.json()),
@@ -60,6 +71,9 @@ export default function StudentDashboardPage() {
           announcements: anc.announcements || [],
           certificates: cert.certificates || [],
         });
+        if (me.user?.mustChangePassword) {
+          setChangePwModalOpen(true);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -133,9 +147,9 @@ export default function StudentDashboardPage() {
               <span>Pragathi AI Foundation Program</span>
             </div>
 
-            {data.user?.studentDetails?.studentId && (
-              <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-black font-mono border border-white/30 backdrop-blur-xs">
-                <span>ID: {data.user.studentDetails.studentId}</span>
+            {(data.user?.rollNumber || data.user?.studentDetails?.rollNumber || data.user?.studentDetails?.studentId) && (
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-teal-400 text-slate-950 text-xs font-black font-mono shadow-xs">
+                <span>Roll No: {data.user.rollNumber || data.user.studentDetails?.rollNumber || data.user.studentDetails?.studentId}</span>
               </div>
             )}
 
@@ -382,6 +396,118 @@ export default function StudentDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Forced First-Login Password Change Modal */}
+      {changePwModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-teal-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-gradient-to-r from-teal-700 to-slate-900 text-white">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center border border-teal-400/30">
+                  <Key className="w-4 h-4 text-teal-300" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Create Your Secure Password</h3>
+                  <p className="text-xs text-teal-200">First-time student security setup</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-xl text-teal-900 text-xs leading-relaxed">
+                Welcome to <strong>Pragathi AI</strong>! For your account security, please create a new personal password to replace your registered mobile number.
+              </div>
+
+              {pwSuccess ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center space-x-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>Password updated successfully! Welcome to your student portal.</span>
+                </div>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (newPassword.length < 6) {
+                      setPwError('Password must be at least 6 characters.');
+                      return;
+                    }
+                    if (newPassword !== confirmPassword) {
+                      setPwError('Passwords do not match.');
+                      return;
+                    }
+                    setPwSubmitting(true);
+                    setPwError(null);
+                    try {
+                      const res = await fetch('/api/auth/profile', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: newPassword }),
+                      });
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json.error || 'Failed to update password');
+                      setPwSuccess(true);
+                      setData((prev) => ({
+                        ...prev,
+                        user: { ...prev.user, mustChangePassword: false },
+                      }));
+                      setTimeout(() => setChangePwModalOpen(false), 1500);
+                    } catch (err: any) {
+                      setPwError(err.message || 'Could not update password');
+                    } finally {
+                      setPwSubmitting(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  {pwError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs">
+                      {pwError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      New Password (minimum 6 characters) *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Confirm New Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={pwSubmitting}
+                      className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {pwSubmitting ? 'Saving Password...' : 'Save Password & Continue'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
       if (db.registrations) {
         const reg = db.registrations.find(
           (r) =>
-            r.assignedEmail?.toLowerCase() === user.email.toLowerCase() ||
+            (user.rollNumber && r.rollNumber?.toLowerCase() === user.rollNumber.toLowerCase()) ||
+            (user.email && r.assignedEmail && r.assignedEmail.toLowerCase() === user.email.toLowerCase()) ||
             (r.studentName.toLowerCase() === user.name.toLowerCase() &&
               r.mobileNumber === user.phone)
         );
@@ -116,7 +117,8 @@ export async function DELETE(req: NextRequest) {
       if (db.registrations) {
         const reg = db.registrations.find(
           (r) =>
-            r.assignedEmail?.toLowerCase() === user.email.toLowerCase() ||
+            (user.rollNumber && r.rollNumber?.toLowerCase() === user.rollNumber.toLowerCase()) ||
+            (user.email && r.assignedEmail && r.assignedEmail.toLowerCase() === user.email.toLowerCase()) ||
             (r.studentName.toLowerCase() === user.name.toLowerCase() &&
               r.mobileNumber === user.phone)
         );

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb, generateStudentId, noCacheHeaders } from '@/lib/db';
+import { getDb, updateDb, generateStudentId, generateNextRollNumber, noCacheHeaders } from '@/lib/db';
 import { User, StudentRegistration, AuditLogEntry } from '@/lib/db/types';
 import { triggerAutomationEvent } from '@/lib/automation/engine';
 import { normalizePhone, normalizeEmail } from '@/lib/family/normalization';
@@ -129,26 +129,16 @@ export async function PATCH(req: NextRequest) {
         });
       }
 
-      // 1. Atomic Student ID Generation (PAI26-XXXX)
-      const studentId = await generateStudentId();
+      // 1. Atomic Roll Number Generation (PRG001, PRG002...)
+      const rollNumber = await generateNextRollNumber();
+      const studentId = rollNumber;
 
-      // 2. Resolve Unique Student Login Email
-      let studentEmail = (
-        customEmail ||
-        reg.assignedEmail ||
-        reg.email ||
-        `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`
-      ).trim().toLowerCase();
+      // 2. Resolve Student Email (optional, no fake email generated)
+      const studentEmail = reg.email ? String(reg.email).trim().toLowerCase() : undefined;
 
-      // Ensure email uniqueness so admin is NEVER blocked (supports multiple siblings with same parent email)
-      if (db.users.some((u) => u.email.toLowerCase() === studentEmail)) {
-        const base = reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'student';
-        const numSuffix = studentId.replace(/\D/g, '').slice(-4) || Math.random().toString(36).substring(2, 6);
-        studentEmail = `${base}_${numSuffix}@pragathiai.student`;
-      }
-
-      // 3. Password Generation & Hashing
-      const rawPassword = initialPassword || reg.temporaryPassword || 'Pragathi2026!';
+      // 3. Password Generation & Hashing (default to registered mobile number)
+      const cleanPhone = String(reg.mobileNumber).replace(/\D/g, '').slice(-10);
+      const rawPassword = initialPassword || cleanPhone;
       const salt = bcrypt.genSaltSync(10);
       const passwordHash = bcrypt.hashSync(rawPassword, salt);
 
@@ -160,19 +150,23 @@ export async function PATCH(req: NextRequest) {
         passwordHash,
         role: 'STUDENT',
         status: 'ACTIVE',
-        phone: reg.mobileNumber,
+        phone: cleanPhone,
+        rollNumber,
+        mustChangePassword: true,
         studentDetails: {
-          studentId,
+          rollNumber,
+          studentId: rollNumber,
+          studentCode: rollNumber,
           classGrade: reg.classGrade,
-          section: reg.section,
+          section: reg.section || 'A',
           schoolName: reg.schoolName,
           parentName: reg.parentName,
           location: reg.location,
           group: 'Foundation Batch A',
           photoUrl: reg.photoUrl,
-          studentCode: reg.studentCode || 'STU',
-          parentPhone: reg.mobileNumber,
-          parentEmail: reg.email,
+          mustChangePassword: true,
+          parentPhone: cleanPhone,
+          parentEmail: studentEmail,
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -191,7 +185,10 @@ export async function PATCH(req: NextRequest) {
         }
 
         // Add user if not already in array
-        if (!dbState.users.some((u) => u.email.toLowerCase() === studentEmail)) {
+        if (!dbState.users.some((u) => 
+          (rollNumber && u.rollNumber && u.rollNumber.toLowerCase() === rollNumber.toLowerCase()) ||
+          (studentEmail && u.email && u.email.toLowerCase() === studentEmail.toLowerCase())
+        )) {
           dbState.users.push(newStudentUser);
         }
 
@@ -360,14 +357,16 @@ export async function DELETE(req: NextRequest) {
     dbState.registrations = (dbState.registrations || []).filter((r) => r.id !== id);
 
     if (reg) {
-      // Safe user removal: match exact assignedEmail or exact studentId, NEVER delete by shared parent phone!
+      // Safe user removal: match exact rollNumber or exact assignedEmail or exact studentId, NEVER delete by shared parent phone!
       dbState.users = (dbState.users || []).filter(
         (u) =>
           u.role !== 'STUDENT' ||
-          (reg.studentId
+          (reg.rollNumber
+            ? u.rollNumber?.toLowerCase() !== reg.rollNumber.toLowerCase()
+            : reg.studentId
             ? u.studentDetails?.studentId !== reg.studentId
             : reg.assignedEmail
-            ? u.email.toLowerCase() !== reg.assignedEmail.toLowerCase()
+            ? (u.email ? u.email.toLowerCase() !== reg.assignedEmail.toLowerCase() : true)
             : u.name.toLowerCase() !== reg.studentName.toLowerCase())
       );
 

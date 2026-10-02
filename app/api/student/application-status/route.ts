@@ -57,11 +57,13 @@ export async function GET(req: NextRequest) {
       const rAssigned = normalizeEmail(reg.assignedEmail);
       const rRegId = (reg.registrationId || '').toLowerCase();
       const rStuId = (reg.studentId || '').toLowerCase();
+      const rRollNo = (reg.rollNumber || '').toLowerCase();
 
       const matches =
         (cleanPhone && rPhone === cleanPhone) ||
         (cleanEmail && (rEmail === cleanEmail || rAssigned === cleanEmail)) ||
         rId === lowerIdentifier ||
+        (rRollNo && rRollNo === lowerIdentifier) ||
         (rRegId && rRegId === lowerIdentifier) ||
         (rStuId && rStuId === lowerIdentifier);
 
@@ -73,22 +75,26 @@ export async function GET(req: NextRequest) {
         const linkedUser = (db.users || []).find(
           (u) =>
             u.role === 'STUDENT' &&
-            ((reg.assignedEmail && u.email.toLowerCase() === reg.assignedEmail.toLowerCase()) ||
-              (reg.email && u.email.toLowerCase() === reg.email.toLowerCase()) ||
+            ((reg.rollNumber && u.rollNumber?.toLowerCase() === reg.rollNumber.toLowerCase()) ||
+              (reg.assignedEmail && u.email && u.email.toLowerCase() === reg.assignedEmail.toLowerCase()) ||
+              (reg.email && u.email && u.email.toLowerCase() === reg.email.toLowerCase()) ||
               (reg.studentId && u.studentDetails?.studentId?.toLowerCase() === reg.studentId.toLowerCase()) ||
               u.name.toLowerCase() === reg.studentName.toLowerCase())
         );
 
         const loginEmail =
+          reg.rollNumber ||
+          linkedUser?.rollNumber ||
           reg.assignedEmail ||
           linkedUser?.email ||
-          `${reg.studentName.toLowerCase().replace(/[^a-z0-9]/g, '')}@pragathiai.student`;
-        const temporaryPassword = reg.temporaryPassword || 'Pragathi2026!';
+          '';
+        const temporaryPassword = reg.temporaryPassword || reg.mobileNumber || 'Pragathi2026!';
 
         addStudentItem({
           id: reg.id,
           registrationId: reg.registrationId || reg.id,
           studentId: reg.studentId || linkedUser?.studentDetails?.studentId,
+          rollNumber: reg.rollNumber || linkedUser?.rollNumber,
           studentCode: reg.studentCode || 'STU',
           name: reg.studentName,
           status: normStatus,
@@ -114,17 +120,20 @@ export async function GET(req: NextRequest) {
         const uEmail = normalizeEmail(user.studentDetails?.parentEmail || user.email);
         const uId = user.id.toLowerCase();
         const uStuId = (user.studentDetails?.studentId || '').toLowerCase();
+        const uRollNo = (user.rollNumber || '').toLowerCase();
 
         const matches =
           (cleanPhone && uPhone === cleanPhone) ||
           (cleanEmail && uEmail === cleanEmail) ||
           uId === lowerIdentifier ||
+          (uRollNo && uRollNo === lowerIdentifier) ||
           (uStuId && uStuId === lowerIdentifier);
 
         if (matches) {
           addStudentItem({
             id: user.id,
             studentId: user.studentDetails?.studentId,
+            rollNumber: user.rollNumber,
             studentCode: user.studentDetails?.studentCode || 'STU',
             name: user.name,
             status: user.status === 'ACTIVE' ? 'APPROVED' : 'INACTIVE',
@@ -134,8 +143,8 @@ export async function GET(req: NextRequest) {
             section: user.studentDetails?.section,
             location: user.studentDetails?.location || '',
             photoUrl: user.studentDetails?.photoUrl,
-            loginEmail: user.email,
-            temporaryPassword: 'Pragathi2026!',
+            loginEmail: user.rollNumber || user.email || '',
+            temporaryPassword: user.phone || 'Pragathi2026!',
             createdAt: user.createdAt,
             approvedAt: user.createdAt,
           });

@@ -416,7 +416,9 @@ export async function ensureSequenceTable(): Promise<void> {
   }
 }
 
-export async function getNextAtomicSequence(sequenceName: 'registration_id' | 'student_id'): Promise<number> {
+export async function getNextAtomicSequence(
+  sequenceName: 'registration_id' | 'student_id' | 'student_roll_number'
+): Promise<number> {
   await ensureSequenceTable();
   try {
     const sql = getSqlClient();
@@ -439,12 +441,59 @@ export async function getNextAtomicSequence(sequenceName: 'registration_id' | 's
   await updateDb((db) => {
     if (sequenceName === 'registration_id') {
       fallbackVal = (db.registrations?.length || 0) + 1;
+    } else if (sequenceName === 'student_roll_number') {
+      const maxRollNum = (db.users || [])
+        .filter((u) => u.role === 'STUDENT' && (u.rollNumber || u.studentDetails?.rollNumber))
+        .map((u) => {
+          const r = u.rollNumber || u.studentDetails?.rollNumber || '';
+          const match = r.match(/PRG(\d+)/i);
+          return match ? parseInt(match[1], 10) : 0;
+        })
+        .reduce((max, curr) => Math.max(max, curr), 0);
+      fallbackVal = maxRollNum + 1;
     } else {
       const studentCount = (db.users?.filter((u) => u.role === 'STUDENT').length || 0);
       fallbackVal = studentCount + 1;
     }
   });
   return fallbackVal;
+}
+
+export function formatRollNumber(seq: number): string {
+  return `PRG${String(seq).padStart(3, '0')}`;
+}
+
+export async function generateNextRollNumber(): Promise<string> {
+  const seq = await getNextAtomicSequence('student_roll_number');
+  return formatRollNumber(seq);
+}
+
+export async function peekNextRollNumber(): Promise<string> {
+  await ensureSequenceTable();
+  try {
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT last_value FROM app_sequences WHERE name = 'student_roll_number' LIMIT 1;
+    `;
+    if (rows && rows.length > 0 && rows[0].last_value !== undefined) {
+      const nextVal = Number(rows[0].last_value) + 1;
+      return formatRollNumber(nextVal);
+    }
+  } catch (err) {
+    console.warn('Could not peek sequence from Postgres:', err);
+  }
+
+  // Fallback
+  const db = await getDb();
+  const maxRollNum = (db.users || [])
+    .filter((u) => u.role === 'STUDENT' && (u.rollNumber || u.studentDetails?.rollNumber))
+    .map((u) => {
+      const r = u.rollNumber || u.studentDetails?.rollNumber || '';
+      const match = r.match(/PRG(\d+)/i);
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .reduce((max, curr) => Math.max(max, curr), 0);
+  return formatRollNumber(maxRollNum + 1);
 }
 
 export async function generateRegistrationId(): Promise<string> {
@@ -457,4 +506,50 @@ export async function generateStudentId(): Promise<string> {
   const seq = await getNextAtomicSequence('student_id');
   const yearSuffix = String(new Date().getFullYear()).slice(-2);
   return `PAI${yearSuffix}-${String(seq).padStart(4, '0')}`;
+}
+
+export async function resetStudentBatchData(): Promise<{ success: boolean; countRemoved: number }> {
+  let countRemoved = 0;
+  await updateDb((db) => {
+    const prevCount = db.users ? db.users.filter((u) => u.role === 'STUDENT').length : 0;
+    countRemoved = prevCount;
+
+    // Delete student accounts ONLY, keep admin and instructor accounts completely intact
+    db.users = (db.users || []).filter((u) => u.role !== 'STUDENT');
+
+    // Clear student-specific registrations and submissions
+    db.registrations = [];
+    db.quizSubmissions = [];
+    db.assignmentSubmissions = [];
+
+    // Keep settings, modules, materials, videos, quizzes, partnerships, announcements, messages
+  });
+
+  // Reset sequences to 0 in Neon Postgres so next sequence values start from 1
+  try {
+    const sql = getSqlClient();
+    await sql`
+      INSERT INTO app_sequences (name, last_value)
+      VALUES ('student_roll_number', 0)
+      ON CONFLICT (name) DO UPDATE
+      SET last_value = 0;
+    `;
+    await sql`
+      INSERT INTO app_sequences (name, last_value)
+      VALUES ('registration_id', 0)
+      ON CONFLICT (name) DO UPDATE
+      SET last_value = 0;
+    `;
+    await sql`
+      INSERT INTO app_sequences (name, last_value)
+      VALUES ('student_id', 0)
+      ON CONFLICT (name) DO UPDATE
+      SET last_value = 0;
+    `;
+  } catch (err) {
+    console.warn('Could not reset app_sequences table in Postgres:', err);
+  }
+
+  invalidateDbCache();
+  return { success: true, countRemoved };
 }

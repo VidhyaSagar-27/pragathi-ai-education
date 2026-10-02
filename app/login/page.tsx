@@ -275,11 +275,15 @@ function LoginForm() {
                 htmlFor={`login-identifier-${roleTab.toLowerCase()}`}
                 className="block text-xs font-semibold text-slate-700 mb-1"
               >
-                Email Address or Mobile Number
+                {roleTab === 'STUDENT'
+                  ? 'Login ID / Roll Number'
+                  : roleTab === 'INSTRUCTOR'
+                  ? 'Instructor Email or Mobile'
+                  : 'Administrator Email or Mobile'}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
+                  {roleTab === 'STUDENT' ? <Key className="w-4 h-4 text-teal-600" /> : <Mail className="w-4 h-4" />}
                 </div>
                 <input
                   id={`login-identifier-${roleTab.toLowerCase()}`}
@@ -290,11 +294,11 @@ function LoginForm() {
                   onChange={(e) => setIdentifier(e.target.value)}
                   autoComplete="off"
                   placeholder={
-                    roleTab === 'ADMIN'
-                      ? 'Administrator email or mobile'
+                    roleTab === 'STUDENT'
+                      ? 'e.g. PRG001'
                       : roleTab === 'INSTRUCTOR'
                       ? 'Faculty email or mobile number'
-                      : 'Mobile number or student email'
+                      : 'Administrator email or mobile'
                   }
                   className="w-full text-sm pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
                 />
@@ -302,12 +306,19 @@ function LoginForm() {
             </div>
 
             <div>
-              <label
-                htmlFor={`login-password-${roleTab.toLowerCase()}`}
-                className="block text-xs font-semibold text-slate-700 mb-1"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label
+                  htmlFor={`login-password-${roleTab.toLowerCase()}`}
+                  className="block text-xs font-semibold text-slate-700"
+                >
+                  Password
+                </label>
+                {roleTab === 'STUDENT' && (
+                  <span className="text-[11px] text-teal-700 font-medium">
+                    Initial password is your registered mobile number
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
@@ -320,7 +331,11 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
-                  placeholder="••••••••••••"
+                  placeholder={
+                    roleTab === 'STUDENT'
+                      ? 'Registered 10-digit mobile number'
+                      : '••••••••••••'
+                  }
                   className="w-full text-sm pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600 transition"
                 />
                 <button

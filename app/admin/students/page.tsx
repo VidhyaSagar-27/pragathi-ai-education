@@ -25,10 +25,21 @@ import {
   Send,
   AlertTriangle,
   PenTool,
+  Download,
+  FileSpreadsheet,
+  Archive,
+  FolderArchive,
+  Filter,
+  Eye,
+  FileText,
+  UserPlus,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
 import CommunicationModal from '@/components/CommunicationModal';
+import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
+import ResetBatchConfirmModal from '@/components/ResetBatchConfirmModal';
+import StudentDetailsModal from '@/components/StudentDetailsModal';
 
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
@@ -37,6 +48,17 @@ export default function AdminStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [manualCommOpen, setManualCommOpen] = useState(false);
+
+  // Modals for Fast Registration, Reset Batch, and View Details
+  const [fastRegOpen, setFastRegOpen] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [detailsStudent, setDetailsStudent] = useState<User | null>(null);
+
+  // Table Filters & Export Dropdown
+  const [filterSchool, setFilterSchool] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   // Student Photo Modal State
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -287,7 +309,7 @@ export default function AdminStudentsPage() {
   const handleOpenEdit = (stu: User) => {
     setEditingId(stu.id);
     setName(stu.name);
-    setEmail(stu.email);
+    setEmail(stu.email || '');
     setPassword('');
     setPhone(stu.phone || '');
     setClassGrade(stu.studentDetails?.classGrade || '');
@@ -437,47 +459,148 @@ export default function AdminStudentsPage() {
 
   const pendingRegistrations = registrations.filter((r) => r.status === 'PENDING');
 
-  const filtered = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.studentDetails?.schoolName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const uniqueSchools = Array.from(
+    new Set(students.map((s) => s.studentDetails?.schoolName).filter(Boolean))
+  ) as string[];
+  const uniqueClasses = Array.from(
+    new Set(students.map((s) => s.studentDetails?.classGrade).filter(Boolean))
+  ) as string[];
+  const uniqueSections = Array.from(
+    new Set(students.map((s) => s.studentDetails?.section).filter(Boolean))
+  ) as string[];
+
+  const filtered = students.filter((s) => {
+    const rollNo = (s.rollNumber || s.studentDetails?.rollNumber || s.studentDetails?.studentId || '').toLowerCase();
+    const stuName = (s.name || '').toLowerCase();
+    const phoneNo = (s.phone || s.studentDetails?.parentPhone || '').replace(/\D/g, '');
+    const emailStr = (s.email || '').toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, '');
+
+    const matchesQuery =
+      !q ||
+      rollNo.includes(q) ||
+      stuName.includes(q) ||
+      emailStr.includes(q) ||
+      (qDigits.length >= 3 && phoneNo.includes(qDigits));
+
+    if (!matchesQuery) return false;
+
+    if (filterSchool && s.studentDetails?.schoolName !== filterSchool) return false;
+    if (filterClass && s.studentDetails?.classGrade !== filterClass) return false;
+    if (filterSection && (s.studentDetails?.section || 'A') !== filterSection) return false;
+
+    return true;
+  });
 
   return (
     <div className="space-y-8">
-      {/* Title & Add Student CTA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Title & Batch Action CTAs */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Student Management & Enrollment
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Review incoming student registration applications, provision accounts, and manage enrolled students.
+            Register students, manage profiles &amp; photos, export data, and oversee fresh batch enrollment.
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
+          {/* Primary Fast Register Button */}
+          <button
+            onClick={() => setFastRegOpen(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm w-fit cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Fast Register Student</span>
+          </button>
+
+          {/* Export Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-300 shadow-2xs w-fit cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-teal-600" />
+              <span>Export Data ▾</span>
+            </button>
+
+            {exportDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 p-1.5 space-y-1">
+                <a
+                  href="/api/admin/students/export?format=xlsx"
+                  download
+                  onClick={() => setExportDropdownOpen(false)}
+                  className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-xl transition"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Download Excel (.xlsx)</span>
+                </a>
+                <a
+                  href="/api/admin/students/export?format=csv"
+                  download
+                  onClick={() => setExportDropdownOpen(false)}
+                  className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-xl transition"
+                >
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  <span>Download CSV (.csv)</span>
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Download Photos ZIP */}
+          <a
+            href="/api/admin/students/photos-zip"
+            download
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-300 shadow-2xs w-fit cursor-pointer"
+            title="Download ZIP containing all student photos named PRG001_Name.jpg"
+          >
+            <Archive className="w-4 h-4 text-teal-600" />
+            <span className="hidden sm:inline">Photos ZIP</span>
+            <span className="sm:hidden">Photos</span>
+          </a>
+
+          {/* Download Data + Photos Bundle ZIP */}
+          <a
+            href="/api/admin/students/bundle-zip"
+            download
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-300 shadow-2xs w-fit cursor-pointer"
+            title="Download complete ZIP containing students.xlsx and photos/ folder"
+          >
+            <FolderArchive className="w-4 h-4 text-indigo-600" />
+            <span className="hidden sm:inline">Data + Photos ZIP</span>
+            <span className="sm:hidden">Bundle</span>
+          </a>
+
+          {/* Broadcast & Manual Send */}
           <button
             onClick={() => setManualCommOpen(true)}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 shadow-2xs w-fit cursor-pointer"
+            className="inline-flex items-center space-x-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition border border-slate-200 shadow-2xs w-fit cursor-pointer"
             title="Type custom student name, mobile, or email to message directly"
           >
             <PenTool className="w-4 h-4 text-teal-600" />
-            <span>Manual Send</span>
+            <span className="hidden sm:inline">Manual Send</span>
           </button>
+
           <button
             onClick={handleOpenBroadcast}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
+            className="inline-flex items-center space-x-2 px-3.5 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
           >
             <Send className="w-4 h-4 text-teal-400" />
-            <span>Broadcast to All ({students.length})</span>
+            <span>Broadcast ({students.length})</span>
           </button>
+
+          {/* Reset Student Batch Danger Button */}
           <button
-            onClick={handleOpenAdd}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm w-fit cursor-pointer"
+            onClick={() => setResetModalOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs sm:text-sm font-bold transition shadow-2xs w-fit cursor-pointer"
+            title="Permanently reset student registrations and reset roll numbers to PRG001"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Student Account</span>
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            <span>Reset Batch</span>
           </button>
         </div>
       </div>
@@ -669,16 +792,99 @@ export default function AdminStudentsPage() {
       {/* Tab Content: 2. ENROLLED STUDENTS */}
       {activeTab === 'enrolled' && (
         <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by student name, email, or school..."
-              className="w-full text-xs sm:text-sm pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-            />
+          {/* Search & Filter Controls */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by Roll Number (PRG001...), Student Name, or Phone..."
+                  className="w-full text-xs sm:text-sm pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
+              </div>
+
+              {/* School Filter */}
+              {uniqueSchools.length > 0 && (
+                <div className="w-full md:w-52">
+                  <select
+                    value={filterSchool}
+                    onChange={(e) => setFilterSchool(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  >
+                    <option value="">All Schools ({uniqueSchools.length})</option>
+                    {uniqueSchools.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Class Filter */}
+              {uniqueClasses.length > 0 && (
+                <div className="w-full md:w-36">
+                  <select
+                    value={filterClass}
+                    onChange={(e) => setFilterClass(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  >
+                    <option value="">All Classes</option>
+                    {uniqueClasses.map((c) => (
+                      <option key={c} value={c}>
+                        Grade {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Section Filter */}
+              {uniqueSections.length > 0 && (
+                <div className="w-full md:w-32">
+                  <select
+                    value={filterSection}
+                    onChange={(e) => setFilterSection(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  >
+                    <option value="">All Sec</option>
+                    {uniqueSections.map((sec) => (
+                      <option key={sec} value={sec}>
+                        Sec {sec}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(searchQuery || filterSchool || filterClass || filterSection) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterSchool('');
+                    setFilterClass('');
+                    setFilterSection('');
+                  }}
+                  className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer shrink-0"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+              <span>
+                Showing <strong>{filtered.length}</strong> of {students.length} students
+              </span>
+              <span className="font-mono text-teal-700 font-semibold">
+                Sequential Roll Numbering (PRG001+)
+              </span>
+            </div>
           </div>
 
           {filtered.length > 0 ? (
@@ -687,129 +893,174 @@ export default function AdminStudentsPage() {
                 <table className="w-full text-left text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[11px] font-semibold">
                     <tr>
-                      <th className="px-6 py-4">Student & Photo</th>
-                      <th className="px-6 py-4">School & Grade</th>
-                      <th className="px-6 py-4">Parent & Contact</th>
-                      <th className="px-6 py-4">Cohort Group</th>
-                      <th className="px-6 py-4 text-center">Photo</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-5 py-3.5 text-center">Photo</th>
+                      <th className="px-5 py-3.5">Roll No.</th>
+                      <th className="px-5 py-3.5">Student Name</th>
+                      <th className="px-5 py-3.5">School</th>
+                      <th className="px-5 py-3.5">Class</th>
+                      <th className="px-5 py-3.5">Section</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filtered.map((stu) => (
-                      <tr key={stu.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
+                    {filtered.map((stu) => {
+                      const rollNo =
+                        stu.rollNumber ||
+                        stu.studentDetails?.rollNumber ||
+                        stu.studentDetails?.studentId ||
+                        'PRG';
+                      const cleanName = (stu.name || 'student').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+                      const photoUrl = stu.studentDetails?.photoUrl;
+
+                      return (
+                        <tr key={stu.id} className="hover:bg-slate-50/80 transition">
+                          {/* Photo */}
+                          <td className="px-5 py-3.5 text-center">
                             <div
                               onClick={() => handleOpenPhotoModal(stu)}
-                              className="relative group w-11 h-11 rounded-2xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-800 shrink-0 cursor-pointer shadow-xs"
-                              title="Click to change or capture photo"
+                              className="relative group w-11 h-11 rounded-2xl overflow-hidden bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-800 shrink-0 cursor-pointer shadow-xs mx-auto"
+                              title="Click to view, capture, or replace photo"
                             >
-                              {stu.studentDetails?.photoUrl ? (
+                              {photoUrl ? (
                                 <img
-                                  src={stu.studentDetails.photoUrl}
+                                  src={photoUrl}
                                   alt={stu.name}
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <span className="text-base">{stu.name.charAt(0).toUpperCase()}</span>
+                                <span className="text-base font-bold">{stu.name.charAt(0).toUpperCase()}</span>
                               )}
                               <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                 <Camera className="w-4 h-4" />
                               </div>
                             </div>
-                            <div>
-                              <div className="font-bold text-slate-900 flex items-center space-x-2">
-                                <span>{stu.name}</span>
-                                {stu.studentDetails?.studentId && (
-                                  <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-teal-100 text-teal-900 border border-teal-200">
-                                    {stu.studentDetails.studentId}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-slate-400">{stu.email}</div>
+                          </td>
+
+                          {/* Roll No. */}
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <span className="font-mono text-xs font-black px-2.5 py-1 rounded-lg bg-teal-100 text-teal-900 border border-teal-300 shadow-2xs">
+                              {rollNo}
+                            </span>
+                          </td>
+
+                          {/* Student Name & Contact */}
+                          <td className="px-5 py-3.5">
+                            <div className="font-bold text-slate-900 flex items-center space-x-2">
+                              <span>{stu.name}</span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          <div>{stu.studentDetails?.schoolName || 'N/A'}</div>
-                          <span className="text-[11px] text-teal-700 font-semibold">
-                            Grade {stu.studentDetails?.classGrade || 'N/A'}
-                            {stu.studentDetails?.section ? ` • Sec ${stu.studentDetails.section}` : ''}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-slate-700">
-                          <div>{stu.studentDetails?.parentName || 'N/A'}</div>
-                          <div className="text-xs text-slate-400">{stu.phone || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">
-                            {stu.studentDetails?.group || 'Foundation Batch'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPhotoModal(stu)}
-                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 text-xs font-bold transition shadow-2xs cursor-pointer"
-                            title="Capture or upload student photo from camera or library"
-                          >
-                            <Camera className="w-3.5 h-3.5 text-teal-600" />
-                            <span>{stu.studentDetails?.photoUrl ? 'Update Photo' : 'Add Photo'}</span>
-                          </button>
-                        </td>
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => handleToggleStatus(stu)}
-                            className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                              stu.status === 'ACTIVE'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                            title="Click to toggle active status"
-                          >
-                            <Power className="w-3 h-3" />
-                            <span>{stu.status}</span>
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                          <button
-                            onClick={() => handleOpenCommModal(stu)}
-                            className="p-1.5 text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2.5 shadow-2xs"
-                            title="Send Credentials, Reset Password, or Dispatch Message via WhatsApp & Email"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            <span className="text-[11px] font-bold">Dispatch</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setPwTargetUser(stu);
-                              setNewPassword('Pragathi2026!');
-                              setPwModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 transition cursor-pointer"
-                            title="Reset Password"
-                          >
-                            <Key className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEdit(stu)}
-                            className="p-1.5 text-slate-400 hover:text-teal-600 transition cursor-pointer"
-                            title="Edit Details"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(stu.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                            title="Delete Student"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                            <div className="text-xs text-slate-500 font-mono mt-0.5">
+                              📱 {stu.phone || stu.studentDetails?.parentPhone || 'No Phone'}
+                            </div>
+                            {stu.studentDetails?.parentName && (
+                              <div className="text-[11px] text-slate-400">
+                                Parent: {stu.studentDetails.parentName}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* School */}
+                          <td className="px-5 py-3.5 text-slate-700">
+                            <div className="font-medium text-slate-900 max-w-[200px] truncate" title={stu.studentDetails?.schoolName}>
+                              {stu.studentDetails?.schoolName || '—'}
+                            </div>
+                          </td>
+
+                          {/* Class */}
+                          <td className="px-5 py-3.5 text-slate-700 whitespace-nowrap">
+                            <span className="font-semibold text-slate-800">
+                              Grade {stu.studentDetails?.classGrade || '—'}
+                            </span>
+                          </td>
+
+                          {/* Section */}
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-semibold text-xs text-slate-700">
+                              Sec {stu.studentDetails?.section || 'A'}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                            {/* View / Download Student Profile Card */}
+                            <button
+                              type="button"
+                              onClick={() => setDetailsStudent(stu)}
+                              className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                              title="View Student Profile & Download Card"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+
+                            {/* Download Individual Photo */}
+                            {photoUrl && (
+                              <a
+                                href={photoUrl}
+                                download={`${rollNo}_${cleanName}.jpg`}
+                                className="p-1.5 text-teal-600 hover:text-teal-800 hover:bg-teal-50 rounded-lg transition cursor-pointer inline-flex items-center"
+                                title={`Download photo: ${rollNo}_${cleanName}.jpg`}
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+
+                            {/* Replace / Upload Photo */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPhotoModal(stu)}
+                              className="p-1.5 text-teal-600 hover:text-teal-800 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                              title="Replace Student Photo (Camera/Upload)"
+                            >
+                              <Camera className="w-4 h-4" />
+                            </button>
+
+                            {/* Dispatch Communication (WhatsApp/Email) */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCommModal(stu)}
+                              className="p-1.5 text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer inline-flex items-center space-x-1 px-2 shadow-2xs"
+                              title="Dispatch Login Credentials or Notice via WhatsApp & Email"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span className="text-[11px] font-bold">Dispatch</span>
+                            </button>
+
+                            {/* Reset Password */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPwTargetUser(stu);
+                                setNewPassword(stu.phone || 'Pragathi2026!');
+                                setPwModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                              title="Reset Password"
+                            >
+                              <Key className="w-4 h-4" />
+                            </button>
+
+                            {/* Edit Student */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(stu)}
+                              className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                              title="Edit Details"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+
+                            {/* Delete Student */}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(stu.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete Student Account"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -820,9 +1071,17 @@ export default function AdminStudentsPage() {
                 <Users className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-2">0 Student Accounts</h3>
-              <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                No student accounts created yet. You can click &quot;Add Student Account&quot; above or approve incoming registration applications.
+              <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed mb-4">
+                No students enrolled yet. Click &quot;Fast Register Student&quot; to begin enrolling students with auto-incrementing roll numbers starting from PRG001.
               </p>
+              <button
+                type="button"
+                onClick={() => setFastRegOpen(true)}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center space-x-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Register First Student</span>
+              </button>
             </div>
           )}
         </div>
@@ -1778,6 +2037,27 @@ export default function AdminStudentsPage() {
         mode="MANUAL"
         targetRole="STUDENT"
         currentUserRole="ADMIN"
+      />
+
+      {/* Fast Registration Modal */}
+      <FastRegisterStudentModal
+        isOpen={fastRegOpen}
+        onClose={() => setFastRegOpen(false)}
+        onStudentCreated={loadData}
+      />
+
+      {/* Reset Student Batch Confirmation Modal */}
+      <ResetBatchConfirmModal
+        isOpen={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        onResetCompleted={loadData}
+      />
+
+      {/* Student Details & Download Profile Modal */}
+      <StudentDetailsModal
+        student={detailsStudent}
+        onClose={() => setDetailsStudent(null)}
+        onOpenPhotoModal={handleOpenPhotoModal}
       />
     </div>
   );

@@ -78,7 +78,7 @@ export default function AdminInstructorsPage() {
   const handleOpenEdit = (inst: User) => {
     setEditingId(inst.id);
     setName(inst.name);
-    setEmail(inst.email);
+    setEmail(inst.email || '');
     setPassword('');
     setPhone(inst.phone || '');
     setDesignation(inst.instructorDetails?.designation || 'AI Curriculum Faculty');
@@ -201,7 +201,7 @@ export default function AdminInstructorsPage() {
   const filtered = instructors.filter(
     (i) =>
       i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (i.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (i.phone && i.phone.includes(searchQuery))
   );
 

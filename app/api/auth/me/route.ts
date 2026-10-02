@@ -20,9 +20,11 @@ export async function GET(req: NextRequest) {
     user: {
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: user.email || '',
       role: user.role,
       phone: user.phone,
+      rollNumber: user.rollNumber || user.studentDetails?.rollNumber || user.studentDetails?.studentId || '',
+      mustChangePassword: user.mustChangePassword ?? false,
       studentDetails: user.studentDetails,
       instructorDetails: user.instructorDetails,
     },

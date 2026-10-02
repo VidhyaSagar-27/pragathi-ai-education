@@ -20,15 +20,20 @@ export async function POST(req: NextRequest) {
     const requestedRole = body.role ? String(body.role).toUpperCase().trim() : null;
 
     const cleanIdentifier = rawIdentifier.toLowerCase();
+    const cleanUpper = rawIdentifier.toUpperCase();
     const numericDigits = rawIdentifier.replace(/\D/g, '');
 
     const db = await getDb();
     const matchedUsers = db.users.filter((u) => {
-      // 1. Match by email
-      if (u.email.toLowerCase() === cleanIdentifier) return true;
+      // 1. Match by Roll Number (PRG001, etc.)
+      const uRoll = (u.rollNumber || u.studentDetails?.rollNumber || u.studentDetails?.studentId || '').toUpperCase();
+      if (uRoll && uRoll === cleanUpper) return true;
 
-      // 2. Match by phone number
-      if (numericDigits.length >= 7 && u.phone) {
+      // 2. Match by email (safe check when u.email is optional for students)
+      if (u.email && u.email.toLowerCase() === cleanIdentifier) return true;
+
+      // 3. Match by phone number (fallback if identifier is purely numbers)
+      if (!cleanUpper.startsWith('PRG') && numericDigits.length >= 7 && u.phone) {
         const userDigits = u.phone.replace(/\D/g, '');
         if (userDigits === numericDigits) return true;
         if (
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     if (matchedUsers.length === 0) {
       return NextResponse.json(
-        { error: 'Invalid email/phone number or password' },
+        { error: 'Invalid Roll Number, email/phone, or password' },
         { status: 401 }
       );
     }
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid email/phone number or password' },
+        { error: 'Invalid Roll Number, email/phone, or password' },
         { status: 401 }
       );
     }
@@ -81,18 +86,22 @@ export async function POST(req: NextRequest) {
 
     const token = signJwtToken({
       userId: user.id,
-      email: user.email,
+      email: user.email || '',
       name: user.name,
       role: user.role,
     });
+
+    const rollNo = user.rollNumber || user.studentDetails?.rollNumber || user.studentDetails?.studentId || '';
 
     const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
         name: user.name,
-        email: user.email,
+        email: user.email || '',
         role: user.role,
+        rollNumber: rollNo,
+        mustChangePassword: user.mustChangePassword ?? false,
       },
     });
 

@@ -6,12 +6,14 @@ export interface StudentDetails {
   section?: string;
   schoolName: string;
   parentName: string;
-  location: string;
-  group: string;
+  location?: string;
+  group?: string;
   photoUrl?: string;
   familyId?: string;
   studentId?: string;
   studentCode?: string;
+  rollNumber?: string; // Formatted PRG001, PRG002, etc.
+  mustChangePassword?: boolean;
   parentPhone?: string;
   parentEmail?: string;
 }
@@ -24,13 +26,15 @@ export interface InstructorDetails {
 }
 
 export interface User {
-  id: string;
+  id: string; // Internal UUID
   name: string;
-  email: string;
+  email?: string; // Optional for students
   passwordHash: string;
   role: UserRole;
   status: UserStatus;
   phone?: string;
+  rollNumber?: string; // Formatted PRG001, PRG002, etc.
+  mustChangePassword?: boolean;
   studentDetails?: StudentDetails;
   instructorDetails?: InstructorDetails;
   createdAt: string;
@@ -228,6 +232,7 @@ export interface StudentRegistration {
   location: string;
   photoUrl?: string;
   status: 'PENDING' | 'ACCEPTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVIEW';
+  rollNumber?: string; // Formatted PRG001, PRG002, etc.
   studentId?: string; // Permanent format: PAI26-0001
   notes?: string;
   createdAt: string;

@@ -174,12 +174,20 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error: any) {
     console.error('Login error:', error);
-    const message = error?.message?.includes('DATABASE_URL')
+    const isQuotaError =
+      error?.message?.includes('402') ||
+      error?.message?.toLowerCase().includes('quota') ||
+      error?.message?.toLowerCase().includes('exceeded');
+
+    const message = isQuotaError
+      ? 'Database quota reached on Neon. Please upgrade or reactivate your database in the Neon console (https://console.neon.tech) to restore login and registration.'
+      : error?.message?.includes('DATABASE_URL')
       ? 'Database configuration error: DATABASE_URL is not configured in Vercel environment variables.'
-      : 'An unexpected error occurred during login';
+      : 'An unexpected error occurred during login. Please try again.';
+
     return NextResponse.json(
       { error: message },
-      { status: 500 }
+      { status: isQuotaError ? 402 : 500 }
     );
   }
 }

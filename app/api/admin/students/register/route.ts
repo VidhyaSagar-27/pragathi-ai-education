@@ -242,9 +242,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Fast student registration error:', error);
+    const isQuotaError =
+      error?.message?.includes('402') ||
+      error?.message?.toLowerCase().includes('quota') ||
+      error?.message?.toLowerCase().includes('exceeded');
+
+    const message = isQuotaError
+      ? 'Database quota reached on Neon. Please upgrade or reactivate your database in the Neon console (https://console.neon.tech) to continue registering students.'
+      : error?.message || 'Failed to register student';
+
     return NextResponse.json(
-      { error: error?.message || 'Failed to register student' },
-      { status: 500 }
+      { error: message },
+      { status: isQuotaError ? 402 : 500 }
     );
   }
 }

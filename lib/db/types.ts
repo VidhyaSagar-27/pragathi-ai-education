@@ -508,6 +508,8 @@ export type PaymentMethod = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'OTHER';
 
 export interface StudentFeeRecord {
   totalFee: number;
+  concessionAmount?: number;
+  concessionReason?: string;
   amountPaid: number;
   amountPending: number;
   status: FeePaymentStatus;

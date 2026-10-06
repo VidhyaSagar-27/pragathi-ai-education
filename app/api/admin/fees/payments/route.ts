@@ -107,11 +107,12 @@ export async function POST(req: NextRequest) {
       const existingTotal = student.studentDetails?.feeRecord?.totalFee !== undefined
         ? student.studentDetails.feeRecord.totalFee
         : 1350;
-
-      const pending = Math.max(0, existingTotal - totalPaid);
+      const concession = student.studentDetails?.feeRecord?.concessionAmount || 0;
+      const netFee = Math.max(0, existingTotal - concession);
+      const pending = Math.max(0, netFee - totalPaid);
 
       let status: FeePaymentStatus = 'PENDING';
-      if (existingTotal > 0 && totalPaid >= existingTotal) {
+      if (netFee === 0 || (netFee > 0 && totalPaid >= netFee)) {
         status = 'PAID';
       } else if (totalPaid > 0) {
         status = 'PARTIALLY_PAID';
@@ -123,6 +124,8 @@ export async function POST(req: NextRequest) {
 
       student.studentDetails.feeRecord = {
         totalFee: existingTotal,
+        concessionAmount: concession,
+        concessionReason: student.studentDetails.feeRecord?.concessionReason,
         amountPaid: totalPaid,
         amountPending: pending,
         status,
@@ -171,5 +174,127 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('Error recording payment:', err);
     return NextResponse.json({ error: err.message || 'Failed to record payment' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = getSessionFromRequest(req);
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const paymentId = searchParams.get('id');
+
+  if (!paymentId) {
+    return NextResponse.json({ error: 'Payment ID is required' }, { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  const performerName = session.name || (session.role === 'ADMIN' ? 'Administrator' : 'Instructor');
+
+  let deletedPayment: PaymentRecord | null = null;
+  let studentSummary: any = null;
+
+  try {
+    await updateDb((db) => {
+      if (!db.payments) db.payments = [];
+      const paymentIndex = db.payments.findIndex(
+        (p) => p.id === paymentId || p.receiptNumber === paymentId
+      );
+
+      if (paymentIndex === -1) {
+        throw new Error(`Payment transaction "${paymentId}" not found`);
+      }
+
+      deletedPayment = db.payments[paymentIndex];
+      const studentId = deletedPayment.studentId;
+
+      // Remove the payment transaction
+      db.payments.splice(paymentIndex, 1);
+
+      // Recalculate student balance
+      const studentIndex = (db.users || []).findIndex((u) => u.id === studentId);
+      if (studentIndex !== -1) {
+        const student = db.users[studentIndex];
+        const studentPayments = db.payments.filter((p) => p.studentId === studentId);
+        const totalPaid = studentPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+        const existingTotal = student.studentDetails?.feeRecord?.totalFee !== undefined
+          ? student.studentDetails.feeRecord.totalFee
+          : 1350;
+        const concession = student.studentDetails?.feeRecord?.concessionAmount || 0;
+        const netFee = Math.max(0, existingTotal - concession);
+        const pending = Math.max(0, netFee - totalPaid);
+
+        let status: FeePaymentStatus = 'PENDING';
+        if (netFee === 0 || (netFee > 0 && totalPaid >= netFee)) {
+          status = 'PAID';
+        } else if (totalPaid > 0) {
+          status = 'PARTIALLY_PAID';
+        }
+
+        const sortedRemaining = [...studentPayments].sort((a, b) =>
+          a.paymentDate > b.paymentDate ? -1 : 1
+        );
+        const lastPaymentDate = sortedRemaining.length > 0 ? sortedRemaining[0].paymentDate : null;
+
+        if (!student.studentDetails) {
+          student.studentDetails = { classGrade: '', schoolName: '', parentName: '' };
+        }
+
+        student.studentDetails.feeRecord = {
+          totalFee: existingTotal,
+          concessionAmount: concession,
+          concessionReason: student.studentDetails.feeRecord?.concessionReason,
+          amountPaid: totalPaid,
+          amountPending: pending,
+          status,
+          lastPaymentDate: lastPaymentDate || undefined,
+          feeNotes: student.studentDetails.feeRecord?.feeNotes || '',
+        };
+        student.updatedAt = now;
+
+        studentSummary = {
+          studentName: student.name,
+          rollNumber: student.rollNumber || student.studentDetails?.rollNumber || '',
+          totalFee: existingTotal,
+          concessionAmount: concession,
+          netFee,
+          totalPaid,
+          pendingAmount: pending,
+          status,
+        };
+      }
+
+      // Audit log entry
+      if (!db.auditLogs) db.auditLogs = [];
+      db.auditLogs.unshift({
+        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        action: 'DELETE_PAYMENT',
+        performedBy: performerName,
+        targetId: paymentId,
+        targetType: 'PAYMENT',
+        targetEntity: `Deleted payment of ₹${deletedPayment?.amount} for ${deletedPayment?.studentRollNumber}`,
+        details: {
+          paymentId,
+          amount: deletedPayment?.amount,
+          receiptNumber: deletedPayment?.receiptNumber,
+          deletedAt: now,
+          studentSummary,
+        },
+        timestamp: now,
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Payment transaction ${paymentId} deleted successfully. Student balance updated.`,
+      deletedPayment,
+      studentSummary,
+    });
+  } catch (err: any) {
+    console.error('Error deleting payment:', err);
+    return NextResponse.json({ error: err.message || 'Failed to delete payment' }, { status: 500 });
   }
 }

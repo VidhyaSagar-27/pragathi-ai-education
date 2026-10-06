@@ -25,11 +25,14 @@ export async function GET(req: NextRequest) {
     const calculatedPaid = studentPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
     const totalFee = existingFee?.totalFee !== undefined ? existingFee.totalFee : DEFAULT_PROGRAM_FEE;
+    const concessionAmount = existingFee?.concessionAmount || 0;
+    const concessionReason = existingFee?.concessionReason || '';
+    const netFee = Math.max(0, totalFee - concessionAmount);
     const amountPaid = calculatedPaid;
-    const amountPending = Math.max(0, totalFee - amountPaid);
+    const amountPending = Math.max(0, netFee - amountPaid);
 
     let status: FeePaymentStatus = 'PENDING';
-    if (totalFee > 0 && amountPaid >= totalFee) {
+    if (netFee === 0 || (netFee > 0 && amountPaid >= netFee)) {
       status = 'PAID';
     } else if (amountPaid > 0) {
       status = 'PARTIALLY_PAID';
@@ -48,6 +51,9 @@ export async function GET(req: NextRequest) {
       classGrade: s.studentDetails?.classGrade || '',
       photoUrl: s.studentDetails?.photoUrl || '',
       totalFee,
+      concessionAmount,
+      concessionReason,
+      netFee,
       amountPaid,
       amountPending,
       status,
@@ -60,7 +66,9 @@ export async function GET(req: NextRequest) {
 
   // Aggregate Metrics
   const totalStudents = feeRoster.length;
-  const totalExpected = feeRoster.reduce((sum, s) => sum + s.totalFee, 0);
+  const totalGrossExpected = feeRoster.reduce((sum, s) => sum + s.totalFee, 0);
+  const totalConcessions = feeRoster.reduce((sum, s) => sum + s.concessionAmount, 0);
+  const totalExpected = feeRoster.reduce((sum, s) => sum + s.netFee, 0);
   const totalCollected = feeRoster.reduce((sum, s) => sum + s.amountPaid, 0);
   const totalPending = feeRoster.reduce((sum, s) => sum + s.amountPending, 0);
   const paidCount = feeRoster.filter((s) => s.status === 'PAID').length;
@@ -72,6 +80,8 @@ export async function GET(req: NextRequest) {
       students: feeRoster,
       summary: {
         totalStudents,
+        totalGrossExpected,
+        totalConcessions,
         totalExpected,
         totalCollected,
         totalPending,
@@ -92,15 +102,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { studentId, totalFee, feeNotes } = body;
+    const { studentId, totalFee, concessionAmount, concessionReason, feeNotes } = body;
 
     if (!studentId) {
       return NextResponse.json({ error: 'studentId is required' }, { status: 400 });
-    }
-
-    const numTotal = Number(totalFee);
-    if (isNaN(numTotal) || numTotal < 0) {
-      return NextResponse.json({ error: 'Invalid total fee amount' }, { status: 400 });
     }
 
     await updateDb((db) => {
@@ -108,12 +113,28 @@ export async function POST(req: NextRequest) {
       if (studentIndex === -1) throw new Error('Student not found');
 
       const student = db.users[studentIndex];
+      const existingFee = student.studentDetails?.feeRecord;
+
+      const numTotal = totalFee !== undefined ? Number(totalFee) : (existingFee?.totalFee !== undefined ? existingFee.totalFee : DEFAULT_PROGRAM_FEE);
+      if (isNaN(numTotal) || numTotal < 0) {
+        throw new Error('Invalid total fee amount');
+      }
+
+      const numConcession = concessionAmount !== undefined
+        ? Math.max(0, Number(concessionAmount))
+        : (existingFee?.concessionAmount || 0);
+
+      const cleanReason = concessionReason !== undefined
+        ? String(concessionReason).trim()
+        : (existingFee?.concessionReason || '');
+
       const studentPayments = (db.payments || []).filter((p) => p.studentId === studentId);
       const amountPaid = studentPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
-      const amountPending = Math.max(0, numTotal - amountPaid);
+      const netFee = Math.max(0, numTotal - numConcession);
+      const amountPending = Math.max(0, netFee - amountPaid);
 
       let status: FeePaymentStatus = 'PENDING';
-      if (numTotal > 0 && amountPaid >= numTotal) {
+      if (netFee === 0 || (netFee > 0 && amountPaid >= netFee)) {
         status = 'PAID';
       } else if (amountPaid > 0) {
         status = 'PARTIALLY_PAID';
@@ -129,6 +150,8 @@ export async function POST(req: NextRequest) {
 
       student.studentDetails.feeRecord = {
         totalFee: numTotal,
+        concessionAmount: numConcession,
+        concessionReason: cleanReason,
         amountPaid,
         amountPending,
         status,
@@ -138,7 +161,7 @@ export async function POST(req: NextRequest) {
       student.updatedAt = new Date().toISOString();
     });
 
-    return NextResponse.json({ success: true, message: 'Fee settings updated' });
+    return NextResponse.json({ success: true, message: 'Fee settings and concessions updated successfully.' });
   } catch (err: any) {
     console.error('Error updating fee:', err);
     return NextResponse.json({ error: err.message || 'Failed to update fee' }, { status: 500 });

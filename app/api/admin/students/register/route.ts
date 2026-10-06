@@ -20,7 +20,7 @@ export const revalidate = 0;
 // GET: Return comprehensive roll number status (recommended, next sequential, vacant numbers)
 export async function GET(req: NextRequest) {
   const session = getSessionFromRequest(req);
-  if (!session || session.role !== 'ADMIN') {
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: noCacheHeaders });
   }
 
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 // POST: Register a new student with auto-incrementing or admin-chosen roll number
 export async function POST(req: NextRequest) {
   const session = getSessionFromRequest(req);
-  if (!session || session.role !== 'ADMIN') {
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

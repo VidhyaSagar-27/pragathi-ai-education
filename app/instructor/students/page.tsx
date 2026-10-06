@@ -14,9 +14,12 @@ import {
   Search,
   ShieldCheck,
   RefreshCw,
+  UserPlus,
+  GraduationCap,
 } from 'lucide-react';
 import { User } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
+import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
 import CommunicationModal, {
   CommunicationMode,
   CommunicationAction,
@@ -27,6 +30,8 @@ export default function InstructorStudentsPage() {
   const [students, setStudents] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<string>('ALL');
 
   // Student Photo Modal State
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -120,15 +125,38 @@ export default function InstructorStudentsPage() {
     setCommModalOpen(true);
   };
 
-  const filtered = students.filter(
-    (s) =>
-      (s.rollNumber && s.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.email && s.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (s.phone && s.phone.includes(searchQuery)) ||
-      (s.studentDetails?.schoolName && s.studentDetails.schoolName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (s.studentDetails?.parentName && s.studentDetails.parentName.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const classList = React.useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      const val = (s.studentDetails?.classGrade || '').trim();
+      if (val && val !== 'Not Specified') {
+        set.add(val);
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [students]);
+
+  const formatClassLabel = (grade: string) => {
+    if (!grade || grade === 'Not Specified') return 'Unassigned';
+    return grade.toLowerCase().startsWith('class') ? grade : `Class ${grade}`;
+  };
+
+  const studentsForClass = React.useMemo(() => {
+    if (selectedClass === 'ALL') return students;
+    return students.filter((s) => (s.studentDetails?.classGrade || '').trim() === selectedClass);
+  }, [students, selectedClass]);
+
+  const filtered = React.useMemo(() => {
+    return studentsForClass.filter(
+      (s) =>
+        (s.rollNumber && s.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.email && s.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (s.phone && s.phone.includes(searchQuery)) ||
+        (s.studentDetails?.schoolName && s.studentDetails.schoolName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (s.studentDetails?.parentName && s.studentDetails.parentName.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+  }, [studentsForClass, searchQuery]);
 
   if (loading) {
     return (
@@ -152,6 +180,17 @@ export default function InstructorStudentsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Add New Student */}
+          <button
+            type="button"
+            onClick={() => setAddStudentOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer"
+            title="Enroll a new student to Pragathi AI"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add New Student</span>
+          </button>
+
           {/* Refresh */}
           <button
             type="button"
@@ -185,6 +224,42 @@ export default function InstructorStudentsPage() {
             <span>Broadcast Students ({students.length})</span>
           </button>
         </div>
+      </div>
+
+      {/* Class Classification Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-500 mr-1">
+          <GraduationCap className="w-4 h-4 text-teal-600" />
+          <span>Filter by Class:</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setSelectedClass('ALL')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            selectedClass === 'ALL'
+              ? 'bg-teal-700 text-white shadow-2xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          All Classes ({students.length})
+        </button>
+        {classList.map((cls) => {
+          const count = students.filter((s) => (s.studentDetails?.classGrade || '').trim() === cls).length;
+          return (
+            <button
+              key={cls}
+              type="button"
+              onClick={() => setSelectedClass(cls)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                selectedClass === cls
+                  ? 'bg-teal-700 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {formatClassLabel(cls)} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {/* Search Input */}
@@ -378,6 +453,15 @@ export default function InstructorStudentsPage() {
         }
         broadcastCount={students.length}
         currentUserRole="INSTRUCTOR"
+      />
+
+      {/* Fast Register Student Modal */}
+      <FastRegisterStudentModal
+        isOpen={addStudentOpen}
+        onClose={() => setAddStudentOpen(false)}
+        onStudentCreated={() => {
+          fetchStudents();
+        }}
       />
     </div>
   );

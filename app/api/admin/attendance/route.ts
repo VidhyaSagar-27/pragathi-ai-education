@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
         studentId: s.id,
         name: s.name,
         rollNumber: s.rollNumber || s.studentDetails?.rollNumber || '',
+        classGrade: s.studentDetails?.classGrade || 'Not Specified',
+        schoolName: s.studentDetails?.schoolName || '',
         photoUrl: s.studentDetails?.photoUrl || '',
         totalClasses: totalMarked,
         present: presentCount,
@@ -114,6 +116,9 @@ export async function GET(req: NextRequest) {
           studentId: s.id,
           name: s.name,
           rollNumber: s.rollNumber || s.studentDetails?.rollNumber || '',
+          classGrade: s.studentDetails?.classGrade || 'Not Specified',
+          section: s.studentDetails?.section || '',
+          schoolName: s.studentDetails?.schoolName || '',
           phone: s.phone || '',
           photoUrl: s.studentDetails?.photoUrl || '',
           status: existing ? existing.status : ('PRESENT' as AttendanceStatus),
@@ -255,5 +260,54 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('Error saving attendance:', err);
     return NextResponse.json({ error: err.message || 'Failed to save attendance' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = getSessionFromRequest(req);
+  if (!session || (session.role !== 'ADMIN' && session.role !== 'INSTRUCTOR')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const date = searchParams.get('date');
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: 'Valid date (YYYY-MM-DD) is required' }, { status: 400 });
+  }
+
+  const markerName = session.name || (session.role === 'ADMIN' ? 'Administrator' : 'Instructor');
+  const now = new Date().toISOString();
+
+  let removedCount = 0;
+  try {
+    await updateDb((db) => {
+      if (!db.attendance) db.attendance = [];
+      const beforeCount = db.attendance.length;
+      db.attendance = db.attendance.filter((a) => a.date !== date);
+      removedCount = beforeCount - db.attendance.length;
+
+      if (!db.auditLogs) db.auditLogs = [];
+      db.auditLogs.unshift({
+        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        action: 'DELETE_ATTENDANCE_DATE',
+        performedBy: markerName,
+        targetId: date,
+        targetType: 'ATTENDANCE',
+        targetEntity: `Removed attendance for ${date}`,
+        details: { date, recordsRemoved: removedCount },
+        timestamp: now,
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Attendance for date ${date} removed successfully.`,
+      date,
+      removedCount,
+    });
+  } catch (err: any) {
+    console.error('Error removing attendance date:', err);
+    return NextResponse.json({ error: err.message || 'Failed to delete attendance' }, { status: 500 });
   }
 }

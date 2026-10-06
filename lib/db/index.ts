@@ -688,3 +688,65 @@ export async function resetStudentBatchData(): Promise<{ success: boolean; count
   invalidateDbCache();
   return { success: true, countRemoved };
 }
+
+export async function getStudentPhoto(id: string): Promise<string | null> {
+  try {
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT photo_url FROM student_photos WHERE id = ${id} LIMIT 1
+    `;
+    if (rows && rows.length > 0 && rows[0].photo_url) {
+      return rows[0].photo_url;
+    }
+  } catch (err) {
+    console.error('Error fetching student photo from table:', err);
+  }
+
+  // Fallback check in app_database if ever needed
+  try {
+    const db = await getDb();
+    const user = db.users?.find((u) => u.id === id);
+    if (user?.studentDetails?.photoUrl && user.studentDetails.photoUrl.startsWith('data:image/')) {
+      return user.studentDetails.photoUrl;
+    }
+    const reg = db.registrations?.find((r) => r.id === id);
+    if (reg?.photoUrl && reg.photoUrl.startsWith('data:image/')) {
+      return reg.photoUrl;
+    }
+  } catch {}
+
+  return null;
+}
+
+export async function saveStudentPhoto(id: string, photoUrl: string): Promise<void> {
+  try {
+    const sql = getSqlClient();
+    await sql`
+      CREATE TABLE IF NOT EXISTS student_photos (
+        id VARCHAR(128) PRIMARY KEY,
+        photo_url TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+    await sql`
+      INSERT INTO student_photos (id, photo_url, updated_at)
+      VALUES (${id}, ${photoUrl}, NOW())
+      ON CONFLICT (id) DO UPDATE
+      SET photo_url = EXCLUDED.photo_url, updated_at = NOW();
+    `;
+  } catch (err) {
+    console.error('Error saving student photo to table:', err);
+  }
+}
+
+export async function deleteStudentPhoto(id: string): Promise<void> {
+  try {
+    const sql = getSqlClient();
+    await sql`
+      DELETE FROM student_photos WHERE id = ${id};
+    `;
+  } catch (err) {
+    console.error('Error deleting student photo from table:', err);
+  }
+}
+

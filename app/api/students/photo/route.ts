@@ -1,9 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, updateDb, noCacheHeaders } from '@/lib/db';
+import { getDb, updateDb, getStudentPhoto, saveStudentPhoto, deleteStudentPhoto, noCacheHeaders } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+
+  if (!id) {
+    return new NextResponse('Missing student ID', { status: 400 });
+  }
+
+  try {
+    const photo = await getStudentPhoto(id);
+    if (!photo) {
+      return new NextResponse('Photo not found', { status: 404 });
+    }
+
+    if (photo.startsWith('data:image/')) {
+      const commaIndex = photo.indexOf(',');
+      const meta = photo.substring(0, commaIndex);
+      const base64Data = photo.substring(commaIndex + 1);
+      const mimeMatch = meta.match(/data:([^;]+)/);
+      const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': buffer.length.toString(),
+          'Cache-Control': 'public, max-age=604800, stale-while-revalidate=86400',
+        },
+      });
+    }
+
+    if (photo.startsWith('http://') || photo.startsWith('https://')) {
+      return NextResponse.redirect(photo);
+    }
+
+    return new NextResponse('Invalid photo format', { status: 400 });
+  } catch (error: any) {
+    console.error('Fetch student photo error:', error);
+    return new NextResponse('Error loading photo', { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   const session = getSessionFromRequest(req);
@@ -28,7 +71,13 @@ export async function POST(req: NextRequest) {
 
     const cleanPhoto = photoUrl.trim();
 
+    // 1. Save photo to dedicated high-speed student_photos table
+    await saveStudentPhoto(studentId, cleanPhoto);
+
+    // 2. Set lightweight endpoint URL in db.users so DB row stays small
+    const photoEndpointUrl = `/api/students/photo?id=${studentId}&v=${Date.now()}`;
     let updatedUser: any = null;
+
     await updateDb((db) => {
       const user = db.users.find((u) => u.id === studentId);
       if (!user) {
@@ -45,7 +94,7 @@ export async function POST(req: NextRequest) {
         };
       }
 
-      user.studentDetails.photoUrl = cleanPhoto;
+      user.studentDetails.photoUrl = photoEndpointUrl;
       user.updatedAt = new Date().toISOString();
       updatedUser = user;
 
@@ -59,7 +108,7 @@ export async function POST(req: NextRequest) {
               r.mobileNumber === user.phone)
         );
         if (reg) {
-          reg.photoUrl = cleanPhoto;
+          reg.photoUrl = photoEndpointUrl;
         }
       }
     });
@@ -68,7 +117,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         message: 'Student photo updated successfully.',
-        photoUrl: cleanPhoto,
+        photoUrl: photoEndpointUrl,
         student: {
           id: updatedUser?.id,
           name: updatedUser?.name,
@@ -103,6 +152,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Student ID is required.' }, { status: 400 });
     }
 
+    // 1. Delete from student_photos table
+    await deleteStudentPhoto(studentId);
+
+    // 2. Clear photo from db.users
     await updateDb((db) => {
       const user = db.users.find((u) => u.id === studentId);
       if (!user) {

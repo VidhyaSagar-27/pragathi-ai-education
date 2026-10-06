@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { getDb, noCacheHeaders } from '@/lib/db';
+import { getDb, getStudentPhoto, noCacheHeaders } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     // Add photos
     let photoCount = 0;
     for (const stu of students) {
-      const photoUrl = stu.studentDetails?.photoUrl;
+      const photoUrl = (await getStudentPhoto(stu.id)) || stu.studentDetails?.photoUrl;
       if (!photoUrl || !photoUrl.includes('base64,')) continue;
 
       const rollNumber =

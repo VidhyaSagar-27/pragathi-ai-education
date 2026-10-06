@@ -234,8 +234,10 @@ export default function AdminStudentsPage() {
     }
   };
 
-  const loadData = () => {
-    setLoading(true);
+  const loadData = (showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     Promise.all([
       fetch(`/api/admin/users?role=STUDENT&_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
       fetch(`/api/admin/registrations?_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
@@ -255,10 +257,10 @@ export default function AdminStudentsPage() {
       .catch(() => setLoading(false));
   };
 
-  useDataSync(loadData, { entity: 'students', pollIntervalMs: 8000 });
+  useDataSync(() => loadData(false), { entity: 'students', pollIntervalMs: 30000 });
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, []);
 
   const handleOpenPhotoModal = (stu: User) => {

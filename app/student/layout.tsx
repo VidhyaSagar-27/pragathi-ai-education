@@ -16,7 +16,9 @@ import {
   Menu,
   X,
   Sparkles,
+  Search,
 } from 'lucide-react';
+import { LanguageSwitcherDropdown } from '@/lib/i18n';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -244,7 +246,26 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col">
+        {/* Top Control Bar */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:px-5 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              className="inline-flex items-center space-x-2 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+              title="Search modules, quizzes (Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5 text-teal-600" />
+              <span>Quick Search</span>
+              <kbd className="text-[10px] bg-white border border-slate-300 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <LanguageSwitcherDropdown />
+          </div>
+        </div>
+
         {children}
       </main>
     </div>

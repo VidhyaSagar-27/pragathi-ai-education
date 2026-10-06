@@ -130,6 +130,17 @@ export async function GET(req: NextRequest) {
           (uStuId && uStuId === lowerIdentifier);
 
         if (matches) {
+          const studentAttendance = (db.attendance || []).filter((a) => a.studentId === user.id);
+          const totalAttClasses = studentAttendance.length;
+          const presentClasses = studentAttendance.filter((a) => a.status === 'PRESENT' || a.status === 'LATE').length;
+          const attendancePercent = totalAttClasses > 0 ? Math.round((presentClasses / totalAttClasses) * 100) : null;
+
+          const fee = user.studentDetails?.feeRecord;
+          const totalFee = fee?.totalFee ?? 1350;
+          const amountPaid = fee?.amountPaid ?? 0;
+          const amountPending = fee?.amountPending ?? Math.max(0, totalFee - amountPaid);
+          const feeStatus = fee?.status ?? (amountPaid >= totalFee ? 'PAID' : amountPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+
           addStudentItem({
             id: user.id,
             studentId: user.studentDetails?.studentId,
@@ -145,6 +156,10 @@ export async function GET(req: NextRequest) {
             photoUrl: user.studentDetails?.photoUrl,
             loginEmail: user.rollNumber || user.email || '',
             temporaryPassword: user.phone || 'Pragathi2026!',
+            attendanceRate: attendancePercent,
+            totalClasses: totalAttClasses,
+            feeStatus,
+            amountPending,
             createdAt: user.createdAt,
             approvedAt: user.createdAt,
           });

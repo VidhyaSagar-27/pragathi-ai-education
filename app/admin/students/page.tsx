@@ -34,6 +34,7 @@ import {
   Eye,
   FileText,
   UserPlus,
+  Award,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
@@ -41,6 +42,7 @@ import CommunicationModal from '@/components/CommunicationModal';
 import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
 import ResetBatchConfirmModal from '@/components/ResetBatchConfirmModal';
 import StudentDetailsModal from '@/components/StudentDetailsModal';
+import StudentReportCardModal from '@/components/StudentReportCardModal';
 import { useDataSync, broadcastDataChange } from '@/lib/utils/syncEvents';
 
 export default function AdminStudentsPage() {
@@ -55,6 +57,7 @@ export default function AdminStudentsPage() {
   const [fastRegOpen, setFastRegOpen] = useState(false);
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [detailsStudent, setDetailsStudent] = useState<User | null>(null);
+  const [reportCardStudent, setReportCardStudent] = useState<User | null>(null);
 
   // Table Filters & Export Dropdown
   const [filterSchool, setFilterSchool] = useState('');
@@ -986,6 +989,16 @@ export default function AdminStudentsPage() {
                               title="View Student Profile & Download Card"
                             >
                               <Eye className="w-4 h-4" />
+                            </button>
+
+                            {/* Print Official Performance Report Card */}
+                            <button
+                              type="button"
+                              onClick={() => setReportCardStudent(stu)}
+                              className="p-1.5 text-teal-700 hover:text-teal-900 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                              title="Print Official Performance Report Card"
+                            >
+                              <Award className="w-4 h-4" />
                             </button>
 
                             {/* Download Individual Photo */}
@@ -2120,6 +2133,14 @@ export default function AdminStudentsPage() {
         student={detailsStudent}
         onClose={() => setDetailsStudent(null)}
         onOpenPhotoModal={handleOpenPhotoModal}
+        onOpenReportCard={(stu) => setReportCardStudent(stu)}
+      />
+
+      {/* Official Printable Performance Report Card Modal */}
+      <StudentReportCardModal
+        isOpen={!!reportCardStudent}
+        onClose={() => setReportCardStudent(null)}
+        student={reportCardStudent}
       />
     </div>
   );

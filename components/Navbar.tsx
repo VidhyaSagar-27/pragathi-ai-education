@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu, X, ArrowRight, UserCheck, ShieldCheck, GraduationCap, Sparkles, Search } from 'lucide-react';
+import { LanguageSwitcherDropdown } from '@/lib/i18n';
 
 interface NavbarProps {
   onOpenRegister?: () => void;
@@ -108,6 +109,8 @@ export default function Navbar({ onOpenRegister }: NavbarProps) {
 
           {/* Right Action CTAs */}
           <div className="hidden md:flex items-center space-x-3">
+            <LanguageSwitcherDropdown />
+
             <button
               onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
               className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 transition"

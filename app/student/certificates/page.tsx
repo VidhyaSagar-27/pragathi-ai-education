@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Award, ShieldCheck, CheckCircle2, Download, Printer, ExternalLink, Sparkles } from 'lucide-react';
@@ -48,13 +48,28 @@ export default function StudentCertificatesPage() {
         </div>
 
         {previewCert && (
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition self-start sm:self-auto"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print / Save PDF</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <a
+              href={`https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(
+                previewCert.programName
+              )}&organizationName=PRAGATHI%20AI&issueYear=2026&issueMonth=10&certUrl=${encodeURIComponent(
+                `https://pragathiai.com/verify-certificate?id=${previewCert.certificateNumber}`
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#0077B5] hover:bg-[#005f93] text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <span>Add to LinkedIn</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print / Save PDF</span>
+            </button>
+          </div>
         )}
       </div>
 

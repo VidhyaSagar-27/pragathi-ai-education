@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,8 +17,9 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Quiz, ExamQuestionType } from '@/lib/db/types';
+import AiQuizGeneratorModal from '@/components/AiQuizGeneratorModal';
 
-interface QuestionDraft {
+export interface QuestionDraft {
   type: ExamQuestionType;
   question: string;
   options: string[];
@@ -34,6 +35,7 @@ export default function InstructorQuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
 
   // New/Edit Quiz form state
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
@@ -274,13 +276,23 @@ export default function InstructorQuizzesPage() {
             Create MCQs, Fill-in-the-Blanks, Theory essays, and Assignment tasks with automatic rubric evaluation and instant scorecard declaration.
           </p>
         </div>
-        <button
-          onClick={handleOpenAdd}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create Assessment</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setAiModalOpen(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-800 hover:to-indigo-800 text-white rounded-xl text-xs sm:text-sm font-black transition shadow-xs cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-teal-300" />
+            <span>AI Quiz Generator</span>
+          </button>
+          <button
+            onClick={handleOpenAdd}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Assessment</span>
+          </button>
+        </div>
       </div>
 
       {/* Quizzes List */}
@@ -701,6 +713,17 @@ export default function InstructorQuizzesPage() {
           </div>
         </div>
       )}
+      {/* AI Quiz Generator Modal */}
+      <AiQuizGeneratorModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        onApplyQuestions={(generated, suggestedTitle) => {
+          setEditingQuizId(null);
+          setTitle(suggestedTitle);
+          setQuestions(generated);
+          setModalOpen(true);
+        }}
+      />
     </div>
   );
 }

@@ -10,7 +10,9 @@ import {
   Search,
   UserCheck,
   ChevronRight,
+  QrCode,
 } from 'lucide-react';
+import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
 
 interface StudentRosterItem {
   studentId: string;
@@ -34,6 +36,7 @@ export default function InstructorAttendancePage() {
   const [markerInfo, setMarkerInfo] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
 
   const loadAttendance = async (dateStr: string) => {
     setLoading(true);
@@ -178,6 +181,15 @@ export default function InstructorAttendancePage() {
           <div className="flex items-center space-x-2">
             <button
               type="button"
+              onClick={() => setFastScanOpen(true)}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg shadow-2xs transition flex items-center space-x-1.5 cursor-pointer"
+              title="Fast QR & Barcode Attendance Terminal"
+            >
+              <QrCode className="w-3.5 h-3.5 text-teal-400" />
+              <span>Fast Scanner</span>
+            </button>
+            <button
+              type="button"
               onClick={() => markAll('PRESENT')}
               className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-2xs hover:bg-emerald-700 transition"
             >
@@ -309,6 +321,18 @@ export default function InstructorAttendancePage() {
           </button>
         </div>
       </div>
+
+      {/* Fast Attendance Scanner Modal */}
+      <FastAttendanceScannerModal
+        isOpen={fastScanOpen}
+        onClose={() => setFastScanOpen(false)}
+        dateStr={selectedDate}
+        roster={roster}
+        onMarkStudent={(studentId, status, remarks) => {
+          toggleStatus(studentId, status);
+          if (remarks) updateRemark(studentId, remarks);
+        }}
+      />
     </div>
   );
 }

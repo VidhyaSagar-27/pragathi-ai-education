@@ -1,20 +1,27 @@
 'use client';
 
 import React from 'react';
-import { X, Download, User, School, Phone, Mail, Calendar, FileText, Camera } from 'lucide-react';
+import { X, Download, User, School, Phone, Mail, Calendar, FileText, Camera, Award, Printer } from 'lucide-react';
 import { User as UserType } from '@/lib/db/types';
 
-interface StudentDetailsModalProps {
+interface StudentReportCardModalProps {
   student: UserType | null;
   onClose: () => void;
   onOpenPhotoModal?: (student: UserType) => void;
+  onOpenReportCard?: (student: UserType) => void;
 }
 
 export default function StudentDetailsModal({
   student,
   onClose,
   onOpenPhotoModal,
-}: StudentDetailsModalProps) {
+  onOpenReportCard,
+}: {
+  student: UserType | null;
+  onClose: () => void;
+  onOpenPhotoModal?: (student: UserType) => void;
+  onOpenReportCard?: (student: UserType) => void;
+}) {
   if (!student) return null;
 
   const rollNumber =
@@ -175,6 +182,20 @@ Pragathi AI Learning Platform
                 <span>Download Card</span>
               </button>
             </div>
+
+            {onOpenReportCard && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenReportCard(student);
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-teal-700 to-slate-900 hover:from-teal-800 hover:to-slate-950 text-white text-xs font-black rounded-xl transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+              >
+                <Award className="w-4 h-4 text-teal-300" />
+                <span>Print Official Performance Report Card</span>
+              </button>
+            )}
 
             {onOpenPhotoModal && (
               <button

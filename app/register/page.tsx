@@ -695,6 +695,41 @@ function RegisterContent() {
                                   </span>
                                 </div>
                               )}
+
+                              {/* Live Attendance & Fee Badges */}
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                {currentStudent?.attendanceRate !== null && currentStudent?.attendanceRate !== undefined ? (
+                                  <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-300">
+                                    Attendance: {currentStudent.attendanceRate}% ({currentStudent.totalClasses} classes)
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                    Attendance: New Batch
+                                  </span>
+                                )}
+
+                                {currentStudent?.feeStatus && (
+                                  <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                                    currentStudent.feeStatus === 'PAID'
+                                      ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                      : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  }`}>
+                                    Fee: {currentStudent.feeStatus} {currentStudent.amountPending > 0 ? `(Pending: ₹${currentStudent.amountPending})` : ''}
+                                  </span>
+                                )}
+
+                                <a
+                                  href={`https://wa.me/919618611522?text=${encodeURIComponent(
+                                    `Hello Pragathi AI Team, I am checking the status of my ward ${currentStudent?.name} (Roll: ${currentStudent?.rollNumber || currentStudent?.studentId}).`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition inline-flex items-center space-x-1"
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  <span>WhatsApp Support</span>
+                                </a>
+                              </div>
                             </div>
                           </div>
                         </div>

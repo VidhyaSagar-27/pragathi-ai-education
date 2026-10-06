@@ -55,6 +55,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { LanguageProvider } from '@/lib/i18n';
+
 export default function RootLayout({
   children,
 }: {
@@ -63,10 +65,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 antialiased selection:bg-teal-100 selection:text-teal-900">
-        {children}
-        <AiChatbot />
-        <PwaInstallPrompt />
-        <CommandPalette />
+        <LanguageProvider>
+          {children}
+          <AiChatbot />
+          <PwaInstallPrompt />
+          <CommandPalette />
+        </LanguageProvider>
       </body>
     </html>
   );

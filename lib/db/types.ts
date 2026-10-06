@@ -16,6 +16,7 @@ export interface StudentDetails {
   mustChangePassword?: boolean;
   parentPhone?: string;
   parentEmail?: string;
+  feeRecord?: StudentFeeRecord;
 }
 
 export interface InstructorDetails {
@@ -489,6 +490,8 @@ export interface DatabaseSchema {
   testimonials: TestimonialItem[];
   announcements: Announcement[];
   certificates: CertificateItem[];
+  payments?: PaymentRecord[];
+  attendance?: AttendanceRecord[];
   assignmentSubmissions?: StudentAssignmentSubmission[];
   notifications?: NotificationLog[];
   inAppNotifications?: InAppNotification[];
@@ -498,4 +501,50 @@ export interface DatabaseSchema {
   families?: Family[];
   duplicateLogs?: DuplicateAttemptLog[];
   helpRequests?: AdminHelpRequest[];
+}
+
+export type FeePaymentStatus = 'PAID' | 'PARTIALLY_PAID' | 'PENDING' | 'OVERDUE';
+export type PaymentMethod = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'OTHER';
+
+export interface StudentFeeRecord {
+  totalFee: number;
+  amountPaid: number;
+  amountPending: number;
+  status: FeePaymentStatus;
+  lastPaymentDate?: string;
+  nextPaymentDate?: string;
+  feeNotes?: string;
+}
+
+export interface PaymentRecord {
+  id: string; // e.g. PAY-0001
+  receiptNumber: string;
+  studentId: string;
+  studentRollNumber: string;
+  studentName: string;
+  amount: number;
+  paymentDate: string; // YYYY-MM-DD
+  paymentMethod: PaymentMethod;
+  transactionId?: string;
+  recordedBy: string;
+  recordedByName: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+
+export interface AttendanceRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  studentId: string;
+  studentRollNumber: string;
+  studentName: string;
+  status: AttendanceStatus;
+  remarks?: string;
+  markedBy: string;
+  markedByName: string;
+  createdAt: string;
+  updatedAt: string;
 }

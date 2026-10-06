@@ -253,6 +253,8 @@ function getInitialDatabase(): DatabaseSchema {
     testimonials: [],
     announcements: [],
     certificates: [],
+    payments: [],
+    attendance: [],
     assignmentSubmissions: [],
     notifications: [],
     families: [],
@@ -345,6 +347,14 @@ export async function getDb(forceFresh = false): Promise<DatabaseSchema> {
     }
     if (!db.helpRequests) {
       db.helpRequests = [];
+      needsUpdate = true;
+    }
+    if (!db.payments) {
+      db.payments = [];
+      needsUpdate = true;
+    }
+    if (!db.attendance) {
+      db.attendance = [];
       needsUpdate = true;
     }
     if (!db.settings) {

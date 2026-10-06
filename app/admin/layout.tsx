@@ -24,6 +24,8 @@ import {
   FileQuestion,
   Bell,
   MessageSquare,
+  CalendarCheck,
+  CreditCard,
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -87,9 +89,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ],
     },
     {
-      group: 'User Management',
+      group: 'Academic & Financial Ops',
       items: [
         { label: 'Manage Students', href: '/admin/students', icon: Users },
+        { label: 'Attendance System', href: '/admin/attendance', icon: CalendarCheck },
+        { label: 'Fees & Payments', href: '/admin/fees', icon: CreditCard },
         { label: 'Help & Password Requests', href: '/admin/requests', icon: MessageSquare },
         { label: 'Manage Instructors', href: '/admin/instructors', icon: GraduationCap },
         { label: 'Student Log Reports', href: '/admin/reports', icon: Trophy },

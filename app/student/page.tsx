@@ -20,6 +20,10 @@ import {
   Lock,
   Key,
   ShieldAlert,
+  CalendarCheck,
+  CreditCard,
+  AlertTriangle,
+  Receipt,
 } from 'lucide-react';
 
 export default function StudentDashboardPage() {
@@ -41,6 +45,11 @@ export default function StudentDashboardPage() {
     certificates: [],
   });
 
+  const [records, setRecords] = useState<{
+    attendance: any;
+    fees: any;
+  } | null>(null);
+
   const [loading, setLoading] = useState(true);
 
   // Forced First-Login Password Change State
@@ -60,8 +69,9 @@ export default function StudentDashboardPage() {
       fetch('/api/student/submissions?t=' + Date.now()).then((r) => r.json()),
       fetch('/api/content/announcements?t=' + Date.now()).then((r) => r.json()),
       fetch('/api/student/certificates?t=' + Date.now()).then((r) => r.json()).catch(() => ({ certificates: [] })),
+      fetch('/api/student/records?t=' + Date.now()).then((r) => r.json()).catch(() => null),
     ])
-      .then(([me, mat, vid, qz, sub, anc, cert]) => {
+      .then(([me, mat, vid, qz, sub, anc, cert, recs]) => {
         setData({
           user: me.user,
           materials: mat.materials || [],
@@ -71,6 +81,9 @@ export default function StudentDashboardPage() {
           announcements: anc.announcements || [],
           certificates: cert.certificates || [],
         });
+        if (recs && recs.attendance && recs.fees) {
+          setRecords(recs);
+        }
         if (me.user?.mustChangePassword) {
           setChangePwModalOpen(true);
         }
@@ -214,6 +227,120 @@ export default function StudentDashboardPage() {
             className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-500"
             style={{ width: `${Math.max(5, curriculumProgressPercent)}%` }}
           />
+        </div>
+      </div>
+
+      {/* Attendance & Fees Overview Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        {/* Attendance Card */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-teal-50 text-teal-700 rounded-xl">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Class Attendance</h3>
+                  <p className="text-[11px] text-slate-500">Official classroom session tracking</p>
+                </div>
+              </div>
+              {records?.attendance?.percentage !== null && records?.attendance?.percentage !== undefined ? (
+                <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                  records.attendance.percentage >= 75
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {records.attendance.percentage}% Rate
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400 font-medium">New Batch</span>
+              )}
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 bg-slate-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Classes Held</span>
+                <p className="text-lg font-black text-slate-800 mt-0.5">{records?.attendance?.totalClasses ?? 0}</p>
+              </div>
+              <div className="p-2.5 bg-emerald-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-emerald-700">Present</span>
+                <p className="text-lg font-black text-emerald-700 mt-0.5">{records?.attendance?.presentCount ?? 0}</p>
+              </div>
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-rose-700">Absent</span>
+                <p className="text-lg font-black text-rose-700 mt-0.5">{records?.attendance?.absentCount ?? 0}</p>
+              </div>
+            </div>
+
+            {records?.attendance?.percentage !== null && records?.attendance?.percentage !== undefined && records.attendance.percentage < 75 && (
+              <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center space-x-1.5 font-medium">
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <span>Attendance warning: Below 75% standard threshold</span>
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-4 text-right">Updated per class session</p>
+        </div>
+
+        {/* Fees & Payment Card */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Fee & Payment Status</h3>
+                  <p className="text-[11px] text-slate-500">Foundation program enrollment fees</p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                records?.fees?.status === 'PAID'
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : records?.fees?.status === 'PARTIALLY_PAID'
+                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                  : 'bg-rose-100 text-rose-800 border border-rose-200'
+              }`}>
+                {records?.fees?.status === 'PAID'
+                  ? 'PAID IN FULL'
+                  : records?.fees?.status === 'PARTIALLY_PAID'
+                  ? 'PARTIALLY PAID'
+                  : 'PENDING'}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 bg-slate-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Total Program Fee</span>
+                <p className="text-lg font-black text-slate-800 mt-0.5">
+                  ₹{(records?.fees?.totalFee ?? 1350).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className="p-2.5 bg-emerald-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-emerald-700">Amount Paid</span>
+                <p className="text-lg font-black text-emerald-700 mt-0.5">
+                  ₹{(records?.fees?.amountPaid ?? 0).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-rose-700">Balance Pending</span>
+                <p className="text-lg font-black text-rose-700 mt-0.5">
+                  ₹{(records?.fees?.amountPending ?? 1350).toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-medium">
+              {records?.fees?.lastPaymentDate
+                ? `Last payment: ${records.fees.lastPaymentDate}`
+                : 'No payments recorded'}
+            </span>
+            <span className="font-bold text-teal-700">Official Pragathi AI Student</span>
+          </div>
         </div>
       </div>
 

@@ -21,7 +21,12 @@ import {
   Tag,
   Percent,
   Sparkles,
+  Phone,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
 } from 'lucide-react';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 interface StudentFeeItem {
   studentId: string;
@@ -65,6 +70,14 @@ export default function AdminFeesPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'PARTIALLY_PAID' | 'PENDING'>('ALL');
+
+  // Pagination for Student Fee Roster
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  // Pagination for Transactions History
+  const [transPage, setTransPage] = useState<number>(1);
+  const [transPageSize, setTransPageSize] = useState<number>(10);
 
   // Record Payment Modal State
   const [recordModalOpen, setRecordModalOpen] = useState<boolean>(false);
@@ -125,6 +138,15 @@ export default function AdminFeesPage() {
     loadFeeData();
     loadAllPayments();
   }, []);
+
+  // Reset page when filtering or searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  useEffect(() => {
+    setTransPage(1);
+  }, [transSearch]);
 
   const openRecordModal = (student: StudentFeeItem) => {
     setSelectedStudent(student);
@@ -248,6 +270,62 @@ export default function AdminFeesPage() {
     }
   };
 
+  // Export CSV of student fee information
+  const exportFeeReportCSV = () => {
+    if (students.length === 0) return;
+
+    const headers = [
+      'Roll Number',
+      'Student Name',
+      'Phone Number',
+      'Class / Grade',
+      'School Name',
+      'Base Fee (INR)',
+      'Concession / Discount (INR)',
+      'Concession Reason',
+      'Net Payable (INR)',
+      'Amount Paid (INR)',
+      'Pending Balance (INR)',
+      'Payment Status',
+      'Last Payment Date',
+      'Last Payment Method',
+      'Total Payments Count',
+    ];
+
+    const rows = filteredStudents.map((s) => [
+      `"${s.rollNumber}"`,
+      `"${s.name.replace(/"/g, '""')}"`,
+      `"${s.phone}"`,
+      `"${s.classGrade || 'N/A'}"`,
+      `"${(s.schoolName || '').replace(/"/g, '""')}"`,
+      s.totalFee,
+      s.concessionAmount || 0,
+      `"${(s.concessionReason || '').replace(/"/g, '""')}"`,
+      s.netFee,
+      s.amountPaid,
+      s.amountPending,
+      `"${s.status}"`,
+      `"${s.lastPaymentDate || 'N/A'}"`,
+      `"${s.lastPaymentMethod || 'N/A'}"`,
+      s.paymentCount,
+    ]);
+
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `PRAGATHI_AI_STUDENT_FEES_${new Date().toISOString().split('T')[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       const matchesSearch =
@@ -262,6 +340,14 @@ export default function AdminFeesPage() {
       return true;
     });
   }, [students, searchQuery, statusFilter]);
+
+  // Paginated Students
+  const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
+  const paginatedStudents = useMemo(() => {
+    if (pageSize === -1) return filteredStudents;
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
 
   const filteredPayments = useMemo(() => {
     return allPayments.filter((p) => {
@@ -278,6 +364,14 @@ export default function AdminFeesPage() {
     });
   }, [allPayments, transSearch]);
 
+  // Paginated Payments
+  const transTotalPages = Math.ceil(filteredPayments.length / transPageSize) || 1;
+  const paginatedPayments = useMemo(() => {
+    if (transPageSize === -1) return filteredPayments;
+    const start = (transPage - 1) * transPageSize;
+    return filteredPayments.slice(start, start + transPageSize);
+  }, [filteredPayments, transPage, transPageSize]);
+
   const collectionPercentage =
     summary && summary.totalExpected > 0
       ? Math.round((summary.totalCollected / summary.totalExpected) * 100)
@@ -285,45 +379,24 @@ export default function AdminFeesPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center space-x-2 text-teal-600 font-bold text-xs uppercase tracking-wider">
-            <CreditCard className="w-4 h-4" />
-            <span>Financial Operations</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1">
-            Student Fees & Payment Management
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Auto-calculated fee tracking, concessions/discounts, multi-channel payment entries, and transaction history
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 self-start md:self-auto">
+      {/* Universal Quick Navigation Header */}
+      <QuickNavigationHeader
+        title="Student Fees & Payment Management"
+        subtitle="Manage student fee balances, concessions, record payments, call parents directly, and download official fee records."
+        role="ADMIN"
+        extraActions={
           <button
-            onClick={() => setActiveTab('ROSTER')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'ROSTER'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            type="button"
+            onClick={exportFeeReportCSV}
+            disabled={students.length === 0}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-50"
+            title="Download full fee records as CSV"
           >
-            Student Fee Roster
+            <Download className="w-3.5 h-3.5 text-teal-600" />
+            <span>Download CSV</span>
           </button>
-          <button
-            onClick={() => setActiveTab('TRANSACTIONS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'TRANSACTIONS'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Payment Transactions ({allPayments.length})
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Aggregate Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
@@ -340,7 +413,7 @@ export default function AdminFeesPage() {
           <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
             ₹{(summary?.totalGrossExpected || summary?.totalExpected || 0).toLocaleString('en-IN')}
           </p>
-          <span className="text-[11px] text-slate-400 font-medium">Standard ₹1,350/student</span>
+          <span className="text-[11px] text-slate-400 font-medium">Base fee total</span>
         </div>
 
         <div className="bg-white p-4.5 rounded-2xl border border-amber-200/80 bg-amber-50/20 shadow-xs">
@@ -351,7 +424,7 @@ export default function AdminFeesPage() {
           <p className="text-2xl sm:text-3xl font-black text-amber-900 mt-1">
             ₹{(summary?.totalConcessions || 0).toLocaleString('en-IN')}
           </p>
-          <span className="text-[11px] text-amber-700 font-medium">Scholarships & waivers</span>
+          <span className="text-[11px] text-amber-700 font-medium">Scholarships & concessions</span>
         </div>
 
         <div className="bg-white p-4.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-xs">
@@ -371,6 +444,44 @@ export default function AdminFeesPage() {
         </div>
       </div>
 
+      {/* Tab Switcher & Export Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 self-start sm:self-auto">
+          <button
+            onClick={() => setActiveTab('ROSTER')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeTab === 'ROSTER'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Student Fee Roster ({students.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('TRANSACTIONS')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeTab === 'TRANSACTIONS'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Payment Transactions ({allPayments.length})
+          </button>
+        </div>
+
+        <div className="flex items-center space-x-2 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={exportFeeReportCSV}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            title="Download Excel / CSV Statement"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-teal-400" />
+            <span>Export Fee Statement</span>
+          </button>
+        </div>
+      </div>
+
       {activeTab === 'ROSTER' ? (
         /* Student Fee Roster Card */
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -387,27 +498,46 @@ export default function AdminFeesPage() {
               />
             </div>
 
-            <div className="flex items-center space-x-1.5 self-end sm:self-auto">
-              <span className="text-xs text-slate-500 font-medium">Status:</span>
-              {(['ALL', 'PAID', 'PARTIALLY_PAID', 'PENDING'] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    statusFilter === st
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                  }`}
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+              <div className="flex items-center space-x-1">
+                {(['ALL', 'PAID', 'PARTIALLY_PAID', 'PENDING'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      statusFilter === st
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {st === 'ALL'
+                      ? 'All'
+                      : st === 'PAID'
+                      ? 'Paid'
+                      : st === 'PARTIALLY_PAID'
+                      ? 'Partial'
+                      : 'Pending'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Page Size Selector */}
+              <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium border-l border-slate-200 pl-2">
+                <span>Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
                 >
-                  {st === 'ALL'
-                    ? 'All'
-                    : st === 'PAID'
-                    ? 'Paid'
-                    : st === 'PARTIALLY_PAID'
-                    ? 'Partial'
-                    : 'Pending'}
-                </button>
-              ))}
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={-1}>All</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -421,162 +551,312 @@ export default function AdminFeesPage() {
               No students match your filter criteria.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Roll Number</th>
-                    <th className="py-3 px-4">Base Fee</th>
-                    <th className="py-3 px-4">Concession / Discount</th>
-                    <th className="py-3 px-4">Net Payable</th>
-                    <th className="py-3 px-4">Paid</th>
-                    <th className="py-3 px-4">Pending</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Last Payment</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredStudents.map((st) => (
-                    <tr key={st.studentId} className="hover:bg-slate-50/80 transition">
-                      {/* Student Info */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-3">
-                          {st.photoUrl ? (
-                            <img
-                              src={st.photoUrl}
-                              alt={st.name}
-                              className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
-                              {st.name.charAt(0)}
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm leading-tight">{st.name}</p>
-                            <p className="text-[11px] text-slate-500 font-medium">{st.phone}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Roll Number */}
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-xs font-black px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                          {st.rollNumber}
-                        </span>
-                      </td>
-
-                      {/* Base Fee */}
-                      <td className="py-3 px-4 font-bold text-slate-700 text-xs">
-                        ₹{st.totalFee.toLocaleString('en-IN')}
-                      </td>
-
-                      {/* Concession / Discount */}
-                      <td className="py-3 px-4">
-                        {st.concessionAmount && st.concessionAmount > 0 ? (
-                          <div className="inline-flex flex-col">
-                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              <Tag className="w-2.5 h-2.5 text-amber-700" />
-                              <span>-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
-                            </span>
-                            {st.concessionReason && (
-                              <span className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[120px]" title={st.concessionReason}>
-                                {st.concessionReason}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400">None</span>
-                        )}
-                      </td>
-
-                      {/* Net Payable */}
-                      <td className="py-3 px-4 font-black text-slate-900 text-xs">
-                        ₹{st.netFee.toLocaleString('en-IN')}
-                      </td>
-
-                      {/* Amount Paid */}
-                      <td className="py-3 px-4 font-bold text-emerald-700 text-xs">
-                        ₹{st.amountPaid.toLocaleString('en-IN')}
-                      </td>
-
-                      {/* Amount Pending */}
-                      <td className="py-3 px-4 font-black text-rose-700 text-xs">
-                        ₹{st.amountPending.toLocaleString('en-IN')}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4">
-                        {st.status === 'PAID' && (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>PAID</span>
-                          </span>
-                        )}
-                        {st.status === 'PARTIALLY_PAID' && (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                            <Clock className="w-3 h-3 text-amber-600" />
-                            <span>PARTIAL</span>
-                          </span>
-                        )}
-                        {st.status === 'PENDING' && (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                            <AlertCircle className="w-3 h-3 text-rose-600" />
-                            <span>PENDING</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Last Payment Date */}
-                      <td className="py-3 px-4 text-xs text-slate-500">
-                        {st.lastPaymentDate ? (
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              {new Date(st.lastPaymentDate).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                              })}
-                            </span>
-                            {st.lastPaymentMethod && (
-                              <p className="text-[10px] text-slate-400 uppercase font-bold">
-                                {st.lastPaymentMethod}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">None</span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openConcessionModal(st)}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
-                            title="Set or Edit Concession / Discount"
-                          >
-                            <Tag className="w-3 h-3 text-amber-700" />
-                            <span>Concession</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openRecordModal(st)}
-                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-2xs transition flex items-center space-x-1 cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Pay</span>
-                          </button>
-                        </div>
-                      </td>
+            <>
+              {/* DESKTOP TABLE VIEW (hidden on mobile, no pinch-zoom needed) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3 px-4">Student</th>
+                      <th className="py-3 px-4">Roll Number</th>
+                      <th className="py-3 px-4">Direct Contact</th>
+                      <th className="py-3 px-4">Base Fee</th>
+                      <th className="py-3 px-4">Concession</th>
+                      <th className="py-3 px-4">Net Payable</th>
+                      <th className="py-3 px-4">Paid</th>
+                      <th className="py-3 px-4">Pending</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {paginatedStudents.map((st) => (
+                      <tr key={st.studentId} className="hover:bg-slate-50/80 transition">
+                        {/* Student Info */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            {st.photoUrl ? (
+                              <img
+                                src={st.photoUrl}
+                                alt={st.name}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                {st.name.charAt(0)}
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-900 text-sm leading-tight">{st.name}</p>
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                Grade {st.classGrade || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Roll Number */}
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs font-black px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                            {st.rollNumber}
+                          </span>
+                        </td>
+
+                        {/* Direct Call Button (Redirects to Phone) */}
+                        <td className="py-3 px-4">
+                          {st.phone ? (
+                            <a
+                              href={`tel:${st.phone}`}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
+                              title={`Directly dial ${st.phone}`}
+                            >
+                              <Phone className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                              <span>{st.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-xs">No phone</span>
+                          )}
+                        </td>
+
+                        {/* Base Fee */}
+                        <td className="py-3 px-4 font-bold text-slate-700 text-xs">
+                          ₹{st.totalFee.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Concession / Discount */}
+                        <td className="py-3 px-4">
+                          {st.concessionAmount && st.concessionAmount > 0 ? (
+                            <div className="inline-flex flex-col">
+                              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <Tag className="w-2.5 h-2.5 text-amber-700" />
+                                <span>-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
+                              </span>
+                              {st.concessionReason && (
+                                <span className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[120px]" title={st.concessionReason}>
+                                  {st.concessionReason}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">None</span>
+                          )}
+                        </td>
+
+                        {/* Net Payable */}
+                        <td className="py-3 px-4 font-black text-slate-900 text-xs">
+                          ₹{st.netFee.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Amount Paid */}
+                        <td className="py-3 px-4 font-bold text-emerald-700 text-xs">
+                          ₹{st.amountPaid.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Amount Pending */}
+                        <td className="py-3 px-4 font-black text-rose-700 text-xs">
+                          ₹{st.amountPending.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4">
+                          {st.status === 'PAID' && (
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>PAID</span>
+                            </span>
+                          )}
+                          {st.status === 'PARTIALLY_PAID' && (
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>PARTIAL</span>
+                            </span>
+                          )}
+                          {st.status === 'PENDING' && (
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              <AlertCircle className="w-3 h-3 text-rose-600" />
+                              <span>PENDING</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openConcessionModal(st)}
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                              title="Set or Edit Concession / Discount"
+                            >
+                              <Tag className="w-3 h-3 text-amber-700" />
+                              <span>Concession</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openRecordModal(st)}
+                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-2xs transition flex items-center space-x-1 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Pay</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBILE CARDS VIEW (fits perfectly on mobile without zooming) */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {paginatedStudents.map((st) => (
+                  <div key={st.studentId} className="p-4 space-y-3 bg-white">
+                    {/* Top Row: Photo + Name + Roll + Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center space-x-3">
+                        {st.photoUrl ? (
+                          <img
+                            src={st.photoUrl}
+                            alt={st.name}
+                            className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-sm">
+                            {st.name.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-black text-slate-900 text-sm leading-tight">{st.name}</p>
+                          <div className="flex items-center space-x-1.5 mt-0.5">
+                            <span className="font-mono text-[11px] font-black px-1.5 py-0.2 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                              {st.rollNumber}
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              Grade {st.classGrade || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      {st.status === 'PAID' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          PAID
+                        </span>
+                      )}
+                      {st.status === 'PARTIALLY_PAID' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          PARTIAL
+                        </span>
+                      )}
+                      {st.status === 'PENDING' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          PENDING
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Direct Call Button (Full width on mobile) */}
+                    {st.phone && (
+                      <div>
+                        <a
+                          href={`tel:${st.phone}`}
+                          className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                        >
+                          <Phone className="w-4 h-4 text-emerald-600" />
+                          <span>Call Student / Parent: {st.phone}</span>
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Financial Metrics Mini-Grid */}
+                    <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Net Payable</span>
+                        <p className="font-black text-slate-900 mt-0.5">₹{st.netFee.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-emerald-700 font-bold uppercase">Paid</span>
+                        <p className="font-black text-emerald-700 mt-0.5">₹{st.amountPaid.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-rose-700 font-bold uppercase">Pending</span>
+                        <p className="font-black text-rose-700 mt-0.5">₹{st.amountPending.toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+
+                    {st.concessionAmount && st.concessionAmount > 0 ? (
+                      <div className="flex items-center justify-between text-xs px-2 text-amber-900">
+                        <span className="flex items-center space-x-1">
+                          <Tag className="w-3 h-3 text-amber-700" />
+                          <span>Concession ({st.concessionReason || 'Scholarship'}):</span>
+                        </span>
+                        <span className="font-bold">-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                    ) : null}
+
+                    {/* Mobile Card Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => openConcessionModal(st)}
+                        className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                      >
+                        <Tag className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Concession</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openRecordModal(st)}
+                        className="py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center space-x-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Record Payment</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls Bar */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500 font-medium">
+                  Showing {pageSize === -1 ? 1 : (currentPage - 1) * pageSize + 1} to{' '}
+                  {pageSize === -1
+                    ? filteredStudents.length
+                    : Math.min(currentPage * pageSize, filteredStudents.length)}{' '}
+                  of {filteredStudents.length} students
+                </span>
+
+                {pageSize !== -1 && totalPages > 1 && (
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center space-x-1"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Prev</span>
+                    </button>
+
+                    <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
+                      Page {currentPage} of {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center space-x-1"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       ) : (
@@ -606,65 +886,99 @@ export default function AdminFeesPage() {
               {transSearch ? 'No transactions match your search.' : 'No payments recorded yet.'}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    <th className="py-3 px-4">Receipt / ID</th>
-                    <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Roll Number</th>
-                    <th className="py-3 px-4">Amount</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Method</th>
-                    <th className="py-3 px-4">Reference</th>
-                    <th className="py-3 px-4">Recorded By</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredPayments.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-xs text-teal-800">{p.id}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900">{p.studentName}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-xs">{p.studentRollNumber}</td>
-                      <td className="py-3 px-4 font-black text-emerald-700">₹{p.amount.toLocaleString('en-IN')}</td>
-                      <td className="py-3 px-4 text-xs text-slate-600">{p.paymentDate}</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                          {p.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs font-mono text-slate-500">{p.transactionId || '—'}</td>
-                      <td className="py-3 px-4 text-xs text-slate-500">{p.recordedByName}</td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveReceipt(p);
-                              setReceiptModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
-                          >
-                            <Receipt className="w-3.5 h-3.5 text-teal-600" />
-                            <span>Receipt</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePayment(p)}
-                            disabled={deletingPaymentId === p.id}
-                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-50"
-                            title="Delete this payment transaction"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3 px-4">Receipt / ID</th>
+                      <th className="py-3 px-4">Student</th>
+                      <th className="py-3 px-4">Roll Number</th>
+                      <th className="py-3 px-4">Amount</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Method</th>
+                      <th className="py-3 px-4">Reference</th>
+                      <th className="py-3 px-4">Recorded By</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {paginatedPayments.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-mono font-bold text-xs text-teal-800">{p.id}</td>
+                        <td className="py-3 px-4 font-bold text-slate-900">{p.studentName}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-xs">{p.studentRollNumber}</td>
+                        <td className="py-3 px-4 font-black text-emerald-700">₹{p.amount.toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-4 text-xs text-slate-600">{p.paymentDate}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {p.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs font-mono text-slate-500">{p.transactionId || '—'}</td>
+                        <td className="py-3 px-4 text-xs text-slate-500">{p.recordedByName}</td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveReceipt(p);
+                                setReceiptModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                            >
+                              <Receipt className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Receipt</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePayment(p)}
+                              disabled={deletingPaymentId === p.id}
+                              className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-50"
+                              title="Delete this payment transaction"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Transactions Pagination */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500 font-medium">
+                  Showing {(transPage - 1) * transPageSize + 1} to{' '}
+                  {Math.min(transPage * transPageSize, filteredPayments.length)} of {filteredPayments.length} transactions
+                </span>
+
+                {transTotalPages > 1 && (
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTransPage((p) => Math.max(p - 1, 1))}
+                      disabled={transPage === 1}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
+                      Page {transPage} of {transTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTransPage((p) => Math.min(p + 1, transTotalPages))}
+                      disabled={transPage === transTotalPages}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -687,7 +1001,7 @@ export default function AdminFeesPage() {
               </div>
               <button
                 onClick={() => setRecordModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -794,7 +1108,7 @@ export default function AdminFeesPage() {
                 <button
                   type="button"
                   onClick={() => setRecordModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -830,7 +1144,7 @@ export default function AdminFeesPage() {
               </div>
               <button
                 onClick={() => setConcessionModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -916,7 +1230,7 @@ export default function AdminFeesPage() {
                 <button
                   type="button"
                   onClick={() => setConcessionModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -942,7 +1256,7 @@ export default function AdminFeesPage() {
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Official Payment Receipt</span>
               <button
                 onClick={() => setReceiptModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

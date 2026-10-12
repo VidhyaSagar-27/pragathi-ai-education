@@ -17,6 +17,7 @@ import {
   School,
   Calendar,
 } from 'lucide-react';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 interface StudentReportItem {
   id: string;
@@ -155,7 +156,9 @@ export default function AdminReportsPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <QuickNavigationHeader role="ADMIN" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xs">
         <div>

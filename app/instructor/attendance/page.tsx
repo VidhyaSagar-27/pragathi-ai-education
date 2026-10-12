@@ -13,9 +13,13 @@ import {
   Trash2,
   GraduationCap,
   UserPlus,
+  Phone,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
 import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 interface StudentRosterItem {
   studentId: string;
@@ -52,6 +56,10 @@ export default function InstructorAttendancePage() {
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
   const [addStudentOpen, setAddStudentOpen] = useState<boolean>(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+
   const loadAttendance = async (dateStr: string) => {
     setLoading(true);
     try {
@@ -72,6 +80,11 @@ export default function InstructorAttendancePage() {
   useEffect(() => {
     loadAttendance(selectedDate);
   }, [selectedDate]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClass, searchQuery]);
 
   // Dynamic class list from roster
   const classList = useMemo(() => {
@@ -189,24 +202,21 @@ export default function InstructorAttendancePage() {
   const totalInView = rosterForClass.length;
   const percentage = totalInView > 0 ? Math.round((presentCount / totalInView) * 100) : 0;
 
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(filteredRoster.length / pageSize));
+  const paginatedRoster = useMemo(() => {
+    if (pageSize === -1) return filteredRoster;
+    const start = (currentPage - 1) * pageSize;
+    return filteredRoster.slice(start, start + pageSize);
+  }, [filteredRoster, currentPage, pageSize]);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center space-x-2 text-teal-600 font-bold text-xs uppercase tracking-wider">
-            <UserCheck className="w-4 h-4" />
-            <span>Faculty Attendance Portal</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1">
-            Class Attendance Marking
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Select class date, filter by class, mark students, or update past records anytime.
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-2 self-start sm:self-auto">
+      {/* Quick Navigation Header */}
+      <QuickNavigationHeader
+        role="INSTRUCTOR"
+        title="Class Attendance Marking"
+        subtitle="Select class date, filter by class, mark students, or update past records anytime."
+        extraActions={
           <button
             type="button"
             onClick={() => setAddStudentOpen(true)}
@@ -215,8 +225,8 @@ export default function InstructorAttendancePage() {
             <UserPlus className="w-4 h-4" />
             <span>Add New Student</span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Success Notification */}
       {successToast && (
@@ -451,9 +461,29 @@ export default function InstructorAttendancePage() {
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
-          <span className="text-xs text-slate-500 font-medium self-end sm:self-auto">
-            Showing {filteredRoster.length} of {rosterForClass.length} students
-          </span>
+
+          <div className="flex items-center space-x-2 self-end sm:self-auto">
+            {/* Page Size Selector */}
+            <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium">
+              <span>Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={-1}>All</option>
+              </select>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              Showing {filteredRoster.length} students
+            </span>
+          </div>
         </div>
 
         {loading ? (
@@ -466,115 +496,256 @@ export default function InstructorAttendancePage() {
             No students found for this class or filter.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Student</th>
-                  <th className="py-3 px-4">Class</th>
-                  <th className="py-3 px-4">Attendance Status</th>
-                  <th className="py-3 px-4">Remarks (Optional)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredRoster.map((student) => {
-                  const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                  return (
-                    <tr
-                      key={student.studentId}
-                      className={`hover:bg-slate-50/80 transition ${
-                        !isPresent ? 'bg-rose-50/20' : ''
-                      }`}
-                    >
-                      {/* Roll Number */}
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                          {student.rollNumber || '—'}
-                        </span>
-                      </td>
+          <>
+            {/* DESKTOP TABLE VIEW (hidden on mobile) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="py-3 px-4">Roll Number</th>
+                    <th className="py-3 px-4">Student</th>
+                    <th className="py-3 px-4">Class</th>
+                    <th className="py-3 px-4">Direct Contact</th>
+                    <th className="py-3 px-4">Attendance Status</th>
+                    <th className="py-3 px-4">Remarks (Optional)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {paginatedRoster.map((student) => {
+                    const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                    return (
+                      <tr
+                        key={student.studentId}
+                        className={`hover:bg-slate-50/80 transition ${
+                          !isPresent ? 'bg-rose-50/20' : ''
+                        }`}
+                      >
+                        {/* Roll Number */}
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                            {student.rollNumber || '—'}
+                          </span>
+                        </td>
 
-                      {/* Student Info */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-3">
-                          {student.photoUrl ? (
-                            <img
-                              src={student.photoUrl}
-                              alt={student.name}
-                              className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
-                              {student.name.charAt(0)}
+                        {/* Student Info */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            {student.photoUrl ? (
+                              <img
+                                src={student.photoUrl}
+                                alt={student.name}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                {student.name.charAt(0)}
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
                             </div>
+                          </div>
+                        </td>
+
+                        {/* Class */}
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-xs px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                            {formatClassLabel(student.classGrade || '')}
+                          </span>
+                        </td>
+
+                        {/* Direct Phone Call */}
+                        <td className="py-3 px-4">
+                          {student.phone ? (
+                            <a
+                              href={`tel:${student.phone}`}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                              title={`Call ${student.phone}`}
+                            >
+                              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{student.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-xs">No phone</span>
                           )}
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
-                            <p className="text-[11px] text-slate-500 font-medium">{student.phone}</p>
+                        </td>
+
+                        {/* Present / Absent Toggle Buttons */}
+                        <td className="py-3 px-4">
+                          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => toggleStatus(student.studentId, 'PRESENT')}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                isPresent
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Present</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleStatus(student.studentId, 'ABSENT')}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                !isPresent
+                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Absent</span>
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Remarks */}
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            placeholder="e.g. Late, Medical"
+                            value={student.remarks}
+                            onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                            className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE CARDS VIEW (fits beautifully on any phone without zoom) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {paginatedRoster.map((student) => {
+                const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                return (
+                  <div
+                    key={student.studentId}
+                    className={`p-4 space-y-3 ${!isPresent ? 'bg-rose-50/20' : 'bg-white'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {student.photoUrl ? (
+                          <img
+                            src={student.photoUrl}
+                            alt={student.name}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                            {student.name.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
+                          <div className="flex items-center space-x-2 mt-0.5">
+                            <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {student.rollNumber || '—'}
+                            </span>
+                            <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
+                              {formatClassLabel(student.classGrade || '')}
+                            </span>
                           </div>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Class */}
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-xs px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                          {formatClassLabel(student.classGrade || '')}
-                        </span>
-                      </td>
+                      {student.phone && (
+                        <a
+                          href={`tel:${student.phone}`}
+                          className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
+                          title={`Call ${student.phone}`}
+                        >
+                          <Phone className="w-4 h-4 text-emerald-600" />
+                        </a>
+                      )}
+                    </div>
 
-                      {/* Present / Absent Toggle Buttons */}
-                      <td className="py-3 px-4">
-                        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                          <button
-                            type="button"
-                            onClick={() => toggleStatus(student.studentId, 'PRESENT')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                              isPresent
-                                ? 'bg-emerald-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Present</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleStatus(student.studentId, 'ABSENT')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                              !isPresent
-                                ? 'bg-rose-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>Absent</span>
-                          </button>
-                        </div>
-                      </td>
+                    {/* Present / Absent Action Bar */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(student.studentId, 'PRESENT')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                          isPresent
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Present</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(student.studentId, 'ABSENT')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                          !isPresent
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Absent</span>
+                      </button>
+                    </div>
 
-                      {/* Remarks */}
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          placeholder="e.g. Late, Medical"
-                          value={student.remarks}
-                          onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                          className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    {/* Remarks Input on Mobile */}
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Remarks (e.g. Late, Medical)"
+                        value={student.remarks}
+                        onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing {(currentPage - 1) * (pageSize === -1 ? filteredRoster.length : pageSize) + 1} to{' '}
+                  {Math.min(currentPage * (pageSize === -1 ? filteredRoster.length : pageSize), filteredRoster.length)} of{' '}
+                  {filteredRoster.length} students
+                </span>
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+                  <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg text-xs font-bold text-slate-800">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Bottom Footer Action */}
         <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
           <span className="text-xs text-slate-500 font-medium">
-            Showing {filteredRoster.length} of {rosterForClass.length} students in{' '}
-            {selectedClass === 'ALL' ? 'All Classes' : formatClassLabel(selectedClass)}
+            Total {filteredRoster.length} students in view
           </span>
           <button
             type="button"

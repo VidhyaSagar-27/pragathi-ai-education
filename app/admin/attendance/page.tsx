@@ -18,8 +18,12 @@ import {
   Trash2,
   GraduationCap,
   Sparkles,
+  Phone,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 interface StudentRosterItem {
   studentId: string;
@@ -77,6 +81,10 @@ export default function AdminAttendancePage() {
   const [overviewData, setOverviewData] = useState<AttendanceOverviewData | null>(null);
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
 
+  // Pagination for roster
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+
   // Load attendance for the selected date
   const loadDateAttendance = async (dateStr: string) => {
     setLoading(true);
@@ -111,6 +119,11 @@ export default function AdminAttendancePage() {
     loadDateAttendance(selectedDate);
     loadOverview();
   }, [selectedDate]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClass, searchQuery, statusFilter]);
 
   // Dynamic class list from roster
   const classList = useMemo(() => {
@@ -234,6 +247,14 @@ export default function AdminAttendancePage() {
     });
   }, [rosterForClass, searchQuery, statusFilter]);
 
+  // Paginated Roster
+  const totalPages = Math.ceil(filteredRoster.length / pageSize) || 1;
+  const paginatedRoster = useMemo(() => {
+    if (pageSize === -1) return filteredRoster;
+    const start = (currentPage - 1) * pageSize;
+    return filteredRoster.slice(start, start + pageSize);
+  }, [filteredRoster, currentPage, pageSize]);
+
   const presentCount = rosterForClass.filter((s) => s.status === 'PRESENT' || s.status === 'LATE').length;
   const absentCount = rosterForClass.filter((s) => s.status === 'ABSENT').length;
   const totalInView = rosterForClass.length;
@@ -241,47 +262,12 @@ export default function AdminAttendancePage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center space-x-2 text-teal-600 font-bold text-xs uppercase tracking-wider">
-            <UserCheck className="w-4 h-4" />
-            <span>Academic Attendance Control</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1">
-            Student Attendance System
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Select any class date, filter by class, mark or edit attendance, or remove records anytime.
-          </p>
-        </div>
-
-        {/* Tab Controls */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 self-start md:self-auto">
-          <button
-            onClick={() => setActiveTab('MARK')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'MARK'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <CalendarIcon className="w-3.5 h-3.5 text-teal-600" />
-            <span>Mark Attendance</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('HISTORY')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'HISTORY'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-brand-purple" />
-            <span>Reports & Past Dates</span>
-          </button>
-        </div>
-      </div>
+      {/* Universal Quick Navigation Header */}
+      <QuickNavigationHeader
+        title="Student Attendance System"
+        subtitle="Calendar-based attendance marking, class classification, date removal, and threshold analytics."
+        role="ADMIN"
+      />
 
       {/* Success Notification Banner */}
       {successToast && (
@@ -290,6 +276,32 @@ export default function AdminAttendancePage() {
           <span>{successToast}</span>
         </div>
       )}
+
+      {/* Tab Controls Bar */}
+      <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 self-start w-fit">
+        <button
+          onClick={() => setActiveTab('MARK')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+            activeTab === 'MARK'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <CalendarIcon className="w-3.5 h-3.5 text-teal-600" />
+          <span>Mark Class Attendance</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('HISTORY')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+            activeTab === 'HISTORY'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History className="w-3.5 h-3.5 text-brand-purple" />
+          <span>Past Dates & Reports</span>
+        </button>
+      </div>
 
       {activeTab === 'MARK' ? (
         <>
@@ -405,7 +417,7 @@ export default function AdminAttendancePage() {
               </div>
             </div>
 
-            {/* CLASS CLASSIFICATION TABS */}
+            {/* CLASS CLASSIFICATION TABS (Horizontally scrollable with smooth touch) */}
             <div className="pt-3 border-t border-slate-100">
               <div className="flex items-center space-x-2 mb-2">
                 <GraduationCap className="w-4 h-4 text-teal-600" />
@@ -413,11 +425,11 @@ export default function AdminAttendancePage() {
                   Class Classification Filter:
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
                 <button
                   type="button"
                   onClick={() => setSelectedClass('ALL')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
                     selectedClass === 'ALL'
                       ? 'bg-teal-700 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -436,7 +448,7 @@ export default function AdminAttendancePage() {
                       key={cls}
                       type="button"
                       onClick={() => setSelectedClass(cls)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
                         selectedClass === cls
                           ? 'bg-teal-700 text-white shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -454,22 +466,22 @@ export default function AdminAttendancePage() {
 
             {/* Attendance Counters Scoped to Active Class Filter */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                <span className="text-[11px] font-bold text-slate-500 uppercase">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {selectedClass === 'ALL' ? 'Total Students' : `${formatClassLabel(selectedClass)} Count`}
                 </span>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{totalInView}</p>
               </div>
-              <div className="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200/60">
-                <span className="text-[11px] font-bold text-emerald-700 uppercase">Present</span>
+              <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/60">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase">Present</span>
                 <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">{presentCount}</p>
               </div>
-              <div className="p-3.5 bg-rose-50/70 rounded-xl border border-rose-200/60">
-                <span className="text-[11px] font-bold text-rose-700 uppercase">Absent</span>
+              <div className="p-3 bg-rose-50/70 rounded-xl border border-rose-200/60">
+                <span className="text-[10px] font-bold text-rose-700 uppercase">Absent</span>
                 <p className="text-xl sm:text-2xl font-black text-rose-700 mt-0.5">{absentCount}</p>
               </div>
-              <div className="p-3.5 bg-teal-50/70 rounded-xl border border-teal-200/60">
-                <span className="text-[11px] font-bold text-teal-700 uppercase">Attendance Rate</span>
+              <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-200/60">
+                <span className="text-[10px] font-bold text-teal-700 uppercase">Attendance Rate</span>
                 <p className="text-xl sm:text-2xl font-black text-teal-800 mt-0.5">{percentage}%</p>
               </div>
             </div>
@@ -489,7 +501,7 @@ export default function AdminAttendancePage() {
                 <button
                   type="button"
                   onClick={() => markClassAll('PRESENT')}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-2xs transition flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-2xs transition flex items-center space-x-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>
@@ -499,7 +511,7 @@ export default function AdminAttendancePage() {
                 <button
                   type="button"
                   onClick={() => markClassAll('ABSENT')}
-                  className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   <span>
@@ -527,7 +539,7 @@ export default function AdminAttendancePage() {
             </div>
           </div>
 
-          {/* Student Roster Table */}
+          {/* Student Roster Card */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             {/* Filter & Search Header */}
             <div className="p-4 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
@@ -542,21 +554,40 @@ export default function AdminAttendancePage() {
                 />
               </div>
 
-              <div className="flex items-center space-x-1.5 self-end sm:self-auto">
-                <span className="text-xs text-slate-500 font-medium">Status:</span>
-                {(['ALL', 'PRESENT', 'ABSENT'] as const).map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      statusFilter === st
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                    }`}
+              <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                <div className="flex items-center space-x-1">
+                  {(['ALL', 'PRESENT', 'ABSENT'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setStatusFilter(st)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        statusFilter === st
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st === 'ALL' ? 'All' : st === 'PRESENT' ? 'Present' : 'Absent'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Page Size Selector */}
+                <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium border-l border-slate-200 pl-2">
+                  <span>Show:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
                   >
-                    {st === 'ALL' ? 'All' : st === 'PRESENT' ? 'Present' : 'Absent'}
-                  </button>
-                ))}
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={-1}>All</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -570,139 +601,279 @@ export default function AdminAttendancePage() {
                 No students match your filter criteria.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3 px-4">Roll Number</th>
-                      <th className="py-3 px-4">Student</th>
-                      <th className="py-3 px-4">Class & School</th>
-                      <th className="py-3 px-4">Attendance Status</th>
-                      <th className="py-3 px-4">Remarks (Optional)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredRoster.map((student) => {
-                      const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                      return (
-                        <tr
-                          key={student.studentId}
-                          className={`hover:bg-slate-50/80 transition ${
-                            !isPresent ? 'bg-rose-50/20' : ''
-                          }`}
-                        >
-                          {/* Roll Number Pill */}
-                          <td className="py-3 px-4">
-                            <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                              {student.rollNumber || '—'}
-                            </span>
-                          </td>
+              <>
+                {/* DESKTOP TABLE VIEW (hidden on mobile) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th className="py-3 px-4">Roll Number</th>
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Class & School</th>
+                        <th className="py-3 px-4">Direct Contact</th>
+                        <th className="py-3 px-4">Attendance Status</th>
+                        <th className="py-3 px-4">Remarks (Optional)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {paginatedRoster.map((student) => {
+                        const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                        return (
+                          <tr
+                            key={student.studentId}
+                            className={`hover:bg-slate-50/80 transition ${
+                              !isPresent ? 'bg-rose-50/20' : ''
+                            }`}
+                          >
+                            {/* Roll Number Pill */}
+                            <td className="py-3 px-4">
+                              <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                                {student.rollNumber || '—'}
+                              </span>
+                            </td>
 
-                          {/* Student Info with Avatar */}
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              {student.photoUrl ? (
-                                <img
-                                  src={student.photoUrl}
-                                  alt={student.name}
-                                  className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
-                                />
-                              ) : (
-                                <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
-                                  {student.name.charAt(0)}
+                            {/* Student Info with Avatar */}
+                            <td className="py-3 px-4">
+                              <div className="flex items-center space-x-3">
+                                {student.photoUrl ? (
+                                  <img
+                                    src={student.photoUrl}
+                                    alt={student.name}
+                                    className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                    {student.name.charAt(0)}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
                                 </div>
+                              </div>
+                            </td>
+
+                            {/* Class & School */}
+                            <td className="py-3 px-4">
+                              <div className="text-xs">
+                                <span className="font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                                  {formatClassLabel(student.classGrade || '')}
+                                </span>
+                                {student.schoolName && (
+                                  <p className="text-[11px] text-slate-500 mt-1 truncate max-w-xs">
+                                    {student.schoolName}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Direct Phone Call Button */}
+                            <td className="py-3 px-4">
+                              {student.phone ? (
+                                <a
+                                  href={`tel:${student.phone}`}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                                  title={`Call ${student.phone}`}
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>{student.phone}</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400 text-xs">No phone</span>
                               )}
-                              <div>
-                                <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
-                                <p className="text-[11px] text-slate-500 font-medium">{student.phone}</p>
+                            </td>
+
+                            {/* Present / Absent Toggle Buttons */}
+                            <td className="py-3 px-4">
+                              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStudent(student.studentId, 'PRESENT')}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                    isPresent
+                                      ? 'bg-emerald-600 text-white shadow-2xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Present</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStudent(student.studentId, 'ABSENT')}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                    !isPresent
+                                      ? 'bg-rose-600 text-white shadow-2xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>Absent</span>
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Remarks Input */}
+                            <td className="py-3 px-4">
+                              <input
+                                type="text"
+                                placeholder="e.g. Late 10m, Fever, Leave"
+                                value={student.remarks}
+                                onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                                className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* MOBILE CARDS VIEW (fits beautifully without zooming in/out) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {paginatedRoster.map((student) => {
+                    const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                    return (
+                      <div
+                        key={student.studentId}
+                        className={`p-4 space-y-3 ${!isPresent ? 'bg-rose-50/20' : 'bg-white'}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {student.photoUrl ? (
+                              <img
+                                src={student.photoUrl}
+                                alt={student.name}
+                                className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                {student.name.charAt(0)}
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
+                              <div className="flex items-center space-x-1.5 mt-0.5">
+                                <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 bg-slate-100 rounded border border-slate-200">
+                                  {student.rollNumber}
+                                </span>
+                                <span className="text-[11px] text-teal-800 font-bold">
+                                  {formatClassLabel(student.classGrade || '')}
+                                </span>
                               </div>
                             </div>
-                          </td>
+                          </div>
 
-                          {/* Class & School */}
-                          <td className="py-3 px-4">
-                            <div className="text-xs">
-                              <span className="font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                                {formatClassLabel(student.classGrade || '')}
-                              </span>
-                              {student.schoolName && (
-                                <p className="text-[11px] text-slate-500 mt-1 truncate max-w-xs">
-                                  {student.schoolName}
-                                </p>
-                              )}
-                            </div>
-                          </td>
+                          {student.phone && (
+                            <a
+                              href={`tel:${student.phone}`}
+                              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl"
+                              title={`Call ${student.phone}`}
+                            >
+                              <Phone className="w-4 h-4 text-emerald-600" />
+                            </a>
+                          )}
+                        </div>
 
-                          {/* Present / Absent Toggle Buttons */}
-                          <td className="py-3 px-4">
-                            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => toggleStudent(student.studentId, 'PRESENT')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                  isPresent
-                                    ? 'bg-emerald-600 text-white shadow-2xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Present</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleStudent(student.studentId, 'ABSENT')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                  !isPresent
-                                    ? 'bg-rose-600 text-white shadow-2xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span>Absent</span>
-                              </button>
-                            </div>
-                          </td>
+                        {/* Big Touch-Friendly Present / Absent Toggle Buttons */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleStudent(student.studentId, 'PRESENT')}
+                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                              isPresent
+                                ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Present</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleStudent(student.studentId, 'ABSENT')}
+                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                              !isPresent
+                                ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Absent</span>
+                          </button>
+                        </div>
 
-                          {/* Remarks Input */}
-                          <td className="py-3 px-4">
-                            <input
-                              type="text"
-                              placeholder="e.g. Late 10m, Fever, Leave"
-                              value={student.remarks}
-                              onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                              className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                        {/* Remarks Input */}
+                        <div>
+                          <input
+                            type="text"
+                            placeholder="Optional remark (e.g. late, sick)..."
+                            value={student.remarks}
+                            onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Pagination Footer */}
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <span className="text-slate-500 font-medium">
+                    Showing {pageSize === -1 ? 1 : (currentPage - 1) * pageSize + 1} to{' '}
+                    {pageSize === -1
+                      ? filteredRoster.length
+                      : Math.min(currentPage * pageSize, filteredRoster.length)}{' '}
+                    of {filteredRoster.length} students
+                  </span>
+
+                  {pageSize !== -1 && totalPages > 1 && (
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Prev</span>
+                      </button>
+
+                      <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
+                        Page {currentPage} of {totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAttendance}
+                    disabled={saving || roster.length === 0}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-2 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>
+                      {saving
+                        ? 'Saving...'
+                        : isMarkedAlready
+                        ? 'Update Attendance Changes'
+                        : 'Save Attendance'}
+                    </span>
+                  </button>
+                </div>
+              </>
             )}
-
-            {/* Bottom Footer Action */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-              <span className="text-xs text-slate-500 font-medium">
-                Showing {filteredRoster.length} of {rosterForClass.length} students in{' '}
-                {selectedClass === 'ALL' ? 'All Classes' : formatClassLabel(selectedClass)}
-              </span>
-              <button
-                type="button"
-                onClick={handleSaveAttendance}
-                disabled={saving || roster.length === 0}
-                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-2 cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>
-                  {saving
-                    ? 'Saving...'
-                    : isMarkedAlready
-                    ? 'Update Attendance Changes'
-                    : 'Save Attendance'}
-                </span>
-              </button>
-            </div>
           </div>
         </>
       ) : (

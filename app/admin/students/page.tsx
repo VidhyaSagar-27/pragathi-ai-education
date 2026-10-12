@@ -43,6 +43,7 @@ import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
 import ResetBatchConfirmModal from '@/components/ResetBatchConfirmModal';
 import StudentDetailsModal from '@/components/StudentDetailsModal';
 import StudentReportCardModal from '@/components/StudentReportCardModal';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 import { useDataSync, broadcastDataChange } from '@/lib/utils/syncEvents';
 
 export default function AdminStudentsPage() {
@@ -344,7 +345,7 @@ export default function AdminStudentsPage() {
           body: JSON.stringify({
             id: editingId,
             name,
-            email,
+            email: email && email.trim() ? email.trim() : undefined,
             phone,
             password: password || undefined,
             allowRollNumberChange: rollChangePermitted,
@@ -370,7 +371,7 @@ export default function AdminStudentsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name,
-            email,
+            email: email && email.trim() ? email.trim() : undefined,
             password,
             role: 'STUDENT',
             phone,
@@ -521,7 +522,9 @@ export default function AdminStudentsPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <QuickNavigationHeader role="ADMIN" />
+
       {/* Title & Batch Action CTAs */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
@@ -1185,12 +1188,14 @@ export default function AdminStudentsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Email Address <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
                   <input
                     type="email"
-                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="student@example.com (optional)"
                     className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl"
                   />
                 </div>

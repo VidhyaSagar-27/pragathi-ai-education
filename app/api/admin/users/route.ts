@@ -246,7 +246,7 @@ export async function PATCH(req: NextRequest) {
       const current = dbState.users[index];
 
       if (name) current.name = String(name).trim();
-      if (email) current.email = String(email).trim().toLowerCase();
+      if (email !== undefined) current.email = email ? String(email).trim().toLowerCase() : undefined;
       if (status) current.status = status as UserStatus;
       if (phone !== undefined) current.phone = phone;
       if (studentDetails) current.studentDetails = { ...current.studentDetails, ...studentDetails };

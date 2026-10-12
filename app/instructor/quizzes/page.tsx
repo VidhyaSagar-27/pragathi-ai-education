@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Quiz, ExamQuestionType } from '@/lib/db/types';
 import AiQuizGeneratorModal from '@/components/AiQuizGeneratorModal';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 export interface QuestionDraft {
   type: ExamQuestionType;
@@ -261,7 +262,9 @@ export default function InstructorQuizzesPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <QuickNavigationHeader role="INSTRUCTOR" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>

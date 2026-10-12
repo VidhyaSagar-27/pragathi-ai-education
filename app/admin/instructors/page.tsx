@@ -21,6 +21,7 @@ import CommunicationModal, {
   CommunicationMode,
   CommunicationAction,
 } from '@/components/CommunicationModal';
+import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
 export default function AdminInstructorsPage() {
   const [instructors, setInstructors] = useState<User[]>([]);
@@ -206,7 +207,9 @@ export default function AdminInstructorsPage() {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <QuickNavigationHeader role="ADMIN" />
+
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

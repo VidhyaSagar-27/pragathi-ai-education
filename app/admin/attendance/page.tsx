@@ -81,10 +81,6 @@ export default function AdminAttendancePage() {
   const [overviewData, setOverviewData] = useState<AttendanceOverviewData | null>(null);
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
 
-  // Pagination for roster
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(15);
-
   // Load attendance for the selected date
   const loadDateAttendance = async (dateStr: string) => {
     setLoading(true);
@@ -119,11 +115,6 @@ export default function AdminAttendancePage() {
     loadDateAttendance(selectedDate);
     loadOverview();
   }, [selectedDate]);
-
-  // Reset pagination on filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedClass, searchQuery, statusFilter]);
 
   // Dynamic class list from roster
   const classList = useMemo(() => {
@@ -246,14 +237,6 @@ export default function AdminAttendancePage() {
       return true;
     });
   }, [rosterForClass, searchQuery, statusFilter]);
-
-  // Paginated Roster
-  const totalPages = Math.ceil(filteredRoster.length / pageSize) || 1;
-  const paginatedRoster = useMemo(() => {
-    if (pageSize === -1) return filteredRoster;
-    const start = (currentPage - 1) * pageSize;
-    return filteredRoster.slice(start, start + pageSize);
-  }, [filteredRoster, currentPage, pageSize]);
 
   const presentCount = rosterForClass.filter((s) => s.status === 'PRESENT' || s.status === 'LATE').length;
   const absentCount = rosterForClass.filter((s) => s.status === 'ABSENT').length;
@@ -571,23 +554,9 @@ export default function AdminAttendancePage() {
                   ))}
                 </div>
 
-                {/* Page Size Selector */}
-                <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium border-l border-slate-200 pl-2">
-                  <span>Show:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
-                  >
-                    <option value={15}>15</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={-1}>All</option>
-                  </select>
-                </div>
+                <span className="text-xs text-slate-500 font-semibold pl-2 border-l border-slate-200">
+                  <strong className="text-slate-800">{filteredRoster.length}</strong> students
+                </span>
               </div>
             </div>
 
@@ -616,7 +585,7 @@ export default function AdminAttendancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
-                      {paginatedRoster.map((student) => {
+                      {filteredRoster.map((student) => {
                         const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
                         return (
                           <tr
@@ -639,10 +608,18 @@ export default function AdminAttendancePage() {
                                   <img
                                     src={student.photoUrl}
                                     alt={student.name}
-                                    className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                    className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
+                                      isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                    }`}
                                   />
                                 ) : (
-                                  <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                  <div
+                                    className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
+                                      isPresent
+                                        ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                        : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                    }`}
+                                  >
                                     {student.name.charAt(0)}
                                   </div>
                                 )}
@@ -666,17 +643,28 @@ export default function AdminAttendancePage() {
                               </div>
                             </td>
 
-                            {/* Direct Phone Call Button */}
+                            {/* Direct Phone Call & WhatsApp Button */}
                             <td className="py-3 px-4">
                               {student.phone ? (
-                                <a
-                                  href={`tel:${student.phone}`}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
-                                  title={`Call ${student.phone}`}
-                                >
-                                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>{student.phone}</span>
-                                </a>
+                                <div className="flex items-center space-x-1.5">
+                                  <a
+                                    href={`tel:${student.phone}`}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                                    title={`Call ${student.phone}`}
+                                  >
+                                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>{student.phone}</span>
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
+                                    title={`Chat on WhatsApp`}
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
                               ) : (
                                 <span className="text-slate-400 text-xs">No phone</span>
                               )}
@@ -729,14 +717,14 @@ export default function AdminAttendancePage() {
                   </table>
                 </div>
 
-                {/* MOBILE CARDS VIEW (fits beautifully without zooming in/out) */}
+                {/* MOBILE CARDS VIEW (CampX Touch Roster) */}
                 <div className="md:hidden divide-y divide-slate-100">
-                  {paginatedRoster.map((student) => {
+                  {filteredRoster.map((student) => {
                     const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
                     return (
                       <div
                         key={student.studentId}
-                        className={`p-4 space-y-3 ${!isPresent ? 'bg-rose-50/20' : 'bg-white'}`}
+                        className={`p-4 space-y-3 transition ${!isPresent ? 'bg-rose-50/25' : 'bg-white'}`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
@@ -744,20 +732,28 @@ export default function AdminAttendancePage() {
                               <img
                                 src={student.photoUrl}
                                 alt={student.name}
-                                className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                                className={`w-11 h-11 rounded-full object-cover border ${
+                                  isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                }`}
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                              <div
+                                className={`w-11 h-11 rounded-full font-bold flex items-center justify-center text-sm ${
+                                  isPresent
+                                    ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                    : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                }`}
+                              >
                                 {student.name.charAt(0)}
                               </div>
                             )}
                             <div>
                               <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
                               <div className="flex items-center space-x-1.5 mt-0.5">
-                                <span className="font-mono text-[11px] font-bold px-1.5 py-0.2 bg-slate-100 rounded border border-slate-200">
-                                  {student.rollNumber}
+                                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">
+                                  {student.rollNumber || '—'}
                                 </span>
-                                <span className="text-[11px] text-teal-800 font-bold">
+                                <span className="text-[11px] text-teal-800 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                                   {formatClassLabel(student.classGrade || '')}
                                 </span>
                               </div>
@@ -765,17 +761,28 @@ export default function AdminAttendancePage() {
                           </div>
 
                           {student.phone && (
-                            <a
-                              href={`tel:${student.phone}`}
-                              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl"
-                              title={`Call ${student.phone}`}
-                            >
-                              <Phone className="w-4 h-4 text-emerald-600" />
-                            </a>
+                            <div className="flex items-center space-x-1">
+                              <a
+                                href={`tel:${student.phone}`}
+                                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
+                                title={`Call ${student.phone}`}
+                              >
+                                <Phone className="w-4 h-4 text-emerald-600" />
+                              </a>
+                              <a
+                                href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs"
+                                title={`WhatsApp Chat`}
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </a>
+                            </div>
                           )}
                         </div>
 
-                        {/* Big Touch-Friendly Present / Absent Toggle Buttons */}
+                        {/* CampX Big Touch-Friendly Present / Absent Toggle Buttons */}
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -818,44 +825,11 @@ export default function AdminAttendancePage() {
                   })}
                 </div>
 
-                {/* Pagination Footer */}
-                <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                  <span className="text-slate-500 font-medium">
-                    Showing {pageSize === -1 ? 1 : (currentPage - 1) * pageSize + 1} to{' '}
-                    {pageSize === -1
-                      ? filteredRoster.length
-                      : Math.min(currentPage * pageSize, filteredRoster.length)}{' '}
-                    of {filteredRoster.length} students
+                {/* Bottom Footer Info */}
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-medium">
+                  <span>
+                    Total <strong className="text-slate-800">{filteredRoster.length}</strong> students in active view
                   </span>
-
-                  {pageSize !== -1 && totalPages > 1 && (
-                    <div className="flex items-center space-x-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        <span>Prev</span>
-                      </button>
-
-                      <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
-                        Page {currentPage} of {totalPages}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
-                      >
-                        <span>Next</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
                   <button
                     type="button"
                     onClick={handleSaveAttendance}
@@ -868,6 +842,39 @@ export default function AdminAttendancePage() {
                         ? 'Saving...'
                         : isMarkedAlready
                         ? 'Update Attendance Changes'
+                        : 'Save Attendance'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* CampX Floating Bottom Action Dock (Sticky Bar) */}
+                <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 z-40 bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/60 flex items-center justify-between sm:space-x-6">
+                  <div className="flex items-center space-x-3 text-xs">
+                    <span className="flex items-center space-x-1.5 font-bold text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>{presentCount} Present</span>
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className="flex items-center space-x-1.5 font-bold text-rose-400">
+                      <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                      <span>{absentCount} Absent</span>
+                    </span>
+                    <span className="hidden sm:inline text-slate-600">•</span>
+                    <span className="hidden sm:inline font-bold text-teal-300">{percentage}% Rate</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAttendance}
+                    disabled={saving || roster.length === 0}
+                    className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>
+                      {saving
+                        ? 'Saving...'
+                        : isMarkedAlready
+                        ? 'Update Changes'
                         : 'Save Attendance'}
                     </span>
                   </button>

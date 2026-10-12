@@ -14,6 +14,7 @@ import {
   GraduationCap,
   UserPlus,
   Phone,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -56,10 +57,6 @@ export default function InstructorAttendancePage() {
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
   const [addStudentOpen, setAddStudentOpen] = useState<boolean>(false);
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(15);
-
   const loadAttendance = async (dateStr: string) => {
     setLoading(true);
     try {
@@ -80,11 +77,6 @@ export default function InstructorAttendancePage() {
   useEffect(() => {
     loadAttendance(selectedDate);
   }, [selectedDate]);
-
-  // Reset pagination on filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedClass, searchQuery]);
 
   // Dynamic class list from roster
   const classList = useMemo(() => {
@@ -201,13 +193,6 @@ export default function InstructorAttendancePage() {
   const absentCount = rosterForClass.filter((s) => s.status === 'ABSENT').length;
   const totalInView = rosterForClass.length;
   const percentage = totalInView > 0 ? Math.round((presentCount / totalInView) * 100) : 0;
-
-  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(filteredRoster.length / pageSize));
-  const paginatedRoster = useMemo(() => {
-    if (pageSize === -1) return filteredRoster;
-    const start = (currentPage - 1) * pageSize;
-    return filteredRoster.slice(start, start + pageSize);
-  }, [filteredRoster, currentPage, pageSize]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -463,25 +448,8 @@ export default function InstructorAttendancePage() {
           </div>
 
           <div className="flex items-center space-x-2 self-end sm:self-auto">
-            {/* Page Size Selector */}
-            <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium">
-              <span>Show:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
-              >
-                <option value={15}>15</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={-1}>All</option>
-              </select>
-            </div>
-            <span className="text-xs text-slate-500 font-medium">
-              Showing {filteredRoster.length} students
+            <span className="text-xs text-slate-500 font-semibold pl-2">
+              Showing <strong className="text-slate-800">{filteredRoster.length}</strong> of {rosterForClass.length} students
             </span>
           </div>
         </div>
@@ -497,21 +465,21 @@ export default function InstructorAttendancePage() {
           </div>
         ) : (
           <>
-            {/* DESKTOP TABLE VIEW (hidden on mobile) */}
-            <div className="hidden md:block overflow-x-auto">
+            {/* DESKTOP TABLE VIEW (CampX Data Grid with Sticky Header) */}
+            <div className="hidden md:block overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
+                  <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                     <th className="py-3 px-4">Roll Number</th>
                     <th className="py-3 px-4">Student</th>
                     <th className="py-3 px-4">Class</th>
-                    <th className="py-3 px-4">Direct Contact</th>
+                    <th className="py-3 px-4">Contact & Chat</th>
                     <th className="py-3 px-4">Attendance Status</th>
                     <th className="py-3 px-4">Remarks (Optional)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {paginatedRoster.map((student) => {
+                  {filteredRoster.map((student) => {
                     const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
                     return (
                       <tr
@@ -534,10 +502,18 @@ export default function InstructorAttendancePage() {
                               <img
                                 src={student.photoUrl}
                                 alt={student.name}
-                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
+                                  isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                }`}
                               />
                             ) : (
-                              <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                              <div
+                                className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
+                                  isPresent
+                                    ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                    : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                }`}
+                              >
                                 {student.name.charAt(0)}
                               </div>
                             )}
@@ -554,17 +530,28 @@ export default function InstructorAttendancePage() {
                           </span>
                         </td>
 
-                        {/* Direct Phone Call */}
+                        {/* Direct Phone Call & WhatsApp */}
                         <td className="py-3 px-4">
                           {student.phone ? (
-                            <a
-                              href={`tel:${student.phone}`}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
-                              title={`Call ${student.phone}`}
-                            >
-                              <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{student.phone}</span>
-                            </a>
+                            <div className="flex items-center space-x-1.5">
+                              <a
+                                href={`tel:${student.phone}`}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                                title={`Call ${student.phone}`}
+                              >
+                                <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{student.phone}</span>
+                              </a>
+                              <a
+                                href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
+                                title={`Chat on WhatsApp`}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-xs">No phone</span>
                           )}
@@ -578,7 +565,7 @@ export default function InstructorAttendancePage() {
                               onClick={() => toggleStatus(student.studentId, 'PRESENT')}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
                                 isPresent
-                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
@@ -590,7 +577,7 @@ export default function InstructorAttendancePage() {
                               onClick={() => toggleStatus(student.studentId, 'ABSENT')}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
                                 !isPresent
-                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                  ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
@@ -617,14 +604,14 @@ export default function InstructorAttendancePage() {
               </table>
             </div>
 
-            {/* MOBILE CARDS VIEW (fits beautifully on any phone without zoom) */}
+            {/* MOBILE CARDS VIEW (CampX Mobile Roster) */}
             <div className="md:hidden divide-y divide-slate-100">
-              {paginatedRoster.map((student) => {
+              {filteredRoster.map((student) => {
                 const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
                 return (
                   <div
                     key={student.studentId}
-                    className={`p-4 space-y-3 ${!isPresent ? 'bg-rose-50/20' : 'bg-white'}`}
+                    className={`p-4 space-y-3 transition ${!isPresent ? 'bg-rose-50/25' : 'bg-white'}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -632,20 +619,28 @@ export default function InstructorAttendancePage() {
                           <img
                             src={student.photoUrl}
                             alt={student.name}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                            className={`w-11 h-11 rounded-full object-cover border ${
+                              isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                            }`}
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                          <div
+                            className={`w-11 h-11 rounded-full font-bold flex items-center justify-center text-sm ${
+                              isPresent
+                                ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                            }`}
+                          >
                             {student.name.charAt(0)}
                           </div>
                         )}
                         <div>
                           <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
-                          <div className="flex items-center space-x-2 mt-0.5">
-                            <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          <div className="flex items-center space-x-1.5 mt-0.5">
+                            <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                               {student.rollNumber || '—'}
                             </span>
-                            <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
+                            <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                               {formatClassLabel(student.classGrade || '')}
                             </span>
                           </div>
@@ -653,13 +648,24 @@ export default function InstructorAttendancePage() {
                       </div>
 
                       {student.phone && (
-                        <a
-                          href={`tel:${student.phone}`}
-                          className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
-                          title={`Call ${student.phone}`}
-                        >
-                          <Phone className="w-4 h-4 text-emerald-600" />
-                        </a>
+                        <div className="flex items-center space-x-1">
+                          <a
+                            href={`tel:${student.phone}`}
+                            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
+                            title={`Call ${student.phone}`}
+                          >
+                            <Phone className="w-4 h-4 text-emerald-600" />
+                          </a>
+                          <a
+                            href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs"
+                            title={`WhatsApp Chat`}
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </a>
+                        </div>
                       )}
                     </div>
 
@@ -668,9 +674,9 @@ export default function InstructorAttendancePage() {
                       <button
                         type="button"
                         onClick={() => toggleStatus(student.studentId, 'PRESENT')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
                           isPresent
-                            ? 'bg-emerald-600 text-white shadow-xs'
+                            ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
@@ -680,9 +686,9 @@ export default function InstructorAttendancePage() {
                       <button
                         type="button"
                         onClick={() => toggleStatus(student.studentId, 'ABSENT')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
                           !isPresent
-                            ? 'bg-rose-600 text-white shadow-xs'
+                            ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
@@ -706,63 +712,62 @@ export default function InstructorAttendancePage() {
               })}
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">
-                  Showing {(currentPage - 1) * (pageSize === -1 ? filteredRoster.length : pageSize) + 1} to{' '}
-                  {Math.min(currentPage * (pageSize === -1 ? filteredRoster.length : pageSize), filteredRoster.length)} of{' '}
-                  {filteredRoster.length} students
+            {/* Bottom Footer Action */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-medium">
+              <span>
+                Total <strong className="text-slate-800">{filteredRoster.length}</strong> students in active view
+              </span>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || roster.length === 0}
+                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-2 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>
+                  {saving
+                    ? 'Saving...'
+                    : isMarkedAlready
+                    ? 'Update Attendance Changes'
+                    : 'Save Attendance'}
                 </span>
-                <div className="flex items-center space-x-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                    <span>Prev</span>
-                  </button>
-                  <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg text-xs font-bold text-slate-800">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-100 disabled:opacity-40 transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <span>Next</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              </button>
+            </div>
+
+            {/* CampX Floating Bottom Action Dock (Sticky Bar) */}
+            <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 z-40 bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/60 flex items-center justify-between sm:space-x-6">
+              <div className="flex items-center space-x-3 text-xs">
+                <span className="flex items-center space-x-1.5 font-bold text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{presentCount} Present</span>
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="flex items-center space-x-1.5 font-bold text-rose-400">
+                  <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                  <span>{absentCount} Absent</span>
+                </span>
+                <span className="hidden sm:inline text-slate-600">•</span>
+                <span className="hidden sm:inline font-bold text-teal-300">{percentage}% Rate</span>
               </div>
-            )}
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || roster.length === 0}
+                className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>
+                  {saving
+                    ? 'Saving...'
+                    : isMarkedAlready
+                    ? 'Update Changes'
+                    : 'Save Attendance'}
+                </span>
+              </button>
+            </div>
           </>
         )}
-
-        {/* Bottom Footer Action */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-xs text-slate-500 font-medium">
-            Total {filteredRoster.length} students in view
-          </span>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || roster.length === 0}
-            className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-2 cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>
-              {saving
-                ? 'Saving...'
-                : isMarkedAlready
-                ? 'Update Attendance Changes'
-                : 'Save Attendance'}
-            </span>
-          </button>
-        </div>
       </div>
 
       {/* Fast Attendance Scanner Modal */}

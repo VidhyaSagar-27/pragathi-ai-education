@@ -22,6 +22,7 @@ import {
   Percent,
   Sparkles,
   Phone,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
@@ -70,14 +71,6 @@ export default function AdminFeesPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'PARTIALLY_PAID' | 'PENDING'>('ALL');
-
-  // Pagination for Student Fee Roster
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
-
-  // Pagination for Transactions History
-  const [transPage, setTransPage] = useState<number>(1);
-  const [transPageSize, setTransPageSize] = useState<number>(10);
 
   // Record Payment Modal State
   const [recordModalOpen, setRecordModalOpen] = useState<boolean>(false);
@@ -138,15 +131,6 @@ export default function AdminFeesPage() {
     loadFeeData();
     loadAllPayments();
   }, []);
-
-  // Reset page when filtering or searching
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
-
-  useEffect(() => {
-    setTransPage(1);
-  }, [transSearch]);
 
   const openRecordModal = (student: StudentFeeItem) => {
     setSelectedStudent(student);
@@ -341,14 +325,6 @@ export default function AdminFeesPage() {
     });
   }, [students, searchQuery, statusFilter]);
 
-  // Paginated Students
-  const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
-  const paginatedStudents = useMemo(() => {
-    if (pageSize === -1) return filteredStudents;
-    const start = (currentPage - 1) * pageSize;
-    return filteredStudents.slice(start, start + pageSize);
-  }, [filteredStudents, currentPage, pageSize]);
-
   const filteredPayments = useMemo(() => {
     return allPayments.filter((p) => {
       if (!transSearch.trim()) return true;
@@ -363,14 +339,6 @@ export default function AdminFeesPage() {
       );
     });
   }, [allPayments, transSearch]);
-
-  // Paginated Payments
-  const transTotalPages = Math.ceil(filteredPayments.length / transPageSize) || 1;
-  const paginatedPayments = useMemo(() => {
-    if (transPageSize === -1) return filteredPayments;
-    const start = (transPage - 1) * transPageSize;
-    return filteredPayments.slice(start, start + transPageSize);
-  }, [filteredPayments, transPage, transPageSize]);
 
   const collectionPercentage =
     summary && summary.totalExpected > 0
@@ -521,23 +489,9 @@ export default function AdminFeesPage() {
                 ))}
               </div>
 
-              {/* Page Size Selector */}
-              <div className="flex items-center space-x-1 text-xs text-slate-500 font-medium border-l border-slate-200 pl-2">
-                <span>Show:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={-1}>All</option>
-                </select>
-              </div>
+              <span className="text-xs text-slate-500 font-semibold pl-2 border-l border-slate-200">
+                <strong className="text-slate-800">{filteredStudents.length}</strong> students
+              </span>
             </div>
           </div>
 
@@ -552,14 +506,14 @@ export default function AdminFeesPage() {
             </div>
           ) : (
             <>
-              {/* DESKTOP TABLE VIEW (hidden on mobile, no pinch-zoom needed) */}
-              <div className="hidden md:block overflow-x-auto">
+              {/* DESKTOP TABLE VIEW (CampX Data Grid with Sticky Header) */}
+              <div className="hidden md:block overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
+                    <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                       <th className="py-3 px-4">Student</th>
                       <th className="py-3 px-4">Roll Number</th>
-                      <th className="py-3 px-4">Direct Contact</th>
+                      <th className="py-3 px-4">Contact & Chat</th>
                       <th className="py-3 px-4">Base Fee</th>
                       <th className="py-3 px-4">Concession</th>
                       <th className="py-3 px-4">Net Payable</th>
@@ -570,7 +524,7 @@ export default function AdminFeesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {paginatedStudents.map((st) => (
+                    {filteredStudents.map((st) => (
                       <tr key={st.studentId} className="hover:bg-slate-50/80 transition">
                         {/* Student Info */}
                         <td className="py-3 px-4">
@@ -602,17 +556,28 @@ export default function AdminFeesPage() {
                           </span>
                         </td>
 
-                        {/* Direct Call Button (Redirects to Phone) */}
+                        {/* Direct Call & WhatsApp Button */}
                         <td className="py-3 px-4">
                           {st.phone ? (
-                            <a
-                              href={`tel:${st.phone}`}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
-                              title={`Directly dial ${st.phone}`}
-                            >
-                              <Phone className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
-                              <span>{st.phone}</span>
-                            </a>
+                            <div className="flex items-center space-x-1.5">
+                              <a
+                                href={`tel:${st.phone}`}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
+                                title={`Directly dial ${st.phone}`}
+                              >
+                                <Phone className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                <span>{st.phone}</span>
+                              </a>
+                              <a
+                                href={`https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs cursor-pointer"
+                                title={`Chat on WhatsApp`}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-xs">No phone</span>
                           )}
@@ -707,9 +672,9 @@ export default function AdminFeesPage() {
                 </table>
               </div>
 
-              {/* MOBILE CARDS VIEW (fits perfectly on mobile without zooming) */}
+              {/* MOBILE CARDS VIEW (CampX Mobile Finance Cards) */}
               <div className="md:hidden divide-y divide-slate-100">
-                {paginatedStudents.map((st) => (
+                {filteredStudents.map((st) => (
                   <div key={st.studentId} className="p-4 space-y-3 bg-white">
                     {/* Top Row: Photo + Name + Roll + Status */}
                     <div className="flex items-start justify-between gap-2">
@@ -756,15 +721,24 @@ export default function AdminFeesPage() {
                       )}
                     </div>
 
-                    {/* Direct Call Button (Full width on mobile) */}
+                    {/* Direct Contact Buttons (Call & WhatsApp) */}
                     {st.phone && (
-                      <div>
+                      <div className="flex items-center space-x-2">
                         <a
                           href={`tel:${st.phone}`}
-                          className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                          className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
                         >
                           <Phone className="w-4 h-4 text-emerald-600" />
-                          <span>Call Student / Parent: {st.phone}</span>
+                          <span>Call: {st.phone}</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs cursor-pointer"
+                          title="WhatsApp Chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
                         </a>
                       </div>
                     )}
@@ -818,43 +792,14 @@ export default function AdminFeesPage() {
                 ))}
               </div>
 
-              {/* Pagination Controls Bar */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <span className="text-slate-500 font-medium">
-                  Showing {pageSize === -1 ? 1 : (currentPage - 1) * pageSize + 1} to{' '}
-                  {pageSize === -1
-                    ? filteredStudents.length
-                    : Math.min(currentPage * pageSize, filteredStudents.length)}{' '}
-                  of {filteredStudents.length} students
+              {/* CampX High-Density Footer Bar */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">
+                <span>
+                  Showing <strong className="text-slate-800">{filteredStudents.length}</strong> of {students.length} students in fee register
                 </span>
-
-                {pageSize !== -1 && totalPages > 1 && (
-                  <div className="flex items-center space-x-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center space-x-1"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span>Prev</span>
-                    </button>
-
-                    <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
-                      Page {currentPage} of {totalPages}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center space-x-1"
-                    >
-                      <span>Next</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                <span className="font-bold text-slate-700">
+                  Total Outstanding Balance: <strong className="text-rose-700">₹{(summary?.totalPending || 0).toLocaleString('en-IN')}</strong>
+                </span>
               </div>
             </>
           )}
@@ -887,10 +832,10 @@ export default function AdminFeesPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <tr className="sticky top-0 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider z-10">
                       <th className="py-3 px-4">Receipt / ID</th>
                       <th className="py-3 px-4">Student</th>
                       <th className="py-3 px-4">Roll Number</th>
@@ -903,7 +848,7 @@ export default function AdminFeesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {paginatedPayments.map((p) => (
+                    {filteredPayments.map((p) => (
                       <tr key={p.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-4 font-mono font-bold text-xs text-teal-800">{p.id}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{p.studentName}</td>
@@ -947,36 +892,14 @@ export default function AdminFeesPage() {
                 </table>
               </div>
 
-              {/* Transactions Pagination */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <span className="text-slate-500 font-medium">
-                  Showing {(transPage - 1) * transPageSize + 1} to{' '}
-                  {Math.min(transPage * transPageSize, filteredPayments.length)} of {filteredPayments.length} transactions
+              {/* CampX Transactions Summary Footer Bar */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">
+                <span>
+                  Showing <strong className="text-slate-800">{filteredPayments.length}</strong> of {allPayments.length} transactions
                 </span>
-
-                {transTotalPages > 1 && (
-                  <div className="flex items-center space-x-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setTransPage((p) => Math.max(p - 1, 1))}
-                      disabled={transPage === 1}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition"
-                    >
-                      Prev
-                    </button>
-                    <span className="px-3 py-1.5 bg-slate-200/80 rounded-lg font-bold text-slate-800">
-                      Page {transPage} of {transTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setTransPage((p) => Math.min(p + 1, transTotalPages))}
-                      disabled={transPage === transTotalPages}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 transition"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+                <span className="font-bold text-slate-700">
+                  Total Collected from Records: <strong className="text-emerald-700">₹{filteredPayments.reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('en-IN')}</strong>
+                </span>
               </div>
             </>
           )}

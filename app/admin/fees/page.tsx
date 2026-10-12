@@ -26,6 +26,12 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  LayoutGrid,
+  List,
+  Bell,
+  Users,
+  ShieldAlert,
+  Send,
 } from 'lucide-react';
 import QuickNavigationHeader from '@/components/QuickNavigationHeader';
 
@@ -95,6 +101,7 @@ export default function AdminFeesPage() {
 
   // History Tab / View State
   const [activeTab, setActiveTab] = useState<'ROSTER' | 'TRANSACTIONS'>('ROSTER');
+  const [feeViewMode, setFeeViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
   const [allPayments, setAllPayments] = useState<PaymentRecord[]>([]);
   const [transSearch, setTransSearch] = useState<string>('');
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
@@ -295,7 +302,7 @@ export default function AdminFeesPage() {
     ]);
 
     const csvContent =
-      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -324,6 +331,10 @@ export default function AdminFeesPage() {
       return true;
     });
   }, [students, searchQuery, statusFilter]);
+
+  const defaulterCount = useMemo(() => students.filter((s) => s.status === 'PENDING').length, [students]);
+  const partialCount = useMemo(() => students.filter((s) => s.status === 'PARTIALLY_PAID').length, [students]);
+  const paidCount = useMemo(() => students.filter((s) => s.status === 'PAID').length, [students]);
 
   const filteredPayments = useMemo(() => {
     return allPayments.filter((p) => {
@@ -365,6 +376,29 @@ export default function AdminFeesPage() {
           </button>
         }
       />
+
+      {/* CampX Campus Finance Session Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4.5 rounded-2xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30">
+              CampX Digital Campus ERP
+            </span>
+            <span className="text-xs text-slate-400">• Academic Year 2026-27 • Fee Ledger</span>
+          </div>
+          <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center space-x-2">
+            <span>Student Fee Register & Defaulter Tracking</span>
+          </h3>
+        </div>
+        <div className="flex items-center space-x-2 self-start md:self-auto text-xs">
+          <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-full font-bold">
+            {collectionPercentage}% Collected
+          </span>
+          <span className="px-3 py-1 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-full font-bold">
+            ₹{(summary?.totalPending || 0).toLocaleString('en-IN')} Outstanding
+          </span>
+        </div>
+      </div>
 
       {/* Aggregate Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
@@ -453,9 +487,9 @@ export default function AdminFeesPage() {
       {activeTab === 'ROSTER' ? (
         /* Student Fee Roster Card */
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          {/* Controls Bar */}
-          <div className="p-4 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
-            <div className="relative w-full sm:w-80">
+          {/* CampX Filter & View Control Header */}
+          <div className="p-4 border-b border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70">
+            <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
@@ -466,32 +500,91 @@ export default function AdminFeesPage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
-              <div className="flex items-center space-x-1">
-                {(['ALL', 'PAID', 'PARTIALLY_PAID', 'PENDING'] as const).map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      statusFilter === st
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {st === 'ALL'
-                      ? 'All'
-                      : st === 'PAID'
-                      ? 'Paid'
-                      : st === 'PARTIALLY_PAID'
-                      ? 'Partial'
-                      : 'Pending'}
-                  </button>
-                ))}
+            <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+              {/* Status Filter Chips with Live Tallies */}
+              <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    statusFilter === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>All</span>
+                  <span className="text-[10px] opacity-75 font-mono">({students.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('PENDING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    statusFilter === 'PENDING'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'text-rose-700 hover:bg-rose-50'
+                  }`}
+                >
+                  <AlertCircle className="w-3 h-3" />
+                  <span>Defaulters</span>
+                  <span className="text-[10px] opacity-90 font-mono">({defaulterCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('PARTIALLY_PAID')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    statusFilter === 'PARTIALLY_PAID'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-amber-800 hover:bg-amber-50'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>Partial</span>
+                  <span className="text-[10px] opacity-90 font-mono">({partialCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('PAID')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    statusFilter === 'PAID'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Paid</span>
+                  <span className="text-[10px] opacity-90 font-mono">({paidCount})</span>
+                </button>
               </div>
 
-              <span className="text-xs text-slate-500 font-semibold pl-2 border-l border-slate-200">
-                <strong className="text-slate-800">{filteredStudents.length}</strong> students
-              </span>
+              {/* CampX Dual View Switcher */}
+              <div className="flex items-center space-x-1 bg-slate-200/80 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setFeeViewMode('CARDS')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    feeViewMode === 'CARDS'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="CampX Student Fee Cards"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Fee Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeeViewMode('TABLE')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    feeViewMode === 'TABLE'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Continuous Ledger Table"
+                >
+                  <List className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Table</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -506,291 +599,382 @@ export default function AdminFeesPage() {
             </div>
           ) : (
             <>
-              {/* DESKTOP TABLE VIEW (CampX Data Grid with Sticky Header) */}
-              <div className="hidden md:block overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
-                    <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      <th className="py-3 px-4">Student</th>
-                      <th className="py-3 px-4">Roll Number</th>
-                      <th className="py-3 px-4">Contact & Chat</th>
-                      <th className="py-3 px-4">Base Fee</th>
-                      <th className="py-3 px-4">Concession</th>
-                      <th className="py-3 px-4">Net Payable</th>
-                      <th className="py-3 px-4">Paid</th>
-                      <th className="py-3 px-4">Pending</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredStudents.map((st) => (
-                      <tr key={st.studentId} className="hover:bg-slate-50/80 transition">
-                        {/* Student Info */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-3">
-                            {st.photoUrl ? (
-                              <img
-                                src={st.photoUrl}
-                                alt={st.name}
-                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
-                              />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
-                                {st.name.charAt(0)}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm leading-tight">{st.name}</p>
-                              <span className="text-[11px] text-slate-500 font-medium">
-                                Grade {st.classGrade || 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
+              {/* 1. CAMPX STUDENT FEE CARDS VIEW */}
+              {feeViewMode === 'CARDS' && (
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 bg-slate-50/50">
+                  {filteredStudents.map((st) => {
+                    const percentPaid = st.netFee > 0 ? Math.min(100, Math.round((st.amountPaid / st.netFee) * 100)) : 100;
+                    const waReminderUrl = `https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                      `Dear Parent of ${st.name} (Roll: ${st.rollNumber}),\n\nThis is a friendly fee update from Pragathi AI. The pending tuition balance is ₹${st.amountPending.toLocaleString('en-IN')}.\n\nKindly clear the balance at your earliest convenience. Thank you!`
+                    )}`;
 
-                        {/* Roll Number */}
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-xs font-black px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                    return (
+                      <div
+                        key={st.studentId}
+                        className={`rounded-2xl p-4 transition-all duration-200 border-2 shadow-2xs hover:shadow-md flex flex-col justify-between space-y-3.5 ${
+                          st.status === 'PAID'
+                            ? 'bg-white border-emerald-500/80 hover:border-emerald-600'
+                            : st.status === 'PARTIALLY_PAID'
+                            ? 'bg-white border-amber-400 hover:border-amber-500'
+                            : 'bg-rose-50/60 border-rose-500 hover:border-rose-600 ring-2 ring-rose-500/10'
+                        }`}
+                      >
+                        {/* Card Header: Roll No + Class + Status Badge */}
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-900 text-white rounded-lg shadow-2xs">
                             {st.rollNumber}
                           </span>
-                        </td>
-
-                        {/* Direct Call & WhatsApp Button */}
-                        <td className="py-3 px-4">
-                          {st.phone ? (
-                            <div className="flex items-center space-x-1.5">
-                              <a
-                                href={`tel:${st.phone}`}
-                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
-                                title={`Directly dial ${st.phone}`}
-                              >
-                                <Phone className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
-                                <span>{st.phone}</span>
-                              </a>
-                              <a
-                                href={`https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs cursor-pointer"
-                                title={`Chat on WhatsApp`}
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs">No phone</span>
-                          )}
-                        </td>
-
-                        {/* Base Fee */}
-                        <td className="py-3 px-4 font-bold text-slate-700 text-xs">
-                          ₹{st.totalFee.toLocaleString('en-IN')}
-                        </td>
-
-                        {/* Concession / Discount */}
-                        <td className="py-3 px-4">
-                          {st.concessionAmount && st.concessionAmount > 0 ? (
-                            <div className="inline-flex flex-col">
-                              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                <Tag className="w-2.5 h-2.5 text-amber-700" />
-                                <span>-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
-                              </span>
-                              {st.concessionReason && (
-                                <span className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[120px]" title={st.concessionReason}>
-                                  {st.concessionReason}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400">None</span>
-                          )}
-                        </td>
-
-                        {/* Net Payable */}
-                        <td className="py-3 px-4 font-black text-slate-900 text-xs">
-                          ₹{st.netFee.toLocaleString('en-IN')}
-                        </td>
-
-                        {/* Amount Paid */}
-                        <td className="py-3 px-4 font-bold text-emerald-700 text-xs">
-                          ₹{st.amountPaid.toLocaleString('en-IN')}
-                        </td>
-
-                        {/* Amount Pending */}
-                        <td className="py-3 px-4 font-black text-rose-700 text-xs">
-                          ₹{st.amountPending.toLocaleString('en-IN')}
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4">
-                          {st.status === 'PAID' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>PAID</span>
-                            </span>
-                          )}
-                          {st.status === 'PARTIALLY_PAID' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              <span>PARTIAL</span>
-                            </span>
-                          )}
-                          {st.status === 'PENDING' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                              <AlertCircle className="w-3 h-3 text-rose-600" />
-                              <span>PENDING</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => openConcessionModal(st)}
-                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
-                              title="Set or Edit Concession / Discount"
-                            >
-                              <Tag className="w-3 h-3 text-amber-700" />
-                              <span>Concession</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openRecordModal(st)}
-                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-2xs transition flex items-center space-x-1 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Pay</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* MOBILE CARDS VIEW (CampX Mobile Finance Cards) */}
-              <div className="md:hidden divide-y divide-slate-100">
-                {filteredStudents.map((st) => (
-                  <div key={st.studentId} className="p-4 space-y-3 bg-white">
-                    {/* Top Row: Photo + Name + Roll + Status */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-3">
-                        {st.photoUrl ? (
-                          <img
-                            src={st.photoUrl}
-                            alt={st.name}
-                            className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-2xs"
-                          />
-                        ) : (
-                          <div className="w-11 h-11 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-sm">
-                            {st.name.charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-black text-slate-900 text-sm leading-tight">{st.name}</p>
-                          <div className="flex items-center space-x-1.5 mt-0.5">
-                            <span className="font-mono text-[11px] font-black px-1.5 py-0.2 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                              {st.rollNumber}
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-medium">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                               Grade {st.classGrade || 'N/A'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                st.status === 'PAID'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : st.status === 'PARTIALLY_PAID'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                              }`}
+                            >
+                              {st.status === 'PAID' ? 'Paid' : st.status === 'PARTIALLY_PAID' ? 'Partial' : 'Pending'}
                             </span>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Status Badge */}
-                      {st.status === 'PAID' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          PAID
-                        </span>
-                      )}
-                      {st.status === 'PARTIALLY_PAID' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          PARTIAL
-                        </span>
-                      )}
-                      {st.status === 'PENDING' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                          PENDING
-                        </span>
-                      )}
-                    </div>
+                        {/* Card Center: Student Avatar + Name + School */}
+                        <div className="flex items-start space-x-3 pt-1">
+                          {st.photoUrl ? (
+                            <img
+                              src={st.photoUrl}
+                              alt={st.name}
+                              className={`w-12 h-12 rounded-full object-cover border-2 shadow-xs shrink-0 ${
+                                st.status === 'PAID' ? 'border-emerald-500' : st.status === 'PARTIALLY_PAID' ? 'border-amber-400' : 'border-rose-500'
+                              }`}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-800 font-black flex items-center justify-center text-sm shadow-xs shrink-0 border-2 border-teal-300">
+                              {st.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-black text-slate-900 text-sm leading-snug truncate" title={st.name}>
+                              {st.name}
+                            </h4>
+                            {st.schoolName && (
+                              <p className="text-[11px] text-slate-500 truncate" title={st.schoolName}>
+                                {st.schoolName}
+                              </p>
+                            )}
 
-                    {/* Direct Contact Buttons (Call & WhatsApp) */}
-                    {st.phone && (
-                      <div className="flex items-center space-x-2">
-                        <a
-                          href={`tel:${st.phone}`}
-                          className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
-                        >
-                          <Phone className="w-4 h-4 text-emerald-600" />
-                          <span>Call: {st.phone}</span>
-                        </a>
-                        <a
-                          href={`https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs cursor-pointer"
-                          title="WhatsApp Chat"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </a>
-                      </div>
-                    )}
+                            {/* Direct Contact Buttons */}
+                            {st.phone ? (
+                              <div className="flex items-center space-x-2 mt-1.5">
+                                <a
+                                  href={`tel:${st.phone}`}
+                                  className="inline-flex items-center space-x-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-[11px] font-bold transition shadow-2xs"
+                                  title={`Call ${st.phone}`}
+                                >
+                                  <Phone className="w-3 h-3 text-emerald-600" />
+                                  <span>{st.phone}</span>
+                                </a>
+                                <a
+                                  href={waReminderUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition shadow-2xs"
+                                  title="Send WhatsApp Fee Reminder"
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">No contact</span>
+                            )}
+                          </div>
+                        </div>
 
-                    {/* Financial Metrics Mini-Grid */}
-                    <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Net Payable</span>
-                        <p className="font-black text-slate-900 mt-0.5">₹{st.netFee.toLocaleString('en-IN')}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-emerald-700 font-bold uppercase">Paid</span>
-                        <p className="font-black text-emerald-700 mt-0.5">₹{st.amountPaid.toLocaleString('en-IN')}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-rose-700 font-bold uppercase">Pending</span>
-                        <p className="font-black text-rose-700 mt-0.5">₹{st.amountPending.toLocaleString('en-IN')}</p>
-                      </div>
-                    </div>
+                        {/* Financial Snapshot Box */}
+                        <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 font-medium">Net Fee:</span>
+                            <span className="font-bold text-slate-800">₹{st.netFee.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-emerald-700">
+                            <span className="font-medium">Paid So Far:</span>
+                            <span className="font-black">₹{st.amountPaid.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-rose-700 font-black pt-1 border-t border-slate-200">
+                            <span>Pending Balance:</span>
+                            <span className="text-sm">₹{st.amountPending.toLocaleString('en-IN')}</span>
+                          </div>
 
-                    {st.concessionAmount && st.concessionAmount > 0 ? (
-                      <div className="flex items-center justify-between text-xs px-2 text-amber-900">
-                        <span className="flex items-center space-x-1">
-                          <Tag className="w-3 h-3 text-amber-700" />
-                          <span>Concession ({st.concessionReason || 'Scholarship'}):</span>
-                        </span>
-                        <span className="font-bold">-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                    ) : null}
+                          {/* Collection Progress Bar */}
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                percentPaid >= 100 ? 'bg-emerald-500' : percentPaid > 0 ? 'bg-teal-500' : 'bg-rose-400'
+                              }`}
+                              style={{ width: `${percentPaid}%` }}
+                            ></div>
+                          </div>
 
-                    {/* Mobile Card Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => openConcessionModal(st)}
-                        className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Tag className="w-3.5 h-3.5 text-amber-700" />
-                        <span>Concession</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openRecordModal(st)}
-                        className="py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Record Payment</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                          {st.concessionAmount && st.concessionAmount > 0 ? (
+                            <div className="flex items-center justify-between text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <span>Discount:</span>
+                              <span className="font-bold">-₹{st.concessionAmount.toLocaleString('en-IN')} ({st.concessionReason || 'Scholarship'})</span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {/* Card Actions: Collect Fee, Concession, Receipt */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openRecordModal(st)}
+                            className="flex-1 py-1.5 px-2 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white rounded-lg text-xs font-black transition flex items-center justify-center space-x-1 shadow-2xs cursor-pointer"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Collect</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openConcessionModal(st)}
+                            className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                            title="Apply Concession or Scholarship"
+                          >
+                            <Tag className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Discount</span>
+                          </button>
+                          {st.amountPaid > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveReceipt({
+                                  id: `REC-${st.rollNumber}`,
+                                  receiptNumber: `REC-${st.rollNumber}`,
+                                  studentId: st.studentId,
+                                  studentName: st.name,
+                                  studentRollNumber: st.rollNumber,
+                                  amount: st.amountPaid,
+                                  paymentDate: st.lastPaymentDate || new Date().toISOString().split('T')[0],
+                                  paymentMethod: st.lastPaymentMethod || 'UPI',
+                                  remainingPending: st.amountPending,
+                                  totalFee: st.totalFee,
+                                  totalPaid: st.amountPaid,
+                                  recordedByName: 'Finance Desk',
+                                });
+                                setReceiptModalOpen(true);
+                              }}
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                              title="View Fee Receipt"
+                            >
+                              <Receipt className="w-3.5 h-3.5 text-teal-600" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 2. CAMPX FINANCIAL LEDGER TABLE VIEW */}
+              {feeViewMode === 'TABLE' && (
+                <div className="overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
+                      <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Roll Number</th>
+                        <th className="py-3 px-4">Contact & Chat</th>
+                        <th className="py-3 px-4">Base Fee</th>
+                        <th className="py-3 px-4">Concession</th>
+                        <th className="py-3 px-4">Net Payable</th>
+                        <th className="py-3 px-4">Paid</th>
+                        <th className="py-3 px-4">Pending</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {filteredStudents.map((st) => (
+                        <tr key={st.studentId} className="hover:bg-slate-50/80 transition">
+                          {/* Student Info */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              {st.photoUrl ? (
+                                <img
+                                  src={st.photoUrl}
+                                  alt={st.name}
+                                  className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-xs">
+                                  {st.name.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-bold text-slate-900 text-sm leading-tight">{st.name}</p>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  Grade {st.classGrade || 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Roll Number Pill */}
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                              {st.rollNumber}
+                            </span>
+                          </td>
+
+                          {/* Direct Call & WhatsApp Button */}
+                          <td className="py-3 px-4">
+                            {st.phone ? (
+                              <div className="flex items-center space-x-1.5">
+                                <a
+                                  href={`tel:${st.phone}`}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
+                                  title={`Directly dial ${st.phone}`}
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                  <span>{st.phone}</span>
+                                </a>
+                                <a
+                                  href={`https://wa.me/91${st.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                                    `Dear Parent of ${st.name} (Roll: ${st.rollNumber}), this is an official fee reminder from Pragathi AI. Pending balance is ₹${st.amountPending}. Thank you!`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs cursor-pointer"
+                                  title={`Send WhatsApp Fee Reminder`}
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">No phone</span>
+                            )}
+                          </td>
+
+                          {/* Base Fee */}
+                          <td className="py-3 px-4 text-xs font-bold text-slate-700">
+                            ₹{st.totalFee.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Concession / Discount */}
+                          <td className="py-3 px-4 text-xs">
+                            {st.concessionAmount && st.concessionAmount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => openConcessionModal(st)}
+                                className="group inline-flex items-center space-x-1 text-amber-800 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md cursor-pointer transition"
+                                title="Click to edit concession"
+                              >
+                                <Tag className="w-3 h-3 text-amber-600" />
+                                <span>-₹{st.concessionAmount.toLocaleString('en-IN')}</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openConcessionModal(st)}
+                                className="text-slate-400 hover:text-teal-700 text-[11px] underline cursor-pointer"
+                              >
+                                + Add
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Net Payable */}
+                          <td className="py-3 px-4 text-xs font-black text-slate-900">
+                            ₹{st.netFee.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Paid */}
+                          <td className="py-3 px-4 text-xs font-bold text-emerald-700">
+                            ₹{st.amountPaid.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Pending Balance */}
+                          <td className="py-3 px-4 text-xs font-black">
+                            <span
+                              className={
+                                st.amountPending > 0
+                                  ? 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200'
+                                  : 'text-slate-400'
+                              }
+                            >
+                              ₹{st.amountPending.toLocaleString('en-IN')}
+                            </span>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                st.status === 'PAID'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : st.status === 'PARTIALLY_PAID'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                              }`}
+                            >
+                              {st.status === 'PAID'
+                                ? 'Paid'
+                                : st.status === 'PARTIALLY_PAID'
+                                ? 'Partial'
+                                : 'Pending'}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openRecordModal(st)}
+                                className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition shadow-2xs flex items-center space-x-1 cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Collect</span>
+                              </button>
+
+                              {st.amountPaid > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveReceipt({
+                                      id: `REC-${st.rollNumber}`,
+                                      receiptNumber: `REC-${st.rollNumber}`,
+                                      studentId: st.studentId,
+                                      studentName: st.name,
+                                      studentRollNumber: st.rollNumber,
+                                      amount: st.amountPaid,
+                                      paymentDate: st.lastPaymentDate || new Date().toISOString().split('T')[0],
+                                      paymentMethod: st.lastPaymentMethod || 'UPI',
+                                      remainingPending: st.amountPending,
+                                      totalFee: st.totalFee,
+                                      totalPaid: st.amountPaid,
+                                      recordedByName: 'Finance Desk',
+                                    });
+                                    setReceiptModalOpen(true);
+                                  }}
+                                  className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                                  title="View Receipt"
+                                >
+                                  <Receipt className="w-3.5 h-3.5 text-teal-600" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* CampX High-Density Footer Bar */}
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">

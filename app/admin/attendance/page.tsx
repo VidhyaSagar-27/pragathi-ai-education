@@ -21,6 +21,11 @@ import {
   Phone,
   ChevronLeft,
   ChevronRight,
+  LayoutGrid,
+  List,
+  Bell,
+  Users,
+  X,
 } from 'lucide-react';
 import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
 import QuickNavigationHeader from '@/components/QuickNavigationHeader';
@@ -80,6 +85,8 @@ export default function AdminAttendancePage() {
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [overviewData, setOverviewData] = useState<AttendanceOverviewData | null>(null);
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
+  const [absenteeModalOpen, setAbsenteeModalOpen] = useState<boolean>(false);
 
   // Load attendance for the selected date
   const loadDateAttendance = async (dateStr: string) => {
@@ -290,6 +297,34 @@ export default function AdminAttendancePage() {
         <>
           {/* Calendar & Date Status Card */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            {/* CampX Campus Session Banner */}
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4.5 rounded-xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                    CampX Academic Session
+                  </span>
+                  <span className="text-xs text-slate-400">• Period 1 • Daily Roster</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center space-x-2">
+                  <span>Pragathi AI Foundation Program</span>
+                </h3>
+              </div>
+              <div className="flex items-center space-x-2 self-start md:self-auto">
+                {isMarkedAlready ? (
+                  <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Saved & Synced</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-full">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Unsaved Session</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Status & Edit/Remove Notice Banner */}
             {isMarkedAlready ? (
               <div className="p-3.5 bg-emerald-50/90 border border-emerald-200 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-950">
@@ -524,9 +559,9 @@ export default function AdminAttendancePage() {
 
           {/* Student Roster Card */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-            {/* Filter & Search Header */}
-            <div className="p-4 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
-              <div className="relative w-full sm:w-80">
+            {/* CampX Filter & View Control Header */}
+            <div className="p-4 border-b border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70">
+              <div className="relative w-full md:w-80">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
@@ -537,26 +572,78 @@ export default function AdminAttendancePage() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
-                <div className="flex items-center space-x-1">
-                  {(['ALL', 'PRESENT', 'ABSENT'] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setStatusFilter(st)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        statusFilter === st
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {st === 'ALL' ? 'All' : st === 'PRESENT' ? 'Present' : 'Absent'}
-                    </button>
-                  ))}
+              <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+                {/* Status Filter Chips with Live Tallies */}
+                <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('ALL')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      statusFilter === 'ALL'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>All</span>
+                    <span className="text-[10px] opacity-75 font-mono">({rosterForClass.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('PRESENT')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      statusFilter === 'PRESENT'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Present</span>
+                    <span className="text-[10px] opacity-90 font-mono">({presentCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('ABSENT')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      statusFilter === 'ABSENT'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'text-rose-700 hover:bg-rose-50'
+                    }`}
+                  >
+                    <XCircle className="w-3 h-3" />
+                    <span>Absent</span>
+                    <span className="text-[10px] opacity-90 font-mono">({absentCount})</span>
+                  </button>
                 </div>
 
-                <span className="text-xs text-slate-500 font-semibold pl-2 border-l border-slate-200">
-                  <strong className="text-slate-800">{filteredRoster.length}</strong> students
-                </span>
+                {/* CampX Dual View Switcher */}
+                <div className="flex items-center space-x-1 bg-slate-200/80 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('GRID')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      viewMode === 'GRID'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="CampX Roll Call Grid"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Roll Grid</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('TABLE')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                      viewMode === 'TABLE'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Continuous Roster Table"
+                  >
+                    <List className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Table</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -571,259 +658,292 @@ export default function AdminAttendancePage() {
               </div>
             ) : (
               <>
-                {/* DESKTOP TABLE VIEW (hidden on mobile) */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                        <th className="py-3 px-4">Roll Number</th>
-                        <th className="py-3 px-4">Student</th>
-                        <th className="py-3 px-4">Class & School</th>
-                        <th className="py-3 px-4">Direct Contact</th>
-                        <th className="py-3 px-4">Attendance Status</th>
-                        <th className="py-3 px-4">Remarks (Optional)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
-                      {filteredRoster.map((student) => {
-                        const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                        return (
-                          <tr
-                            key={student.studentId}
-                            className={`hover:bg-slate-50/80 transition ${
-                              !isPresent ? 'bg-rose-50/20' : ''
-                            }`}
-                          >
-                            {/* Roll Number Pill */}
-                            <td className="py-3 px-4">
-                              <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                                {student.rollNumber || '—'}
+                {/* 1. CAMPX SIGNATURE ROLL CALL GRID VIEW */}
+                {viewMode === 'GRID' && (
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 bg-slate-50/50">
+                    {filteredRoster.map((student) => {
+                      const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                      return (
+                        <div
+                          key={student.studentId}
+                          className={`rounded-2xl p-4 transition-all duration-200 border-2 shadow-2xs hover:shadow-md flex flex-col justify-between space-y-3 ${
+                            isPresent
+                              ? 'bg-white border-emerald-500/80 hover:border-emerald-600'
+                              : 'bg-rose-50/70 border-rose-500 hover:border-rose-600 ring-2 ring-rose-500/15'
+                          }`}
+                        >
+                          {/* Card Top: Roll Number + Class + Status Badge */}
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-900 text-white rounded-lg shadow-2xs">
+                              {student.rollNumber || '—'}
+                            </span>
+                            <div className="flex items-center space-x-1.5">
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                {formatClassLabel(student.classGrade || '')}
                               </span>
-                            </td>
+                              <span
+                                className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  isPresent
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                }`}
+                              >
+                                <span>{isPresent ? 'Present' : 'Absent'}</span>
+                              </span>
+                            </div>
+                          </div>
 
-                            {/* Student Info with Avatar */}
-                            <td className="py-3 px-4">
-                              <div className="flex items-center space-x-3">
-                                {student.photoUrl ? (
-                                  <img
-                                    src={student.photoUrl}
-                                    alt={student.name}
-                                    className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
-                                      isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
-                                    }`}
-                                  />
-                                ) : (
-                                  <div
-                                    className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
-                                      isPresent
-                                        ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
-                                        : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
-                                    }`}
-                                  >
-                                    {student.name.charAt(0)}
-                                  </div>
-                                )}
-                                <div>
-                                  <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Class & School */}
-                            <td className="py-3 px-4">
-                              <div className="text-xs">
-                                <span className="font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                                  {formatClassLabel(student.classGrade || '')}
-                                </span>
-                                {student.schoolName && (
-                                  <p className="text-[11px] text-slate-500 mt-1 truncate max-w-xs">
-                                    {student.schoolName}
-                                  </p>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* Direct Phone Call & WhatsApp Button */}
-                            <td className="py-3 px-4">
-                              {student.phone ? (
-                                <div className="flex items-center space-x-1.5">
-                                  <a
-                                    href={`tel:${student.phone}`}
-                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
-                                    title={`Call ${student.phone}`}
-                                  >
-                                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>{student.phone}</span>
-                                  </a>
-                                  <a
-                                    href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
-                                    title={`Chat on WhatsApp`}
-                                  >
-                                    <MessageSquare className="w-3.5 h-3.5" />
-                                  </a>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-xs">No phone</span>
-                              )}
-                            </td>
-
-                            {/* Present / Absent Toggle Buttons */}
-                            <td className="py-3 px-4">
-                              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleStudent(student.studentId, 'PRESENT')}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                    isPresent
-                                      ? 'bg-emerald-600 text-white shadow-2xs'
-                                      : 'text-slate-600 hover:text-slate-900'
-                                  }`}
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Present</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleStudent(student.studentId, 'ABSENT')}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                    !isPresent
-                                      ? 'bg-rose-600 text-white shadow-2xs'
-                                      : 'text-slate-600 hover:text-slate-900'
-                                  }`}
-                                >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  <span>Absent</span>
-                                </button>
-                              </div>
-                            </td>
-
-                            {/* Remarks Input */}
-                            <td className="py-3 px-4">
-                              <input
-                                type="text"
-                                placeholder="e.g. Late 10m, Fever, Leave"
-                                value={student.remarks}
-                                onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                                className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* MOBILE CARDS VIEW (CampX Touch Roster) */}
-                <div className="md:hidden divide-y divide-slate-100">
-                  {filteredRoster.map((student) => {
-                    const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                    return (
-                      <div
-                        key={student.studentId}
-                        className={`p-4 space-y-3 transition ${!isPresent ? 'bg-rose-50/25' : 'bg-white'}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
+                          {/* Card Center: Avatar + Name + School + Call/WhatsApp */}
+                          <div className="flex items-start space-x-3 pt-1">
                             {student.photoUrl ? (
                               <img
                                 src={student.photoUrl}
                                 alt={student.name}
-                                className={`w-11 h-11 rounded-full object-cover border ${
-                                  isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                className={`w-12 h-12 rounded-full object-cover border-2 shadow-xs shrink-0 ${
+                                  isPresent
+                                    ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                                    : 'border-rose-500 ring-2 ring-rose-500/30'
                                 }`}
                               />
                             ) : (
                               <div
-                                className={`w-11 h-11 rounded-full font-bold flex items-center justify-center text-sm ${
+                                className={`w-12 h-12 rounded-full font-black flex items-center justify-center text-sm shadow-xs shrink-0 ${
                                   isPresent
-                                    ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
-                                    : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                    ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500'
+                                    : 'bg-rose-100 text-rose-800 border-2 border-rose-500'
                                 }`}
                               >
                                 {student.name.charAt(0)}
                               </div>
                             )}
-                            <div>
-                              <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
-                              <div className="flex items-center space-x-1.5 mt-0.5">
-                                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">
-                                  {student.rollNumber || '—'}
-                                </span>
-                                <span className="text-[11px] text-teal-800 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                                  {formatClassLabel(student.classGrade || '')}
-                                </span>
-                              </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-black text-slate-900 text-sm leading-snug truncate" title={student.name}>
+                                {student.name}
+                              </h4>
+                              {student.schoolName && (
+                                <p className="text-[11px] text-slate-500 truncate" title={student.schoolName}>
+                                  {student.schoolName}
+                                </p>
+                              )}
+                              {student.phone ? (
+                                <div className="flex items-center space-x-2 mt-1.5">
+                                  <a
+                                    href={`tel:${student.phone}`}
+                                    className="inline-flex items-center space-x-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-[11px] font-bold transition shadow-2xs"
+                                    title={`Call ${student.phone}`}
+                                  >
+                                    <Phone className="w-3 h-3 text-emerald-600" />
+                                    <span>{student.phone}</span>
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                                      `Dear Parent, regarding ${student.name} (Roll: ${student.rollNumber || 'N/A'}) - Pragathi AI attendance update.`
+                                    )}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition shadow-2xs"
+                                    title="Chat on WhatsApp"
+                                  >
+                                    <MessageSquare className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400">No contact</span>
+                              )}
                             </div>
                           </div>
 
-                          {student.phone && (
-                            <div className="flex items-center space-x-1">
-                              <a
-                                href={`tel:${student.phone}`}
-                                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
-                                title={`Call ${student.phone}`}
+                          {/* Card Bottom: Tactile Present/Absent Toggle Switch */}
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleStudent(student.studentId, 'PRESENT')}
+                                className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                                  isPresent
+                                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-600/30'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                }`}
                               >
-                                <Phone className="w-4 h-4 text-emerald-600" />
-                              </a>
-                              <a
-                                href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs"
-                                title={`WhatsApp Chat`}
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>Present</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleStudent(student.studentId, 'ABSENT')}
+                                className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                                  !isPresent
+                                    ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-600/30'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                }`}
                               >
-                                <MessageSquare className="w-4 h-4" />
-                              </a>
+                                <XCircle className="w-4 h-4" />
+                                <span>Absent</span>
+                              </button>
                             </div>
-                          )}
-                        </div>
 
-                        {/* CampX Big Touch-Friendly Present / Absent Toggle Buttons */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleStudent(student.studentId, 'PRESENT')}
-                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-                              isPresent
-                                ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Present</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleStudent(student.studentId, 'ABSENT')}
-                            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-                              !isPresent
-                                ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                          >
-                            <XCircle className="w-4 h-4" />
-                            <span>Absent</span>
-                          </button>
+                            {/* Remarks Input */}
+                            <input
+                              type="text"
+                              placeholder="Optional remark (e.g. sick, late)..."
+                              value={student.remarks}
+                              onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                              className="w-full px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        {/* Remarks Input */}
-                        <div>
-                          <input
-                            type="text"
-                            placeholder="Optional remark (e.g. late, sick)..."
-                            value={student.remarks}
-                            onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                            className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* 2. CAMPX ROSTER TABLE VIEW */}
+                {viewMode === 'TABLE' && (
+                  <div className="overflow-x-auto max-h-[680px] overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
+                        <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          <th className="py-3 px-4">Roll Number</th>
+                          <th className="py-3 px-4">Student</th>
+                          <th className="py-3 px-4">Class & School</th>
+                          <th className="py-3 px-4">Direct Contact</th>
+                          <th className="py-3 px-4">Attendance Status</th>
+                          <th className="py-3 px-4">Remarks (Optional)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        {filteredRoster.map((student) => {
+                          const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                          return (
+                            <tr
+                              key={student.studentId}
+                              className={`hover:bg-slate-50/80 transition ${
+                                !isPresent ? 'bg-rose-50/20' : ''
+                              }`}
+                            >
+                              {/* Roll Number Pill */}
+                              <td className="py-3 px-4">
+                                <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                                  {student.rollNumber || '—'}
+                                </span>
+                              </td>
+
+                              {/* Student Info with Avatar */}
+                              <td className="py-3 px-4">
+                                <div className="flex items-center space-x-3">
+                                  {student.photoUrl ? (
+                                    <img
+                                      src={student.photoUrl}
+                                      alt={student.name}
+                                      className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
+                                        isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                      }`}
+                                    />
+                                  ) : (
+                                    <div
+                                      className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
+                                        isPresent
+                                          ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                          : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                      }`}
+                                    >
+                                      {student.name.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Class & School */}
+                              <td className="py-3 px-4">
+                                <div className="text-xs">
+                                  <span className="font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                                    {formatClassLabel(student.classGrade || '')}
+                                  </span>
+                                  {student.schoolName && (
+                                    <p className="text-[11px] text-slate-500 mt-1 truncate max-w-xs">
+                                      {student.schoolName}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Direct Phone Call & WhatsApp Button */}
+                              <td className="py-3 px-4">
+                                {student.phone ? (
+                                  <div className="flex items-center space-x-1.5">
+                                    <a
+                                      href={`tel:${student.phone}`}
+                                      className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                                      title={`Call ${student.phone}`}
+                                    >
+                                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>{student.phone}</span>
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
+                                      title={`Chat on WhatsApp`}
+                                    >
+                                      <MessageSquare className="w-3.5 h-3.5" />
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">No phone</span>
+                                )}
+                              </td>
+
+                              {/* Present / Absent Toggle Buttons */}
+                              <td className="py-3 px-4">
+                                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleStudent(student.studentId, 'PRESENT')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                      isPresent
+                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Present</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleStudent(student.studentId, 'ABSENT')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                      !isPresent
+                                        ? 'bg-rose-600 text-white shadow-2xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>Absent</span>
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Remarks Input */}
+                              <td className="py-3 px-4">
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Late 10m, Fever, Leave"
+                                  value={student.remarks}
+                                  onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                                  className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {/* Bottom Footer Info */}
                 <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-medium">
@@ -863,21 +983,36 @@ export default function AdminAttendancePage() {
                     <span className="hidden sm:inline font-bold text-teal-300">{percentage}% Rate</span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleSaveAttendance}
-                    disabled={saving || roster.length === 0}
-                    className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>
-                      {saving
-                        ? 'Saving...'
-                        : isMarkedAlready
-                        ? 'Update Changes'
-                        : 'Save Attendance'}
-                    </span>
-                  </button>
+                  <div className="flex items-center space-x-2.5">
+                    {absentCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAbsenteeModalOpen(true)}
+                        className="px-3.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+                        title="Review and notify absent students"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="hidden sm:inline">Notify Absentees ({absentCount})</span>
+                        <span className="sm:hidden">Notify ({absentCount})</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleSaveAttendance}
+                      disabled={saving || roster.length === 0}
+                      className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>
+                        {saving
+                          ? 'Saving...'
+                          : isMarkedAlready
+                          ? 'Update Changes'
+                          : 'Save Attendance'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -1078,6 +1213,85 @@ export default function AdminAttendancePage() {
           if (remarks) updateRemark(studentId, remarks);
         }}
       />
+      {/* CampX Absentee Notification Modal */}
+      {absenteeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-scaleIn space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-rose-50 rounded-xl text-rose-700">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Notify Absent Students ({rosterForClass.filter((s) => s.status === 'ABSENT').length})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Session Date: {selectedDate} • Quick WhatsApp Alerts
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAbsenteeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              The following students are marked <strong>ABSENT</strong> for this class session. Click the WhatsApp button to send an official absence notification to their parents.
+            </p>
+
+            <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
+              {rosterForClass
+                .filter((s) => s.status === 'ABSENT')
+                .map((student) => (
+                  <div key={student.studentId} className="py-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-[11px] font-black px-1.5 py-0.5 bg-slate-100 text-slate-800 rounded">
+                          {student.rollNumber || '—'}
+                        </span>
+                        <p className="text-xs font-bold text-slate-900 truncate">{student.name}</p>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {student.phone ? `Phone: ${student.phone}` : 'No phone registered'}
+                      </p>
+                    </div>
+
+                    {student.phone ? (
+                      <a
+                        href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                          `Dear Parent, this is an official update from Pragathi AI. Your ward ${student.name} (Roll: ${student.rollNumber || 'N/A'}) was marked ABSENT today (${selectedDate}) for the class session. Please inform the instructor if this absence was excused. Thank you!`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shrink-0 shadow-2xs"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Send WhatsApp</span>
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">No contact</span>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAbsenteeModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

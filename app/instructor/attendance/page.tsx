@@ -17,6 +17,10 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
+  LayoutGrid,
+  List,
+  Bell,
+  X,
 } from 'lucide-react';
 import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
 import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
@@ -53,6 +57,9 @@ export default function InstructorAttendancePage() {
   const [markerInfo, setMarkerInfo] = useState<any>(null);
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'ABSENT'>('ALL');
+  const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
+  const [absenteeModalOpen, setAbsenteeModalOpen] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
   const [addStudentOpen, setAddStudentOpen] = useState<boolean>(false);
@@ -181,13 +188,18 @@ export default function InstructorAttendancePage() {
   };
 
   const filteredRoster = useMemo(() => {
-    return rosterForClass.filter(
-      (s) =>
+    return rosterForClass.filter((s) => {
+      const matchesSearch =
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.phone.includes(searchQuery)
-    );
-  }, [rosterForClass, searchQuery]);
+        s.phone.includes(searchQuery);
+
+      if (!matchesSearch) return false;
+      if (statusFilter === 'PRESENT') return s.status === 'PRESENT' || s.status === 'LATE';
+      if (statusFilter === 'ABSENT') return s.status === 'ABSENT';
+      return true;
+    });
+  }, [rosterForClass, searchQuery, statusFilter]);
 
   const presentCount = rosterForClass.filter((s) => s.status === 'PRESENT' || s.status === 'LATE').length;
   const absentCount = rosterForClass.filter((s) => s.status === 'ABSENT').length;
@@ -223,6 +235,34 @@ export default function InstructorAttendancePage() {
 
       {/* Date Control Card */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        {/* CampX Campus Session Banner */}
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4.5 rounded-xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                CampX Academic Session
+              </span>
+              <span className="text-xs text-slate-400">• Period 1 • Daily Roster</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center space-x-2">
+              <span>Pragathi AI Foundation Program</span>
+            </h3>
+          </div>
+          <div className="flex items-center space-x-2 self-start md:self-auto">
+            {isMarkedAlready ? (
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-full">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Saved & Synced</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-full">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Unsaved Session</span>
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Status & Edit/Remove Notice Banner */}
         {isMarkedAlready ? (
           <div className="p-3.5 bg-emerald-50/90 border border-emerald-200 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-950">
@@ -434,23 +474,91 @@ export default function InstructorAttendancePage() {
 
       {/* Roster Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        {/* Search Header */}
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
-          <div className="relative w-full sm:w-80">
+        {/* CampX Filter & View Control Header */}
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70">
+          <div className="relative w-full md:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search student, roll number, or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
             />
           </div>
 
-          <div className="flex items-center space-x-2 self-end sm:self-auto">
-            <span className="text-xs text-slate-500 font-semibold pl-2">
-              Showing <strong className="text-slate-800">{filteredRoster.length}</strong> of {rosterForClass.length} students
-            </span>
+          <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+            {/* Status Filter Chips with Live Tallies */}
+            <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  statusFilter === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>All</span>
+                <span className="text-[10px] opacity-75 font-mono">({rosterForClass.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('PRESENT')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  statusFilter === 'PRESENT'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Present</span>
+                <span className="text-[10px] opacity-90 font-mono">({presentCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ABSENT')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  statusFilter === 'ABSENT'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-rose-700 hover:bg-rose-50'
+                }`}
+              >
+                <XCircle className="w-3 h-3" />
+                <span>Absent</span>
+                <span className="text-[10px] opacity-90 font-mono">({absentCount})</span>
+              </button>
+            </div>
+
+            {/* CampX Dual View Switcher */}
+            <div className="flex items-center space-x-1 bg-slate-200/80 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setViewMode('GRID')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  viewMode === 'GRID'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="CampX Roll Call Grid"
+              >
+                <LayoutGrid className="w-3.5 h-3.5 text-teal-600" />
+                <span>Roll Grid</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('TABLE')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  viewMode === 'TABLE'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Continuous Roster Table"
+              >
+                <List className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Table</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -465,252 +573,285 @@ export default function InstructorAttendancePage() {
           </div>
         ) : (
           <>
-            {/* DESKTOP TABLE VIEW (CampX Data Grid with Sticky Header) */}
-            <div className="hidden md:block overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
-                  <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    <th className="py-3 px-4">Roll Number</th>
-                    <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Class</th>
-                    <th className="py-3 px-4">Contact & Chat</th>
-                    <th className="py-3 px-4">Attendance Status</th>
-                    <th className="py-3 px-4">Remarks (Optional)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredRoster.map((student) => {
-                    const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                    return (
-                      <tr
-                        key={student.studentId}
-                        className={`hover:bg-slate-50/80 transition ${
-                          !isPresent ? 'bg-rose-50/20' : ''
-                        }`}
-                      >
-                        {/* Roll Number */}
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                            {student.rollNumber || '—'}
-                          </span>
-                        </td>
-
-                        {/* Student Info */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-3">
-                            {student.photoUrl ? (
-                              <img
-                                src={student.photoUrl}
-                                alt={student.name}
-                                className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
-                                  isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
-                                }`}
-                              />
-                            ) : (
-                              <div
-                                className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
-                                  isPresent
-                                    ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
-                                    : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
-                                }`}
-                              >
-                                {student.name.charAt(0)}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm leading-tight">{student.name}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Class */}
-                        <td className="py-3 px-4">
-                          <span className="font-bold text-xs px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+            {/* 1. CAMPX SIGNATURE ROLL CALL GRID VIEW */}
+            {viewMode === 'GRID' && (
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 bg-slate-50/50">
+                {filteredRoster.map((student) => {
+                  const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                  return (
+                    <div
+                      key={student.studentId}
+                      className={`rounded-2xl p-4 transition-all duration-200 border-2 shadow-2xs hover:shadow-md flex flex-col justify-between space-y-3 ${
+                        isPresent
+                          ? 'bg-white border-emerald-500/80 hover:border-emerald-600'
+                          : 'bg-rose-50/70 border-rose-500 hover:border-rose-600 ring-2 ring-rose-500/15'
+                      }`}
+                    >
+                      {/* Card Top: Roll Number + Class + Status Badge */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-900 text-white rounded-lg shadow-2xs">
+                          {student.rollNumber || '—'}
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
                             {formatClassLabel(student.classGrade || '')}
                           </span>
-                        </td>
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              isPresent
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                            }`}
+                          >
+                            <span>{isPresent ? 'Present' : 'Absent'}</span>
+                          </span>
+                        </div>
+                      </div>
 
-                        {/* Direct Phone Call & WhatsApp */}
-                        <td className="py-3 px-4">
-                          {student.phone ? (
-                            <div className="flex items-center space-x-1.5">
-                              <a
-                                href={`tel:${student.phone}`}
-                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
-                                title={`Call ${student.phone}`}
-                              >
-                                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>{student.phone}</span>
-                              </a>
-                              <a
-                                href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
-                                title={`Chat on WhatsApp`}
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs">No phone</span>
-                          )}
-                        </td>
-
-                        {/* Present / Absent Toggle Buttons */}
-                        <td className="py-3 px-4">
-                          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => toggleStatus(student.studentId, 'PRESENT')}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                isPresent
-                                  ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Present</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleStatus(student.studentId, 'ABSENT')}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                                !isPresent
-                                  ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>Absent</span>
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Remarks */}
-                        <td className="py-3 px-4">
-                          <input
-                            type="text"
-                            placeholder="e.g. Late, Medical"
-                            value={student.remarks}
-                            onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                            className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* MOBILE CARDS VIEW (CampX Mobile Roster) */}
-            <div className="md:hidden divide-y divide-slate-100">
-              {filteredRoster.map((student) => {
-                const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
-                return (
-                  <div
-                    key={student.studentId}
-                    className={`p-4 space-y-3 transition ${!isPresent ? 'bg-rose-50/25' : 'bg-white'}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
+                      {/* Card Center: Avatar + Name + School + Call/WhatsApp */}
+                      <div className="flex items-start space-x-3 pt-1">
                         {student.photoUrl ? (
                           <img
                             src={student.photoUrl}
                             alt={student.name}
-                            className={`w-11 h-11 rounded-full object-cover border ${
-                              isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                            className={`w-12 h-12 rounded-full object-cover border-2 shadow-xs shrink-0 ${
+                              isPresent
+                                ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                                : 'border-rose-500 ring-2 ring-rose-500/30'
                             }`}
                           />
                         ) : (
                           <div
-                            className={`w-11 h-11 rounded-full font-bold flex items-center justify-center text-sm ${
+                            className={`w-12 h-12 rounded-full font-black flex items-center justify-center text-sm shadow-xs shrink-0 ${
                               isPresent
-                                ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
-                                : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500'
+                                : 'bg-rose-100 text-rose-800 border-2 border-rose-500'
                             }`}
                           >
                             {student.name.charAt(0)}
                           </div>
                         )}
-                        <div>
-                          <p className="font-black text-slate-900 text-sm leading-tight">{student.name}</p>
-                          <div className="flex items-center space-x-1.5 mt-0.5">
-                            <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              {student.rollNumber || '—'}
-                            </span>
-                            <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                              {formatClassLabel(student.classGrade || '')}
-                            </span>
-                          </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-black text-slate-900 text-sm leading-snug truncate" title={student.name}>
+                            {student.name}
+                          </h4>
+                          {student.schoolName && (
+                            <p className="text-[11px] text-slate-500 truncate" title={student.schoolName}>
+                              {student.schoolName}
+                            </p>
+                          )}
+                          {student.phone ? (
+                            <div className="flex items-center space-x-2 mt-1.5">
+                              <a
+                                href={`tel:${student.phone}`}
+                                className="inline-flex items-center space-x-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-[11px] font-bold transition shadow-2xs"
+                                title={`Call ${student.phone}`}
+                              >
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                <span>{student.phone}</span>
+                              </a>
+                              <a
+                                href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                                  `Dear Parent, regarding ${student.name} (Roll: ${student.rollNumber || 'N/A'}) - Pragathi AI attendance update.`
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition shadow-2xs"
+                                title="Chat on WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">No contact</span>
+                          )}
                         </div>
                       </div>
 
-                      {student.phone && (
-                        <div className="flex items-center space-x-1">
-                          <a
-                            href={`tel:${student.phone}`}
-                            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl transition shadow-2xs"
-                            title={`Call ${student.phone}`}
+                      {/* Card Bottom: Tactile Present/Absent Toggle Switch */}
+                      <div className="pt-2 border-t border-slate-100 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(student.studentId, 'PRESENT')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                              isPresent
+                                ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-600/30'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
                           >
-                            <Phone className="w-4 h-4 text-emerald-600" />
-                          </a>
-                          <a
-                            href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition shadow-2xs"
-                            title={`WhatsApp Chat`}
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Present</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(student.studentId, 'ABSENT')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                              !isPresent
+                                ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-600/30'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
                           >
-                            <MessageSquare className="w-4 h-4" />
-                          </a>
+                            <XCircle className="w-4 h-4" />
+                            <span>Absent</span>
+                          </button>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Present / Absent Action Bar */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(student.studentId, 'PRESENT')}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-                          isPresent
-                            ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-600/30'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Present</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(student.studentId, 'ABSENT')}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-                          !isPresent
-                            ? 'bg-rose-600 text-white shadow-2xs ring-2 ring-rose-600/30'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        <XCircle className="w-4 h-4" />
-                        <span>Absent</span>
-                      </button>
+                        {/* Remarks Input */}
+                        <input
+                          type="text"
+                          placeholder="Optional remark (e.g. sick, late)..."
+                          value={student.remarks}
+                          onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                          className="w-full px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
 
-                    {/* Remarks Input on Mobile */}
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Remarks (e.g. Late, Medical)"
-                        value={student.remarks}
-                        onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {/* 2. CAMPX ROSTER TABLE VIEW */}
+            {viewMode === 'TABLE' && (
+              <div className="overflow-x-auto max-h-[680px] overflow-y-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
+                    <tr className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                      <th className="py-3 px-4">Roll Number</th>
+                      <th className="py-3 px-4">Student</th>
+                      <th className="py-3 px-4">Class</th>
+                      <th className="py-3 px-4">Contact & Chat</th>
+                      <th className="py-3 px-4">Attendance Status</th>
+                      <th className="py-3 px-4">Remarks (Optional)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredRoster.map((student) => {
+                      const isPresent = student.status === 'PRESENT' || student.status === 'LATE';
+                      return (
+                        <tr
+                          key={student.studentId}
+                          className={`hover:bg-slate-50/80 transition ${
+                            !isPresent ? 'bg-rose-50/20' : ''
+                          }`}
+                        >
+                          {/* Roll Number */}
+                          <td className="py-3 px-4">
+                            <span className="font-mono text-xs font-black px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                              {student.rollNumber || '—'}
+                            </span>
+                          </td>
+
+                          {/* Student Info */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              {student.photoUrl ? (
+                                <img
+                                  src={student.photoUrl}
+                                  alt={student.name}
+                                  className={`w-9 h-9 rounded-full object-cover border shadow-2xs ${
+                                    isPresent ? 'ring-2 ring-emerald-500 border-white' : 'ring-2 ring-rose-500 border-white'
+                                  }`}
+                                />
+                              ) : (
+                                <div
+                                  className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs ${
+                                    isPresent
+                                      ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500'
+                                      : 'bg-rose-100 text-rose-800 ring-2 ring-rose-500'
+                                  }`}
+                                >
+                                  {student.name.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-bold text-slate-900 text-sm">{student.name}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Class */}
+                          <td className="py-3 px-4">
+                            <span className="font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 text-xs">
+                              {formatClassLabel(student.classGrade || '')}
+                            </span>
+                          </td>
+
+                          {/* Direct Contact & WhatsApp */}
+                          <td className="py-3 px-4">
+                            {student.phone ? (
+                              <div className="flex items-center space-x-1.5">
+                                <a
+                                  href={`tel:${student.phone}`}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                                  title={`Direct Call: ${student.phone}`}
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>{student.phone}</span>
+                                </a>
+                                <a
+                                  href={`https://wa.me/91${student.phone.replace(/\D/g, '').slice(-10)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition shadow-2xs"
+                                  title={`WhatsApp Chat`}
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">No phone</span>
+                            )}
+                          </td>
+
+                          {/* Attendance Status */}
+                          <td className="py-3 px-4">
+                            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => toggleStatus(student.studentId, 'PRESENT')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                  isPresent
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Present</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleStatus(student.studentId, 'ABSENT')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                  !isPresent
+                                    ? 'bg-rose-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Absent</span>
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Remarks */}
+                          <td className="py-3 px-4">
+                            <input
+                              type="text"
+                              placeholder="Optional remarks"
+                              value={student.remarks}
+                              onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                              className="w-full max-w-xs px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-slate-800"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Bottom Footer Action */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-medium">
@@ -750,21 +891,36 @@ export default function InstructorAttendancePage() {
                 <span className="hidden sm:inline font-bold text-teal-300">{percentage}% Rate</span>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || roster.length === 0}
-                className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>
-                  {saving
-                    ? 'Saving...'
-                    : isMarkedAlready
-                    ? 'Update Changes'
-                    : 'Save Attendance'}
-                </span>
-              </button>
+              <div className="flex items-center space-x-2.5">
+                {absentCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAbsenteeModalOpen(true)}
+                    className="px-3.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Review and notify absent students"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="hidden sm:inline">Notify Absentees ({absentCount})</span>
+                    <span className="sm:hidden">Notify ({absentCount})</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || roster.length === 0}
+                  className="px-5 py-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>
+                    {saving
+                      ? 'Saving...'
+                      : isMarkedAlready
+                      ? 'Update Changes'
+                      : 'Save Attendance'}
+                  </span>
+                </button>
+              </div>
             </div>
           </>
         )}

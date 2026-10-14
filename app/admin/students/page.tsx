@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Users,
   Plus,
@@ -35,6 +36,7 @@ import {
   FileText,
   UserPlus,
   Award,
+  ArrowLeft,
 } from 'lucide-react';
 import { User, StudentRegistration } from '@/lib/db/types';
 import StudentPhotoModal from '@/components/StudentPhotoModal';
@@ -523,7 +525,34 @@ export default function AdminStudentsPage() {
 
   return (
     <div className="space-y-6">
-      <QuickNavigationHeader role="ADMIN" />
+      {/* Compact App Header */}
+      <div className="flex items-center justify-between py-1">
+        <div className="flex items-center space-x-2">
+          <Link
+            href="/admin"
+            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              Students Roster
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium">
+              {students.length} Total Enrolled Students
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setFastRegOpen(true)}
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#0c3960] hover:bg-[#082a48] text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          <span>Add Student</span>
+        </button>
+      </div>
 
       {/* Title & Batch Action CTAs */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -900,7 +929,99 @@ export default function AdminStudentsPage() {
 
           {filtered.length > 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-subtle">
-              <div className="overflow-x-auto">
+              {/* MOBILE FITTED STUDENT CARDS (No horizontal overflow or zooming!) */}
+              <div className="block md:hidden divide-y divide-slate-100 p-2 space-y-2.5">
+                {filtered.map((stu) => {
+                  const rollNo =
+                    stu.rollNumber ||
+                    stu.studentDetails?.rollNumber ||
+                    stu.studentDetails?.studentId ||
+                    'PRG';
+                  const photoUrl = stu.studentDetails?.photoUrl;
+                  const phoneStr = stu.phone || stu.studentDetails?.parentPhone || '';
+
+                  return (
+                    <div key={stu.id} className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          onClick={() => handleOpenPhotoModal(stu)}
+                          className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-teal-800 shrink-0 cursor-pointer overflow-hidden"
+                        >
+                          {photoUrl ? (
+                            <img src={photoUrl} alt={stu.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span>{stu.name.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-slate-900 text-sm truncate">{stu.name}</h4>
+                            <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-teal-100 text-teal-900 border border-teal-300">
+                              {rollNo}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                            Grade {stu.studentDetails?.classGrade || 'N/A'} • {stu.studentDetails?.schoolName || 'Unassigned'}
+                          </p>
+
+                          {phoneStr && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <a
+                                href={`tel:${phoneStr}`}
+                                className="inline-flex items-center space-x-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded text-xs font-bold"
+                              >
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                <span>{phoneStr}</span>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action Shortcuts */}
+                      <div className="flex items-center justify-end space-x-1 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setDetailsStudent(stu)}
+                          className="p-1.5 text-slate-600 hover:text-teal-700 bg-slate-50 rounded-lg text-xs"
+                          title="View Profile"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReportCardStudent(stu)}
+                          className="p-1.5 text-teal-700 hover:text-teal-900 bg-teal-50 rounded-lg text-xs"
+                          title="Report Card"
+                        >
+                          <Award className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCommModal(stu)}
+                          className="p-1.5 text-teal-700 bg-teal-50 rounded-lg text-xs"
+                          title="Message"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(stu)}
+                          className="p-1.5 text-slate-600 bg-slate-50 rounded-lg text-xs"
+                          title="Edit"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP TABLE VIEW */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-xs sm:text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[11px] font-semibold">
                     <tr>

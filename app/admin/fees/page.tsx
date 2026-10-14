@@ -377,12 +377,12 @@ export default function AdminFeesPage() {
         }
       />
 
-      {/* CampX Campus Finance Session Banner */}
+      {/* Campus Finance Session Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4.5 rounded-2xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30">
-              CampX Digital Campus ERP
+              Pragathi Digital Campus ERP
             </span>
             <span className="text-xs text-slate-400">• Academic Year 2026-27 • Fee Ledger</span>
           </div>
@@ -487,7 +487,7 @@ export default function AdminFeesPage() {
       {activeTab === 'ROSTER' ? (
         /* Student Fee Roster Card */
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          {/* CampX Filter & View Control Header */}
+          {/* Filter & View Control Header */}
           <div className="p-4 border-b border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70">
             <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -556,7 +556,7 @@ export default function AdminFeesPage() {
                 </button>
               </div>
 
-              {/* CampX Dual View Switcher */}
+              {/* Dual View Switcher */}
               <div className="flex items-center space-x-1 bg-slate-200/80 p-1 rounded-xl">
                 <button
                   type="button"
@@ -566,7 +566,7 @@ export default function AdminFeesPage() {
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="CampX Student Fee Cards"
+                  title="Student Fee Cards Grid"
                 >
                   <LayoutGrid className="w-3.5 h-3.5 text-teal-600" />
                   <span>Fee Cards</span>
@@ -599,7 +599,7 @@ export default function AdminFeesPage() {
             </div>
           ) : (
             <>
-              {/* 1. CAMPX STUDENT FEE CARDS VIEW */}
+              {/* 1. STUDENT FEE CARDS VIEW */}
               {feeViewMode === 'CARDS' && (
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 bg-slate-50/50">
                   {filteredStudents.map((st) => {
@@ -779,7 +779,7 @@ export default function AdminFeesPage() {
                 </div>
               )}
 
-              {/* 2. CAMPX FINANCIAL LEDGER TABLE VIEW */}
+              {/* 2. FINANCIAL LEDGER TABLE VIEW */}
               {feeViewMode === 'TABLE' && (
                 <div className="overflow-x-auto max-h-[680px] overflow-y-auto border-b border-slate-200">
                   <table className="w-full text-left border-collapse">
@@ -976,7 +976,7 @@ export default function AdminFeesPage() {
                 </div>
               )}
 
-              {/* CampX High-Density Footer Bar */}
+              {/* Financial Ledger Summary Footer Bar */}
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">
                 <span>
                   Showing <strong className="text-slate-800">{filteredStudents.length}</strong> of {students.length} students in fee register
@@ -1076,7 +1076,7 @@ export default function AdminFeesPage() {
                 </table>
               </div>
 
-              {/* CampX Transactions Summary Footer Bar */}
+              {/* Transactions Summary Footer Bar */}
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">
                 <span>
                   Showing <strong className="text-slate-800">{filteredPayments.length}</strong> of {allPayments.length} transactions

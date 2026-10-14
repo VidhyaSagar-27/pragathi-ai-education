@@ -13,10 +13,6 @@ import {
   GraduationCap,
   Phone,
   MessageSquare,
-  ArrowLeft,
-  MoreVertical,
-  Check,
-  RotateCcw,
   LayoutGrid,
   List,
   Bell,
@@ -151,7 +147,7 @@ export default function AdminAttendancePage() {
     try {
       const current = new Date(selectedDate + 'T00:00:00');
       const todayStr = getTodayStr();
-      const dayOfWeek = current.getDay(); // 0 is Sunday, 1 is Monday...
+      const dayOfWeek = current.getDay();
       const diffToMonday = (dayOfWeek + 6) % 7;
 
       const monday = new Date(current);
@@ -201,13 +197,11 @@ export default function AdminAttendancePage() {
     }
   }, [selectedDate]);
 
-  // Filter roster by selected class
   const rosterForClass = useMemo(() => {
     if (selectedClass === 'ALL') return roster;
     return roster.filter((s) => (s.classGrade || '').trim() === selectedClass);
   }, [roster, selectedClass]);
 
-  // Toggle single student status between PRESENT and ABSENT
   const toggleStudentStatus = (studentId: string) => {
     setRoster((prev) =>
       prev.map((s) => {
@@ -324,7 +318,7 @@ export default function AdminAttendancePage() {
   const totalInView = rosterForClass.length;
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto pb-24">
+    <div className="space-y-4 max-w-4xl mx-auto pb-28">
       {/* Universal Quick Navigation Header */}
       <QuickNavigationHeader
         title="Institutional Attendance Register"
@@ -380,32 +374,16 @@ export default function AdminAttendancePage() {
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* TAB 1: DAILY ATTENDANCE MARKING (Exact Screenshots Flow)       */}
-      {/* ============================================================== */}
+      {/* TAB 1: DAILY ATTENDANCE MARKING */}
       {activeTab === 'MARK' ? (
         <>
           {/* 1. SCHEDULE & DATE SELECTOR BAR (Exact Screen 1 Match) */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-4">
-            {/* Top Header: Schedule + Month/Year Calendar Picker Button */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {selectedClass !== 'ALL' && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedClass('ALL')}
-                    className="p-1.5 hover:bg-slate-100 rounded-full text-slate-700 transition cursor-pointer"
-                    title="Back to Schedule"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                )}
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  {selectedClass === 'ALL' ? 'Schedule' : formatClassLabel(selectedClass)}
-                </h2>
-              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Schedule
+              </h2>
 
-              {/* Month/Year Calendar Button ("dated will be selected and confirmed by us") */}
               <div className="relative">
                 <button
                   type="button"
@@ -489,374 +467,301 @@ export default function AdminAttendancePage() {
             </div>
           </div>
 
-          {/* 2. SCHEDULE SESSIONS LIST (When in ALL view, Screen 1 Cards) */}
-          {selectedClass === 'ALL' && (
-            <div className="space-y-3.5">
-              {/* Lavender Info Box with Lightbulb */}
-              <div className="bg-[#e0e1f3] text-[#2d3154] rounded-2xl p-4 flex items-center space-x-3 shadow-2xs">
-                <Lightbulb className="w-5 h-5 text-indigo-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold">
-                  Tap on a Class/Lab/Exam to take attendance
-                </span>
-              </div>
+          {/* Class Selection Chips (Always Available for Quick Switching) */}
+          <div className="flex items-center space-x-2 overflow-x-auto py-1">
+            <button
+              type="button"
+              onClick={() => setSelectedClass('ALL')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                selectedClass === 'ALL'
+                  ? 'bg-[#0c3960] text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span>All Classes</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedClass === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                {roster.length}
+              </span>
+            </button>
 
-              {/* Session Cards */}
-              <div className="space-y-3">
-                {classList.length === 0 ? (
-                  <div
-                    onClick={() => setSelectedClass('ALL')}
-                    className="bg-[#f0f9eb] rounded-2xl p-4.5 border border-emerald-200/60 shadow-2xs relative overflow-hidden flex items-center justify-between cursor-pointer hover:shadow-md transition"
-                  >
-                    <div className="w-2 h-full absolute left-0 top-0 bottom-0 bg-[#7cb342]"></div>
-                    <div className="pl-3 space-y-1.5">
-                      <h3 className="font-bold text-slate-900 text-base">
-                        General Class Attendance Session
-                      </h3>
-                      <p className="text-xs text-slate-600 font-medium">
-                        10:55 AM - 11:45 AM
-                      </p>
-                      <div className="flex items-center space-x-1.5 pt-1">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
-                          2025 - 2026
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
-                          All Enrolled ({roster.length})
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      {isMarkedAlready ? (
-                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-2xs">
-                          <Check className="w-5 h-5 stroke-[3]" />
-                        </div>
-                      ) : (
-                        <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center shadow-2xs">
-                          <MoreVertical className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+            {classList.map((cls) => {
+              const countInClass = roster.filter((s) => (s.classGrade || '').trim() === cls).length;
+              return (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => setSelectedClass(cls)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                    selectedClass === cls
+                      ? 'bg-[#0c3960] text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{formatClassLabel(cls)}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedClass === cls ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                    {countInClass}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 2. ATTENDANCE MARKING INTERFACE (Always Rendered on Load!) */}
+          <div className="space-y-4">
+            {/* Lavender Notice Banner with Lightbulb */}
+            <div className="bg-[#e0e1f3] text-[#2d3154] rounded-2xl p-4 flex items-start space-x-3 shadow-2xs">
+              <Lightbulb className="w-5 h-5 text-indigo-700 mt-0.5 flex-shrink-0" />
+              <div className="text-xs sm:text-sm font-semibold leading-relaxed">
+                {isMarkedAlready ? (
+                  <span>
+                    Attendance has already been recorded. You are now editing the existing entry to update or correct any details as needed.
+                  </span>
                 ) : (
-                  classList.map((cls, idx) => {
-                    const countInClass = roster.filter((s) => (s.classGrade || '').trim() === cls).length;
-                    const isEven = idx % 2 === 0;
-                    return (
-                      <div
-                        key={cls}
-                        onClick={() => setSelectedClass(cls)}
-                        className={`rounded-2xl p-4.5 border shadow-2xs relative overflow-hidden flex items-center justify-between cursor-pointer hover:shadow-md transition ${
-                          isEven
-                            ? 'bg-[#f4fbf4] border-emerald-200/80 hover:border-emerald-300'
-                            : 'bg-[#eef6f9] border-sky-200/80 hover:border-sky-300'
-                        }`}
-                      >
-                        {/* Left Accent Color Strip */}
-                        <div
-                          className={`w-2 h-full absolute left-0 top-0 bottom-0 ${
-                            isEven ? 'bg-[#7cb342]' : 'bg-[#29b6f6]'
-                          }`}
-                        ></div>
-
-                        <div className="pl-3 space-y-1.5">
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                            {formatClassLabel(cls)} Session
-                          </h3>
-                          <p className="text-xs text-slate-600 font-medium">
-                            {isEven ? '9:15 AM - 10:55 AM' : '3:10 PM - 4:00 PM'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
-                              2025 - 2026
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
-                              Sem No: {isEven ? '3' : '1'}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold">
-                              {cls} ({countInClass})
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="pl-2">
-                          {isMarkedAlready ? (
-                            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-2xs">
-                              <Check className="w-5 h-5 stroke-[3]" />
-                            </div>
-                          ) : (
-                            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center shadow-2xs">
-                              <MoreVertical className="w-4 h-4" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
+                  <span>
+                    All students are marked present by default. Click on any roll number to mark as absent.
+                  </span>
                 )}
               </div>
             </div>
-          )}
 
-          {/* 3. ATTENDANCE MARKING INTERFACE (Screen 3 Roll Number Grid) */}
-          {selectedClass !== 'ALL' && (
-            <div className="space-y-4">
-              {/* Lavender Notice Banner with Lightbulb */}
-              <div className="bg-[#e0e1f3] text-[#2d3154] rounded-2xl p-4 flex items-start space-x-3 shadow-2xs">
-                <Lightbulb className="w-5 h-5 text-indigo-700 mt-0.5 flex-shrink-0" />
-                <div className="text-xs sm:text-sm font-semibold leading-relaxed">
-                  {isMarkedAlready ? (
-                    <span>
-                      Attendance has already been recorded. You are now editing the existing entry to update or correct any details as needed.
-                    </span>
-                  ) : (
-                    <span>
-                      All students are marked present by default. Click on any roll number to mark as absent.
-                    </span>
-                  )}
-                </div>
-              </div>
+            {/* Subtitle Section: Attendance for session */}
+            <div className="space-y-0.5 px-1">
+              <p className="text-xs text-slate-500 font-medium">
+                Attendance for the following session
+              </p>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                {formattedDateLong}, 10:55 AM - 11:45 AM • {formatClassLabel(selectedClass)}
+              </h3>
+            </div>
 
-              {/* Subtitle Section: Attendance for session */}
-              <div className="space-y-0.5 px-1">
-                <p className="text-xs text-slate-500 font-medium">
-                  Attendance for the following session
-                </p>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  {formattedDateLong}, 10:55 AM - 11:45 AM
-                </h3>
-              </div>
+            {/* Action Row: Instructions + Mark All Absent / Reset */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 pt-1">
+              <span className="text-xs font-semibold text-slate-500">
+                Click on the roll number to mark as absent
+              </span>
 
-              {/* Action Row: Instructions + Mark All Absent / Reset */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 pt-1">
-                <span className="text-xs font-semibold text-slate-500">
-                  Click on the roll number to mark as absent
-                </span>
-
-                <div className="flex items-center space-x-4 text-xs font-bold">
-                  {statusFilter !== 'ALL' && (
-                    <button
-                      type="button"
-                      onClick={() => setStatusFilter('ALL')}
-                      className="text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Show All ({rosterForClass.length})
-                    </button>
-                  )}
-
-                  {absentCount === rosterForClass.length ? (
-                    <button
-                      type="button"
-                      onClick={() => markClassAll('PRESENT')}
-                      className="text-[#0c3960] hover:underline cursor-pointer"
-                    >
-                      Mark all as present
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => markClassAll('ABSENT')}
-                      className="text-[#0c3960] hover:underline cursor-pointer"
-                    >
-                      Mark all as absent
-                    </button>
-                  )}
-
+              <div className="flex items-center space-x-4 text-xs font-bold">
+                {statusFilter !== 'ALL' && (
                   <button
                     type="button"
-                    onClick={resetAttendance}
-                    className="text-[#ea580c] hover:underline cursor-pointer"
+                    onClick={() => setStatusFilter('ALL')}
+                    className="text-slate-600 hover:underline cursor-pointer"
                   >
-                    Reset
+                    Show All ({rosterForClass.length})
                   </button>
+                )}
 
-                  {/* View Switcher: Roll Grid vs Table */}
-                  <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('GRID')}
-                      className={`p-1 rounded cursor-pointer ${
-                        viewMode === 'GRID' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'
-                      }`}
-                      title="Roll Number Grid"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('TABLE')}
-                      className={`p-1 rounded cursor-pointer ${
-                        viewMode === 'TABLE' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'
-                      }`}
-                      title="Detailed Table"
-                    >
-                      <List className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  placeholder="Search by roll number or student name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#0c3960]/20 focus:border-[#0c3960]"
-                />
-              </div>
-
-              {/* THE ROLL NUMBER GRID */}
-              {loading ? (
-                <div className="py-20 text-center">
-                  <div className="inline-block w-8 h-8 border-4 border-[#0c3960] border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-sm font-semibold text-slate-500">Loading student roster...</p>
-                </div>
-              ) : filteredRoster.length === 0 ? (
-                <div className="py-16 text-center text-slate-500 text-sm bg-white rounded-2xl border border-slate-200">
-                  No students found for this class or filter.
-                </div>
-              ) : viewMode === 'GRID' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5">
-                  {filteredRoster.map((student) => {
-                    const isAbsent = student.status === 'ABSENT';
-                    return (
-                      <div
-                        key={student.studentId}
-                        onClick={() => toggleStudentStatus(student.studentId)}
-                        className={`h-16 sm:h-20 rounded-xl sm:rounded-2xl transition-all duration-150 flex items-center justify-center relative cursor-pointer select-none active:scale-95 shadow-2xs ${
-                          isAbsent
-                            ? 'bg-white border-2 border-[#e53935] hover:border-red-600 ring-2 ring-red-500/10'
-                            : 'bg-white border-2 border-[#5cb85c] hover:border-emerald-600'
-                        }`}
-                      >
-                        <span
-                          className={`font-bold text-sm sm:text-base tracking-wide ${
-                            isAbsent ? 'text-[#e53935]' : 'text-slate-800'
-                          }`}
-                        >
-                          {student.rollNumber || '—'}
-                        </span>
-
-                        {isAbsent && (
-                          <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-[#e53935] text-white text-[10px] font-bold rounded-sm uppercase tracking-wider">
-                            Ab
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Detailed Table View */
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                  <div className="overflow-x-auto max-h-[550px] overflow-y-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase">
-                        <tr>
-                          <th className="py-3 px-4">Roll Number</th>
-                          <th className="py-3 px-4">Student</th>
-                          <th className="py-3 px-4">Contact</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4">Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                        {filteredRoster.map((student) => {
-                          const isAbsent = student.status === 'ABSENT';
-                          return (
-                            <tr key={student.studentId} className={isAbsent ? 'bg-rose-50/30' : ''}>
-                              <td className="py-3 px-4 font-bold text-slate-900 font-mono">
-                                {student.rollNumber}
-                              </td>
-                              <td className="py-3 px-4 font-semibold text-slate-800">
-                                {student.name}
-                              </td>
-                              <td className="py-3 px-4 text-slate-600">
-                                {student.phone ? (
-                                  <a href={`tel:${student.phone}`} className="text-teal-700 hover:underline">
-                                    {student.phone}
-                                  </a>
-                                ) : (
-                                  '—'
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleStudentStatus(student.studentId)}
-                                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                    isAbsent
-                                      ? 'bg-rose-600 text-white'
-                                      : 'bg-emerald-600 text-white'
-                                  }`}
-                                >
-                                  {isAbsent ? 'Absent' : 'Present'}
-                                </button>
-                              </td>
-                              <td className="py-3 px-4">
-                                <input
-                                  type="text"
-                                  placeholder="Optional note"
-                                  value={student.remarks}
-                                  onChange={(e) => updateRemark(student.studentId, e.target.value)}
-                                  className="px-2 py-1 text-xs border border-slate-200 rounded-lg w-full max-w-xs"
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Remove Date Attendance */}
-              {isMarkedAlready && (
-                <div className="pt-2 flex justify-end">
+                {absentCount === rosterForClass.length && rosterForClass.length > 0 ? (
                   <button
                     type="button"
-                    onClick={() => handleDeleteDate(selectedDate)}
-                    disabled={deletingDate}
-                    className="text-xs text-rose-700 hover:text-rose-900 font-bold flex items-center space-x-1 cursor-pointer"
+                    onClick={() => markClassAll('PRESENT')}
+                    className="text-[#0c3960] hover:underline cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{deletingDate ? 'Removing...' : 'Remove Attendance for this Date'}</span>
+                    Mark all as present
                   </button>
-                </div>
-              )}
-
-              {/* Fixed Bottom CTA: Deep Navy Blue "Submit Attendance" Button */}
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30">
-                <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-                  <div className="text-xs text-slate-600 font-medium hidden sm:block">
-                    <span>{presentCount} Present</span>
-                    <span className="mx-1.5">•</span>
-                    <span className="text-rose-600 font-bold">{absentCount} Absent</span>
-                    <span className="mx-1.5">•</span>
-                    <span>Total {totalInView}</span>
-                  </div>
-
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setAbsenteeModalOpen(true)}
-                    disabled={saving || roster.length === 0}
-                    className="w-full sm:w-auto flex-1 sm:flex-initial sm:min-w-[280px] py-3.5 px-6 bg-[#0c3960] hover:bg-[#082a48] text-white font-bold text-base rounded-xl shadow-lg transition active:scale-[0.99] flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                    onClick={() => markClassAll('ABSENT')}
+                    className="text-[#0c3960] hover:underline cursor-pointer"
                   >
-                    <span>Submit Attendance</span>
+                    Mark all as absent
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={resetAttendance}
+                  className="text-[#ea580c] hover:underline cursor-pointer"
+                >
+                  Reset
+                </button>
+
+                {/* View Switcher: Roll Grid vs Table */}
+                <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('GRID')}
+                    className={`p-1 rounded cursor-pointer ${
+                      viewMode === 'GRID' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'
+                    }`}
+                    title="Roll Number Grid"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('TABLE')}
+                    className={`p-1 rounded cursor-pointer ${
+                      viewMode === 'TABLE' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'
+                    }`}
+                    title="Detailed Table"
+                  >
+                    <List className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                placeholder="Search by roll number or student name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#0c3960]/20 focus:border-[#0c3960]"
+              />
+            </div>
+
+            {/* THE EXACT ROLL NUMBER GRID */}
+            {loading ? (
+              <div className="py-20 text-center">
+                <div className="inline-block w-8 h-8 border-4 border-[#0c3960] border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p className="text-sm font-semibold text-slate-500">Loading student roster...</p>
+              </div>
+            ) : filteredRoster.length === 0 ? (
+              <div className="py-16 text-center text-slate-500 text-sm bg-white rounded-2xl border border-slate-200">
+                No students found for this class or filter.
+              </div>
+            ) : viewMode === 'GRID' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5">
+                {filteredRoster.map((student) => {
+                  const isAbsent = student.status === 'ABSENT';
+                  return (
+                    <div
+                      key={student.studentId}
+                      onClick={() => toggleStudentStatus(student.studentId)}
+                      className={`h-16 sm:h-20 rounded-xl sm:rounded-2xl transition-all duration-150 flex items-center justify-center relative cursor-pointer select-none active:scale-95 shadow-2xs ${
+                        isAbsent
+                          ? 'bg-white border-2 border-[#e53935] hover:border-red-600 ring-2 ring-red-500/10'
+                          : 'bg-white border-2 border-[#5cb85c] hover:border-emerald-600'
+                      }`}
+                    >
+                      <span
+                        className={`font-bold text-sm sm:text-base tracking-wide ${
+                          isAbsent ? 'text-[#e53935]' : 'text-slate-800'
+                        }`}
+                      >
+                        {student.rollNumber || '—'}
+                      </span>
+
+                      {isAbsent && (
+                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-[#e53935] text-white text-[10px] font-bold rounded-sm uppercase tracking-wider">
+                          Ab
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Detailed Table View */
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="overflow-x-auto max-h-[550px] overflow-y-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase">
+                      <tr>
+                        <th className="py-3 px-4">Roll Number</th>
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Contact</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                      {filteredRoster.map((student) => {
+                        const isAbsent = student.status === 'ABSENT';
+                        return (
+                          <tr key={student.studentId} className={isAbsent ? 'bg-rose-50/30' : ''}>
+                            <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                              {student.rollNumber}
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-slate-800">
+                              {student.name}
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">
+                              {student.phone ? (
+                                <a href={`tel:${student.phone}`} className="text-teal-700 hover:underline">
+                                  {student.phone}
+                                </a>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleStudentStatus(student.studentId)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  isAbsent
+                                    ? 'bg-rose-600 text-white'
+                                    : 'bg-emerald-600 text-white'
+                                }`}
+                              >
+                                {isAbsent ? 'Absent' : 'Present'}
+                              </button>
+                            </td>
+                            <td className="py-3 px-4">
+                              <input
+                                type="text"
+                                placeholder="Optional note"
+                                value={student.remarks}
+                                onChange={(e) => updateRemark(student.studentId, e.target.value)}
+                                className="px-2 py-1 text-xs border border-slate-200 rounded-lg w-full max-w-xs"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Remove Date Attendance */}
+            {isMarkedAlready && (
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDate(selectedDate)}
+                  disabled={deletingDate}
+                  className="text-xs text-rose-700 hover:text-rose-900 font-bold flex items-center space-x-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deletingDate ? 'Removing...' : 'Remove Attendance for this Date'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Fixed Bottom CTA: Deep Navy Blue "Submit Attendance" Button */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30">
+              <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-600 font-medium hidden sm:block">
+                  <span>{presentCount} Present</span>
+                  <span className="mx-1.5">•</span>
+                  <span className="text-rose-600 font-bold">{absentCount} Absent</span>
+                  <span className="mx-1.5">•</span>
+                  <span>Total {totalInView}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setAbsenteeModalOpen(true)}
+                  disabled={saving || roster.length === 0}
+                  className="w-full sm:w-auto flex-1 sm:flex-initial sm:min-w-[280px] py-3.5 px-6 bg-[#0c3960] hover:bg-[#082a48] text-white font-bold text-base rounded-xl shadow-lg transition active:scale-[0.99] flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>Submit Attendance</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       ) : (
-        /* ============================================================== */
-        /* TAB 2: ATTENDANCE HISTORY & OVERVIEW ROSTER                     */
-        /* ============================================================== */
+        /* TAB 2: ATTENDANCE HISTORY & OVERVIEW ROSTER */
         <div className="space-y-6">
-          {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Days Recorded</span>
@@ -874,7 +779,6 @@ export default function AdminAttendancePage() {
             </div>
           </div>
 
-          {/* Past Recorded Dates */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
               <div>
@@ -936,7 +840,6 @@ export default function AdminAttendancePage() {
             )}
           </div>
 
-          {/* Student Wise Attendance Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
               <div>
@@ -1030,13 +933,10 @@ export default function AdminAttendancePage() {
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* 4. ABSENTEES BOTTOM SHEET / CONFIRMATION MODAL (Screen 4 Match) */}
-      {/* ============================================================== */}
+      {/* 3. ABSENTEES BOTTOM SHEET / CONFIRMATION MODAL (Screen 4 Match) */}
       {absenteeModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-2xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
           <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slideUp">
-            {/* Modal Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-black text-slate-900">
                 Absentees
@@ -1055,7 +955,6 @@ export default function AdminAttendancePage() {
               </div>
             </div>
 
-            {/* Modal Body: List of Absent Students */}
             <div className="p-5 overflow-y-auto space-y-3 flex-1">
               {absentCount === 0 ? (
                 <div className="p-6 text-center space-y-2">
@@ -1083,7 +982,6 @@ export default function AdminAttendancePage() {
                       className="p-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs hover:border-slate-300 transition"
                     >
                       <div className="flex items-center space-x-3 min-w-0">
-                        {/* Avatar Initial in Bold Navy */}
                         <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#0c3960] font-black text-lg flex items-center justify-center shrink-0">
                           {st.name.charAt(0).toUpperCase()}
                         </div>
@@ -1097,7 +995,6 @@ export default function AdminAttendancePage() {
                         </div>
                       </div>
 
-                      {/* Direct Parent Contact Icons */}
                       {st.phone && (
                         <div className="flex items-center space-x-1.5 shrink-0">
                           <a
@@ -1126,7 +1023,6 @@ export default function AdminAttendancePage() {
               )}
             </div>
 
-            {/* Modal Bottom CTA: Deep Navy Blue "Proceed" Button */}
             <div className="p-5 border-t border-slate-100 bg-slate-50/50 space-y-2">
               <button
                 type="button"

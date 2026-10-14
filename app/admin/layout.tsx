@@ -71,6 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => router.push('/login?callbackUrl=/admin'));
 
     fetchPending();
+    setMobileNavOpen(false);
   }, [router, pathname]);
 
   const handleLogout = async () => {
@@ -134,9 +135,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
       </div>
 
+      {/* Mobile Backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       {/* Admin Sidebar */}
       <aside
-        className={`fixed md:sticky top-0 h-screen w-64 bg-slate-900 text-slate-200 flex flex-col justify-between z-50 transition-transform duration-200 ${
+        className={`fixed md:sticky top-0 h-screen w-64 bg-slate-900 text-slate-200 flex flex-col justify-between z-50 transition-transform duration-200 ease-in-out ${
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -230,9 +239,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Admin Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col">
-        {/* Top Control Bar */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:px-5 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+      <main className="flex-1 p-2.5 sm:p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col">
+        {/* Top Control Bar - Desktop only to maximize mobile vertical space */}
+        <div className="hidden md:flex mb-5 items-center justify-between gap-3 bg-white p-3 sm:px-5 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}

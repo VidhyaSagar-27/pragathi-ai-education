@@ -425,35 +425,36 @@ export default function AdminAttendancePage() {
             })}
           </div>
 
-          {/* 4. ACTION ROW */}
-          <div className="flex items-center justify-between px-1 text-xs">
-            <span className="text-slate-500 font-medium text-[11px] sm:text-xs truncate">
-              Tap roll number to mark absent
-            </span>
+          {/* 4. INFORMATIVE BANNER & ACTION ROW */}
+          <div className="bg-[#edeef9] text-[#2c3766] rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold flex items-center space-x-2">
+            <span className="text-base leading-none">💡</span>
+            <span>Click on the roll number to mark as absent</span>
+          </div>
 
-            <div className="flex items-center space-x-3 text-[11px] sm:text-xs font-bold shrink-0">
-              {absentCount === rosterForClass.length && rosterForClass.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => markClassAll('PRESENT')}
-                  className="text-[#0c3960] hover:underline cursor-pointer"
-                >
-                  Mark all present
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => markClassAll('ABSENT')}
-                  className="text-[#0c3960] hover:underline cursor-pointer"
-                >
-                  Mark all absent
-                </button>
-              )}
+          <div className="flex items-center justify-between px-1">
+            {absentCount === rosterForClass.length && rosterForClass.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => markClassAll('PRESENT')}
+                className="text-xs sm:text-sm font-bold text-[#0c3960] hover:underline cursor-pointer"
+              >
+                Mark all as present
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => markClassAll('ABSENT')}
+                className="text-xs sm:text-sm font-bold text-[#0c3960] hover:underline cursor-pointer"
+              >
+                Mark all as absent
+              </button>
+            )}
 
+            <div className="flex items-center space-x-3">
               <button
                 type="button"
                 onClick={resetAttendance}
-                className="text-[#ea580c] hover:underline cursor-pointer"
+                className="text-xs sm:text-sm font-bold text-[#ea580c] hover:underline cursor-pointer"
               >
                 Reset
               </button>
@@ -465,7 +466,7 @@ export default function AdminAttendancePage() {
                   className={`p-1 rounded cursor-pointer ${viewMode === 'GRID' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-400'}`}
                   title="Roll Number Grid"
                 >
-                  <LayoutGrid className="w-3 h-3" />
+                  <LayoutGrid className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
@@ -473,13 +474,13 @@ export default function AdminAttendancePage() {
                   className={`p-1 rounded cursor-pointer ${viewMode === 'TABLE' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-400'}`}
                   title="Detailed Table"
                 >
-                  <List className="w-3 h-3" />
+                  <List className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 5. THE ROLL NUMBER GRID */}
+          {/* 5. THE ROLL NUMBER GRID - SCREEN FITTED & PROMINENT */}
           {loading ? (
             <div className="py-20 text-center">
               <div className="inline-block w-8 h-8 border-4 border-[#0c3960] border-t-transparent rounded-full animate-spin mb-2"></div>
@@ -490,25 +491,30 @@ export default function AdminAttendancePage() {
               No students in this class.
             </div>
           ) : viewMode === 'GRID' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-3.5">
               {rosterForClass.map((student) => {
                 const isAbsent = student.status === 'ABSENT';
                 return (
                   <div
                     key={student.studentId}
                     onClick={() => toggleStudentStatus(student.studentId)}
-                    className={`h-14 sm:h-16 rounded-xl transition-all duration-150 flex items-center justify-center relative cursor-pointer select-none active:scale-95 shadow-2xs ${
+                    className={`h-[76px] sm:h-[84px] rounded-2xl transition-all duration-150 flex flex-col items-center justify-center relative cursor-pointer select-none active:scale-[0.97] shadow-xs ${
                       isAbsent
-                        ? 'bg-rose-50/50 border-2 border-[#e53935] text-[#e53935]'
-                        : 'bg-white border-2 border-[#5cb85c] text-slate-800'
+                        ? 'bg-rose-50/70 border-2 border-[#d94d43] text-[#d94d43]'
+                        : 'bg-white border-2 border-[#52a447] text-slate-800 hover:border-emerald-600'
                     }`}
                   >
-                    <span className="font-bold text-xs sm:text-sm tracking-wide">
+                    <span className="font-extrabold text-base sm:text-lg tracking-wide">
                       {student.rollNumber || '—'}
                     </span>
+                    {student.name && (
+                      <span className={`text-[10px] sm:text-[11px] truncate max-w-[88%] font-medium mt-0.5 ${isAbsent ? 'text-[#d94d43]/80' : 'text-slate-400'}`}>
+                        {student.name}
+                      </span>
+                    )}
 
                     {isAbsent && (
-                      <span className="absolute top-1 right-1 px-1 py-0.2 bg-[#e53935] text-white text-[9px] font-bold rounded-xs uppercase tracking-wider">
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-[#d94d43] text-white text-[10px] font-black rounded uppercase tracking-wider shadow-xs">
                         Ab
                       </span>
                     )}

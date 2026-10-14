@@ -452,25 +452,25 @@ export default function AdminFeesPage() {
         /* Student Fee Roster Card */
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           {/* Filter & View Control Header */}
-          <div className="p-4 border-b border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70">
-            <div className="relative w-full md:w-80">
+          <div className="p-3 sm:p-4 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-slate-50/70">
+            <div className="relative w-full md:w-72">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
                 placeholder="Search student, roll number, or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
+            <div className="flex items-center justify-between gap-2 overflow-x-auto scrollbar-none py-0.5 w-full md:w-auto">
               {/* Status Filter Chips with Live Tallies */}
-              <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
                 <button
                   type="button"
                   onClick={() => setStatusFilter('ALL')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer shrink-0 ${
                     statusFilter === 'ALL'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -482,7 +482,7 @@ export default function AdminFeesPage() {
                 <button
                   type="button"
                   onClick={() => setStatusFilter('PENDING')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer shrink-0 ${
                     statusFilter === 'PENDING'
                       ? 'bg-rose-600 text-white shadow-2xs'
                       : 'text-rose-700 hover:bg-rose-50'
@@ -495,7 +495,7 @@ export default function AdminFeesPage() {
                 <button
                   type="button"
                   onClick={() => setStatusFilter('PARTIALLY_PAID')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer shrink-0 ${
                     statusFilter === 'PARTIALLY_PAID'
                       ? 'bg-amber-600 text-white shadow-2xs'
                       : 'text-amber-800 hover:bg-amber-50'
@@ -508,7 +508,7 @@ export default function AdminFeesPage() {
                 <button
                   type="button"
                   onClick={() => setStatusFilter('PAID')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer shrink-0 ${
                     statusFilter === 'PAID'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-emerald-700 hover:bg-emerald-50'
@@ -521,11 +521,11 @@ export default function AdminFeesPage() {
               </div>
 
               {/* Dual View Switcher */}
-              <div className="flex items-center space-x-1 bg-slate-200/80 p-1 rounded-xl">
+              <div className="flex items-center space-x-0.5 bg-slate-200/80 p-1 rounded-xl shrink-0">
                 <button
                   type="button"
                   onClick={() => setFeeViewMode('CARDS')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                     feeViewMode === 'CARDS'
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -533,12 +533,12 @@ export default function AdminFeesPage() {
                   title="Student Fee Cards Grid"
                 >
                   <LayoutGrid className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Fee Cards</span>
+                  <span>Cards</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFeeViewMode('TABLE')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
                     feeViewMode === 'TABLE'
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'

@@ -200,6 +200,12 @@ export default function AdminAttendancePage() {
     );
   };
 
+  const setStudentExplicitStatus = (studentId: string, status: 'PRESENT' | 'ABSENT') => {
+    setRoster((prev) =>
+      prev.map((s) => (s.studentId === studentId ? { ...s, status } : s))
+    );
+  };
+
   const markClassAll = (status: 'PRESENT' | 'ABSENT') => {
     if (selectedClass === 'ALL') {
       setRoster((prev) => prev.map((s) => ({ ...s, status })));
@@ -767,7 +773,7 @@ export default function AdminAttendancePage() {
         dateStr={selectedDate}
         roster={roster}
         onMarkStudent={(studentId, status) => {
-          toggleStudentStatus(studentId);
+          setStudentExplicitStatus(studentId, status);
         }}
       />
     </div>

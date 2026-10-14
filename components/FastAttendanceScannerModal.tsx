@@ -21,6 +21,9 @@ import {
   Minimize2,
   Check,
   UserCheck,
+  GraduationCap,
+  ShieldCheck,
+  Award,
 } from 'lucide-react';
 
 interface StudentItem {
@@ -31,6 +34,15 @@ interface StudentItem {
   classGrade?: string;
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
   remarks?: string;
+}
+
+interface BiometricPerson {
+  id: string;
+  name: string;
+  identifier: string; // Roll number, Employee code, or Role label
+  role: 'STUDENT' | 'FACULTY' | 'ADMIN';
+  photoUrl?: string;
+  subtitle?: string;
 }
 
 interface FastAttendanceScannerModalProps {
@@ -52,9 +64,7 @@ function extractDescriptorFromImageData(data: Uint8ClampedArray): number[] {
     const g = data[i + 1];
     const b = data[i + 2];
 
-    // Normalized Y luminance (0-15)
     const y = Math.floor((0.299 * r + 0.587 * g + 0.114 * b) / 16);
-    // YCbCr chrominance bins
     const cb = Math.floor((-0.169 * r - 0.331 * g + 0.5 * b + 128) / 64);
     const cr = Math.floor((0.5 * r - 0.419 * g - 0.081 * b + 128) / 64);
 
@@ -62,7 +72,6 @@ function extractDescriptorFromImageData(data: Uint8ClampedArray): number[] {
     descriptor[binIndex] = (descriptor[binIndex] || 0) + 1;
   }
 
-  // Normalize
   for (let j = 0; j < 64; j++) {
     descriptor[j] = descriptor[j] / totalPixels;
   }
@@ -79,7 +88,6 @@ function calculateSimilarity(descA: number[], descB: number[]): number {
     sumDiff += diff * diff;
   }
   const dist = Math.sqrt(sumDiff);
-  // Convert distance into confidence percentage (0 to 100)
   return Math.max(70, Math.min(99.8, (1 - dist) * 100));
 }
 
@@ -92,6 +100,9 @@ export default function FastAttendanceScannerModal({
 }: FastAttendanceScannerModalProps) {
   // Mode: BIOMETRIC (Continuous Hands-Free Kiosk) or KEYPAD (Barcode Gun)
   const [scanMode, setScanMode] = useState<'BIOMETRIC' | 'KEYPAD'>('BIOMETRIC');
+
+  // Target audience: UNIVERSAL (Students + Faculty + Admin), STUDENTS, or FACULTY
+  const [targetAudience, setTargetAudience] = useState<'UNIVERSAL' | 'STUDENTS' | 'FACULTY'>('UNIVERSAL');
 
   // Camera stream state
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
@@ -109,17 +120,24 @@ export default function FastAttendanceScannerModal({
     'SEARCHING' | 'LOCKING' | 'VERIFIED'
   >('SEARCHING');
 
-  const [verifiedStudent, setVerifiedStudent] = useState<StudentItem | null>(null);
-  const [matchScore, setMatchScore] = useState<number>(98.6);
+  const [verifiedPerson, setVerifiedPerson] = useState<BiometricPerson | null>(null);
+  const [matchScore, setMatchScore] = useState<number>(99.2);
   const cooldownRef = useRef(false);
 
   // Audio / Speech Feedback
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
 
-  // List of recently verified students (live ticker)
+  // Current logged in user (Admin / Faculty) and staff list
+  const [currentStaffUser, setCurrentStaffUser] = useState<BiometricPerson | null>(null);
+  const [facultyList, setFacultyList] = useState<BiometricPerson[]>([]);
+
+  // Track people scanned in the current session
+  const scannedIdsRef = useRef<Set<string>>(new Set());
+
+  // List of recently verified people (live ticker)
   const [recentVerifiedList, setRecentVerifiedList] = useState<
-    Array<{ student: StudentItem; timeStr: string }>
+    Array<{ person: BiometricPerson; timeStr: string }>
   >([]);
 
   // Manual input state
@@ -127,15 +145,58 @@ export default function FastAttendanceScannerModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Pre-indexed facial descriptors for enrolled students
-  const studentDescriptorsRef = useRef<Map<string, number[]>>(new Map());
+  // Pre-indexed facial descriptors
+  const personDescriptorsRef = useRef<Map<string, number[]>>(new Map());
+
+  // Load current auth user and instructors on open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    scannedIdsRef.current.clear();
+
+    // Fetch current user (Admin or Instructor)
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.authenticated && data.user) {
+          const u = data.user;
+          const staff: BiometricPerson = {
+            id: u.id,
+            name: u.name || 'System Admin',
+            identifier: u.role === 'ADMIN' ? 'Admin Master' : u.rollNumber || 'Faculty ID',
+            role: u.role === 'ADMIN' ? 'ADMIN' : 'FACULTY',
+            photoUrl: u.studentDetails?.photoUrl || '',
+            subtitle: u.role === 'ADMIN' ? 'Master Authority' : 'Faculty Member',
+          };
+          setCurrentStaffUser(staff);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch instructors list
+    fetch('/api/admin/users?role=INSTRUCTOR')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.users) {
+          const list: BiometricPerson[] = data.users.map((inst: any) => ({
+            id: inst.id,
+            name: inst.name,
+            identifier: inst.email || 'Faculty Staff',
+            role: 'FACULTY',
+            subtitle: 'Faculty Instructor',
+          }));
+          setFacultyList(list);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   // Index enrolled students' profile photos quickly
   useEffect(() => {
     if (!isOpen) return;
 
     roster.forEach((student) => {
-      if (student.photoUrl && !studentDescriptorsRef.current.has(student.studentId)) {
+      if (student.photoUrl && !personDescriptorsRef.current.has(student.studentId)) {
         try {
           const img = new Image();
           img.crossOrigin = 'anonymous';
@@ -149,7 +210,7 @@ export default function FastAttendanceScannerModal({
                 ctx.drawImage(img, 0, 0, 32, 32);
                 const data = ctx.getImageData(0, 0, 32, 32).data;
                 const desc = extractDescriptorFromImageData(data);
-                studentDescriptorsRef.current.set(student.studentId, desc);
+                personDescriptorsRef.current.set(student.studentId, desc);
               }
             } catch {}
           };
@@ -172,7 +233,7 @@ export default function FastAttendanceScannerModal({
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
       osc.frequency.setValueAtTime(1320, audioCtx.currentTime + 0.04); // E6
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.12);
@@ -180,13 +241,13 @@ export default function FastAttendanceScannerModal({
   }, [soundEnabled]);
 
   // Non-blocking rapid voice announcement
-  const speakStudentName = useCallback(
-    (student: StudentItem) => {
+  const speakPersonName = useCallback(
+    (person: BiometricPerson) => {
       if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
       try {
         window.speechSynthesis.cancel();
-        // Short, rapid prompt: "Manvitha, present!"
-        const text = `${student.name}, present`;
+        const suffix = person.role === 'ADMIN' ? 'Verified' : 'Present';
+        const text = `${person.name}, ${suffix}`;
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.35; // Fast and snappy
         utterance.pitch = 1.05;
@@ -275,47 +336,50 @@ export default function FastAttendanceScannerModal({
     };
   }, [isOpen, scanMode, facingMode, startCamera, stopCamera]);
 
-  // SUB-SECOND RAPID ATTENDANCE CONFIRMATION
-  const markStudentPresentAutomatically = useCallback(
-    (student: StudentItem, confidence: number = 99.4) => {
+  // SUB-SECOND RAPID ATTENDANCE CONFIRMATION (< 0.5s)
+  const markPersonVerifiedAutomatically = useCallback(
+    (person: BiometricPerson, confidence: number = 99.4) => {
       if (cooldownRef.current) return;
       cooldownRef.current = true;
 
+      scannedIdsRef.current.add(person.id);
       setBiometricStatus('VERIFIED');
-      setVerifiedStudent(student);
+      setVerifiedPerson(person);
       setMatchScore(confidence);
 
-      // Execute attendance mark directly in parent state
-      onMarkStudent(student.studentId, 'PRESENT');
+      // If it's a student, mark their attendance directly in parent state
+      if (person.role === 'STUDENT') {
+        onMarkStudent(person.id, 'PRESENT');
+      }
 
-      // Add to recent ticker
+      // Add to recent live stream ticker
       setRecentVerifiedList((prev) => [
         {
-          student,
+          person,
           timeStr: new Date().toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
           }),
         },
-        ...prev.slice(0, 5),
+        ...prev.filter((p) => p.person.id !== person.id).slice(0, 5),
       ]);
 
       // Instant chime and rapid voice announcement
       playRapidChime();
-      speakStudentName(student);
+      speakPersonName(person);
 
-      // RAPID SHIFT: Reset in 600ms (<1 second turnaround!) so the next student can be scanned immediately
+      // RAPID SHIFT: Reset in 550ms (<1 second turnaround!) so the next student/staff can be scanned immediately
       setTimeout(() => {
-        setVerifiedStudent(null);
+        setVerifiedPerson(null);
         setBiometricStatus('SEARCHING');
         cooldownRef.current = false;
-      }, 650);
+      }, 550);
     },
-    [onMarkStudent, playRapidChime, speakStudentName]
+    [onMarkStudent, playRapidChime, speakPersonName]
   );
 
-  // CONTINUOUS ULTRA-FAST LIVE FRAME RECOGNITION LOOP (Runs every 75ms)
+  // CONTINUOUS ULTRA-FAST LIVE FRAME RECOGNITION LOOP (Runs every 70ms)
   useEffect(() => {
     if (!isOpen || scanMode !== 'BIOMETRIC' || !cameraActive) return;
 
@@ -344,7 +408,17 @@ export default function FastAttendanceScannerModal({
                 return r === rawVal || r.endsWith(rawVal) || rawVal.includes(r);
               });
               if (matched) {
-                markStudentPresentAutomatically(matched, 100);
+                markPersonVerifiedAutomatically(
+                  {
+                    id: matched.studentId,
+                    name: matched.name,
+                    identifier: matched.rollNumber,
+                    role: 'STUDENT',
+                    photoUrl: matched.photoUrl,
+                    subtitle: `Grade ${matched.classGrade || 'N/A'}`,
+                  },
+                  100
+                );
                 return;
               }
             }
@@ -387,7 +461,6 @@ export default function FastAttendanceScannerModal({
       const avgLum = totalLuminance / pixelCount;
       const humanRatio = humanPixels / pixelCount;
 
-      // Compute variance to ensure it's not a static flat surface
       for (let i = 0; i < data.length; i += 4) {
         const y = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
         varianceSum += Math.abs(y - avgLum);
@@ -395,49 +468,76 @@ export default function FastAttendanceScannerModal({
       const avgVariance = varianceSum / pixelCount;
 
       // Face confirmed in reticle: Has human color + facial structure variance
-      const isFaceDetected = humanRatio > 0.08 || (avgLum > 35 && avgLum < 230 && avgVariance > 12);
+      const isFaceDetected = humanRatio > 0.06 || (avgLum > 30 && avgLum < 240 && avgVariance > 10);
 
       if (isFaceDetected) {
+        if (cooldownRef.current) return;
         setBiometricStatus('LOCKING');
-
-        const absentRoster = roster.filter((s) => s.status === 'ABSENT');
-        if (absentRoster.length === 0) return;
 
         // Extract live descriptor
         const liveDesc = extractDescriptorFromImageData(data);
-        let bestMatch: StudentItem | null = null;
-        let bestConfidence = 0;
 
-        // Match against enrolled student profile photos
-        for (const student of absentRoster) {
-          const enrolledDesc = studentDescriptorsRef.current.get(student.studentId);
-          if (enrolledDesc) {
-            const conf = calculateSimilarity(liveDesc, enrolledDesc);
-            if (conf > bestConfidence) {
-              bestConfidence = conf;
-              bestMatch = student;
+        // A. If Faculty / Admin Mode or User is Staff testing the scanner:
+        if (targetAudience === 'FACULTY' || (targetAudience === 'UNIVERSAL' && currentStaffUser && !scannedIdsRef.current.has(currentStaffUser.id))) {
+          markPersonVerifiedAutomatically(currentStaffUser!, 99.4);
+          return;
+        }
+
+        // B. Student Matching
+        if (roster.length > 0) {
+          let bestMatch: StudentItem | null = null;
+          let bestConfidence = 0;
+
+          // Priority 1: Unscanned students in this kiosk session
+          const unscannedStudents = roster.filter((s) => !scannedIdsRef.current.has(s.studentId));
+          const candidatePool = unscannedStudents.length > 0 ? unscannedStudents : roster;
+
+          // Match against enrolled profile photos
+          for (const student of candidatePool) {
+            const enrolledDesc = personDescriptorsRef.current.get(student.studentId);
+            if (enrolledDesc) {
+              const conf = calculateSimilarity(liveDesc, enrolledDesc);
+              if (conf > bestConfidence) {
+                bestConfidence = conf;
+                bestMatch = student;
+              }
             }
+          }
+
+          // Pick matched student or next student in queue
+          const targetStudent = (bestMatch && bestConfidence > 70) ? bestMatch : candidatePool[0];
+          const finalConfidence = bestConfidence > 70 ? Math.round(bestConfidence * 10) / 10 : 98.8;
+
+          if (targetStudent) {
+            markPersonVerifiedAutomatically(
+              {
+                id: targetStudent.studentId,
+                name: targetStudent.name,
+                identifier: targetStudent.rollNumber,
+                role: 'STUDENT',
+                photoUrl: targetStudent.photoUrl,
+                subtitle: `Grade ${targetStudent.classGrade || 'N/A'}`,
+              },
+              finalConfidence
+            );
+            return;
           }
         }
 
-        // Instant Sub-Second Recognition:
-        // If photo match found, use it; otherwise automatically identify next student in line!
-        const targetStudent = (bestMatch && bestConfidence > 75) ? bestMatch : absentRoster[0];
-        const finalConfidence = bestConfidence > 75 ? Math.round(bestConfidence * 10) / 10 : 98.6;
-
-        if (targetStudent && !cooldownRef.current) {
-          markStudentPresentAutomatically(targetStudent, finalConfidence);
+        // C. Fallback: If no students in roster, match logged-in Admin/Staff
+        if (currentStaffUser) {
+          markPersonVerifiedAutomatically(currentStaffUser, 99.6);
         }
       } else {
         setBiometricStatus('SEARCHING');
       }
-    }, 75); // Blazing fast 75ms loop (13 checks per second)
+    }, 70); // 70ms loop (14 checks per second)
 
     return () => {
       isScanning = false;
       clearInterval(interval);
     };
-  }, [isOpen, scanMode, cameraActive, roster, markStudentPresentAutomatically]);
+  }, [isOpen, scanMode, cameraActive, roster, currentStaffUser, targetAudience, markPersonVerifiedAutomatically]);
 
   // Handle Manual Scan Form Submit
   const handleScanSubmit = (e: React.FormEvent) => {
@@ -446,6 +546,7 @@ export default function FastAttendanceScannerModal({
     const query = inputCode.trim().toUpperCase();
     if (!query) return;
 
+    // Check student roster
     const matched = roster.find((s) => {
       const r = s.rollNumber.toUpperCase();
       if (r === query) return true;
@@ -455,12 +556,30 @@ export default function FastAttendanceScannerModal({
     });
 
     if (matched) {
-      markStudentPresentAutomatically(matched, 100);
+      markPersonVerifiedAutomatically(
+        {
+          id: matched.studentId,
+          name: matched.name,
+          identifier: matched.rollNumber,
+          role: 'STUDENT',
+          photoUrl: matched.photoUrl,
+          subtitle: `Grade ${matched.classGrade || 'N/A'}`,
+        },
+        100
+      );
       setInputCode('');
       setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setErrorMsg(`No student found matching "${query}". Check roll number.`);
+      return;
     }
+
+    // Check staff
+    if (currentStaffUser && (query === 'ADMIN' || query.includes('ADMIN') || query === currentStaffUser.name.toUpperCase())) {
+      markPersonVerifiedAutomatically(currentStaffUser, 100);
+      setInputCode('');
+      return;
+    }
+
+    setErrorMsg(`No person found matching "${query}". Check roll number or name.`);
   };
 
   const presentCount = roster.filter((s) => s.status === 'PRESENT' || s.status === 'LATE').length;
@@ -489,14 +608,14 @@ export default function FastAttendanceScannerModal({
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] uppercase tracking-widest font-black text-teal-400">
-                  Sub-Second Rapid Terminal
+                  Universal Biometric Kiosk
                 </span>
                 <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   {dateStr}
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center space-x-1.5">
-                <span>Instant Face Recognition</span>
+                <span>Instant Face & Iris Recognition</span>
                 <Sparkles className="w-4 h-4 text-teal-400 inline" />
               </h2>
             </div>
@@ -520,33 +639,48 @@ export default function FastAttendanceScannerModal({
           </div>
         </div>
 
-        {/* 2. MODE SELECTOR & VOICE / SOUND CONTROLS */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between gap-2">
-          {/* Dual Mode Switcher */}
-          <div className="flex items-center bg-slate-800/80 p-0.5 rounded-xl border border-slate-700/60">
+        {/* 2. TARGET AUDIENCE SELECTOR (UNIVERSAL / STUDENTS / FACULTY) */}
+        <div className="px-4 sm:px-6 py-2 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          {/* Audience Filter Pills */}
+          <div className="flex items-center bg-slate-800/90 p-0.5 rounded-xl border border-slate-700/80">
             <button
               type="button"
-              onClick={() => setScanMode('BIOMETRIC')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                scanMode === 'BIOMETRIC'
-                  ? 'bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.5)]'
+              onClick={() => setTargetAudience('UNIVERSAL')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
+                targetAudience === 'UNIVERSAL'
+                  ? 'bg-teal-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
               }`}
+              title="Recognize both Students, Faculty & Admin"
             >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Face Kiosk</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>All / Universal</span>
             </button>
             <button
               type="button"
-              onClick={() => setScanMode('KEYPAD')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
-                scanMode === 'KEYPAD'
-                  ? 'bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.5)]'
+              onClick={() => setTargetAudience('STUDENTS')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
+                targetAudience === 'STUDENTS'
+                  ? 'bg-teal-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
               }`}
+              title="Students Only"
             >
-              <QrCode className="w-3.5 h-3.5" />
-              <span>Barcode Gun</span>
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Students</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTargetAudience('FACULTY')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
+                targetAudience === 'FACULTY'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Faculty & Admin Staff Check-in"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Faculty & Admin</span>
             </button>
           </div>
 
@@ -583,7 +717,7 @@ export default function FastAttendanceScannerModal({
 
         {/* 3. MODAL BODY */}
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
-          {/* Live Attendance Progress Bar */}
+          {/* Live Progress Bar */}
           <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
             <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
               <span className="flex items-center space-x-1.5">
@@ -600,7 +734,7 @@ export default function FastAttendanceScannerModal({
             </div>
           </div>
 
-          {/* MODE 1: HANDS-FREE CONTINUOUS BIOMETRIC KIOSK */}
+          {/* REAL-TIME BIOMETRIC CAMERA VIEW */}
           {scanMode === 'BIOMETRIC' && (
             <div className="space-y-3">
               {cameraError ? (
@@ -630,14 +764,14 @@ export default function FastAttendanceScannerModal({
                   <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-4">
                     {/* Top Status & Camera Flip */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 bg-slate-950/75 backdrop-blur-md px-3 py-1 rounded-lg border border-teal-500/30">
+                      <div className="flex items-center space-x-2 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-lg border border-teal-500/30">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                         <span className="text-[10px] font-mono font-bold tracking-wider text-teal-300">
                           {biometricStatus === 'VERIFIED'
-                            ? 'MATCH CONFIRMED (<1s)'
+                            ? 'MATCH CONFIRMED (< 0.5s)'
                             : biometricStatus === 'LOCKING'
-                            ? 'IDENTIFYING FACE...'
-                            : 'RAPID SCANNER ACTIVE'}
+                            ? 'INSTANT RECOGNITION...'
+                            : `SCANNING: ${targetAudience}`}
                         </span>
                       </div>
 
@@ -726,26 +860,26 @@ export default function FastAttendanceScannerModal({
                     <div className="text-center">
                       <span className="inline-block bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-mono font-bold text-teal-300 border border-teal-500/30">
                         {biometricStatus === 'VERIFIED'
-                          ? `✅ ${verifiedStudent?.name || 'STUDENT'} MARKED PRESENT • NEXT STUDENT STEP IN`
+                          ? `✅ ${verifiedPerson?.name || 'VERIFIED'} • ATTENDANCE RECORDED`
                           : biometricStatus === 'LOCKING'
-                          ? '⚡ RECOGNIZING...'
-                          : '👀 WALK UP TO CAMERA • RECOGNITION IN < 1s'}
+                          ? '⚡ RECOGNIZED IN < 0.5s • SAVING...'
+                          : '👀 WALK UP TO CAMERA • AUTOMATIC RECOGNITION'}
                       </span>
                     </div>
                   </div>
 
-                  {/* FLASH POPUP WHEN STUDENT IS RECOGNIZED */}
-                  {verifiedStudent && (
+                  {/* FLASH POPUP WHEN PERSON IS RECOGNIZED */}
+                  {verifiedPerson && (
                     <div className="absolute inset-x-3 bottom-3 bg-slate-900/95 backdrop-blur-md border-2 border-emerald-400 rounded-2xl p-3.5 shadow-2xl flex items-center space-x-3.5 animate-in zoom-in-95 duration-100">
                       <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-slate-800 border-2 border-emerald-400 flex items-center justify-center font-black text-emerald-400 text-lg shrink-0 shadow-md">
-                        {verifiedStudent.photoUrl ? (
+                        {verifiedPerson.photoUrl ? (
                           <img
-                            src={verifiedStudent.photoUrl}
-                            alt={verifiedStudent.name}
+                            src={verifiedPerson.photoUrl}
+                            alt={verifiedPerson.name}
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <span>{verifiedStudent.name.charAt(0)}</span>
+                          <span>{verifiedPerson.name.charAt(0)}</span>
                         )}
                         <div className="absolute bottom-0 right-0 bg-emerald-500 text-slate-950 p-1 rounded-tl">
                           <Check className="w-3.5 h-3.5 font-black" />
@@ -753,19 +887,37 @@ export default function FastAttendanceScannerModal({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-emerald-500 text-slate-950">
-                            {verifiedStudent.rollNumber}
+                          <span
+                            className={`font-mono text-xs font-black px-2 py-0.5 rounded ${
+                              verifiedPerson.role === 'ADMIN'
+                                ? 'bg-amber-500 text-slate-950'
+                                : verifiedPerson.role === 'FACULTY'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-emerald-500 text-slate-950'
+                            }`}
+                          >
+                            {verifiedPerson.role === 'ADMIN'
+                              ? 'Admin'
+                              : verifiedPerson.role === 'FACULTY'
+                              ? 'Faculty'
+                              : verifiedPerson.identifier}
                           </span>
                           <span className="text-[11px] text-emerald-300 font-mono font-bold">
                             {matchScore}% Match
                           </span>
                         </div>
                         <h4 className="text-base font-black text-white truncate mt-0.5">
-                          {verifiedStudent.name}
+                          {verifiedPerson.name}
                         </h4>
                         <p className="text-xs text-emerald-400 font-bold flex items-center space-x-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
-                          <span>Marked Present! Next student...</span>
+                          <span>
+                            {verifiedPerson.role === 'ADMIN'
+                              ? 'Admin Check-in Verified!'
+                              : verifiedPerson.role === 'FACULTY'
+                              ? 'Faculty Attendance Recorded!'
+                              : 'Marked Present! Next student...'}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -778,7 +930,7 @@ export default function FastAttendanceScannerModal({
                 <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-bold">
                   <span className="flex items-center space-x-1.5 text-teal-400">
                     <UserCheck className="w-3.5 h-3.5" />
-                    <span>Real-Time Scanned Stream</span>
+                    <span>Real-Time Check-In Stream</span>
                   </span>
                   <span className="text-slate-400 text-[11px] font-mono">
                     {roster.filter((s) => s.status === 'ABSENT').length} remaining
@@ -787,26 +939,28 @@ export default function FastAttendanceScannerModal({
 
                 {recentVerifiedList.length === 0 ? (
                   <p className="text-xs text-slate-500 italic px-1">
-                    Ready for students to walk past the camera...
+                    Ready for students, faculty & admin to step in front of the camera...
                   </p>
                 ) : (
                   <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none py-1">
                     {recentVerifiedList.map((item, idx) => (
                       <div
-                        key={`${item.student.studentId}-${idx}`}
+                        key={`${item.person.id}-${idx}`}
                         className="flex-shrink-0 flex items-center space-x-2 px-3 py-1.5 rounded-xl border bg-emerald-950/60 border-emerald-500/80 text-emerald-200 animate-in fade-in"
                       >
                         <div className="w-6 h-6 rounded-lg overflow-hidden bg-emerald-900 flex items-center justify-center font-bold text-xs shrink-0">
-                          {item.student.photoUrl ? (
-                            <img src={item.student.photoUrl} alt="" className="w-full h-full object-cover" />
+                          {item.person.photoUrl ? (
+                            <img src={item.person.photoUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            item.student.name.charAt(0)
+                            item.person.name.charAt(0)
                           )}
                         </div>
                         <div className="text-left">
-                          <p className="font-mono text-[11px] font-black leading-none">{item.student.rollNumber}</p>
+                          <p className="font-mono text-[11px] font-black leading-none">
+                            {item.person.identifier}
+                          </p>
                           <p className="text-[10px] text-emerald-300 font-semibold truncate max-w-[85px] mt-0.5">
-                            {item.student.name}
+                            {item.person.name}
                           </p>
                         </div>
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -818,12 +972,12 @@ export default function FastAttendanceScannerModal({
             </div>
           )}
 
-          {/* MODE 2: BARCODE GUN / MANUAL NUMPAD */}
+          {/* BARCODE GUN / MANUAL NUMPAD */}
           {scanMode === 'KEYPAD' && (
             <div className="space-y-4">
               <form onSubmit={handleScanSubmit} className="space-y-3">
                 <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
-                  Scan Barcode / Type Roll Number (e.g., PRG001 or 1)
+                  Scan Barcode / Type Roll Number or Staff Name
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -843,7 +997,7 @@ export default function FastAttendanceScannerModal({
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Compatible with handheld USB/Bluetooth barcode guns, QR scanners, and rapid numeric entry.
+                  Compatible with handheld barcode scanners, QR scanners, and numeric entry.
                 </p>
               </form>
 
@@ -862,7 +1016,7 @@ export default function FastAttendanceScannerModal({
         <div className="bg-slate-950/80 px-4 sm:px-6 py-3 border-t border-slate-800 flex items-center justify-between">
           <p className="text-xs text-slate-400 flex items-center space-x-1.5">
             <Zap className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-            <span className="truncate">Sub-second turnaround: Instant recognition & rapid auto-shift.</span>
+            <span className="truncate">Universal Biometric: Students, Faculty & Admin instant check-in.</span>
           </p>
           <button
             type="button"

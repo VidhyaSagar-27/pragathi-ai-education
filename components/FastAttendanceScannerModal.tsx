@@ -245,31 +245,36 @@ export default function FastAttendanceScannerModal({
         setDescriptorsLoadedCount(descriptorsMapRef.current.size);
       }
 
-      // Step 3: Automatically process existing student photos from the database
-      for (const student of pendingStudents) {
+      // Step 3: Automatically process existing student photos from the database in chunks of 3
+      const CHUNK_SIZE = 3;
+      for (let i = 0; i < pendingStudents.length; i += CHUNK_SIZE) {
         if (!mounted) break;
-        if (!student.photoUrl) continue;
-        try {
-          const desc = await extractDescriptorFromImageUrl(student.photoUrl);
-          if (mounted && desc && desc.length === 128) {
-            descriptorsMapRef.current.set(student.studentId, desc);
-            saveLocalBiometricDescriptor(student.studentId, desc);
-            setDescriptorsLoadedCount(descriptorsMapRef.current.size);
+        const chunk = pendingStudents.slice(i, i + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(async (student) => {
+            if (!student.photoUrl) return;
+            try {
+              const desc = await extractDescriptorFromImageUrl(student.photoUrl);
+              if (mounted && desc && desc.length === 128) {
+                descriptorsMapRef.current.set(student.studentId, desc);
+                saveLocalBiometricDescriptor(student.studentId, desc);
+                setDescriptorsLoadedCount(descriptorsMapRef.current.size);
 
-            // Automatically persist to DB so future scans are instant
-            fetch('/api/students/photo', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                studentId: student.studentId,
-                photoUrl: student.photoUrl,
-                faceDescriptor: desc,
-              }),
-            }).catch(() => {});
-          }
-        } catch (e) {
-          console.warn('Auto-extract biometric error for', student.name, e);
-        }
+                // Automatically persist to DB so future scans are instant
+                fetch('/api/students/photo', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    studentId: student.studentId,
+                    faceDescriptor: desc,
+                  }),
+                }).catch(() => {});
+              }
+            } catch (e) {
+              console.warn('Auto-extract biometric error for', student.name, e);
+            }
+          })
+        );
       }
     };
 
@@ -693,20 +698,27 @@ export default function FastAttendanceScannerModal({
       // Compare with all enrolled descriptors
       let bestMatch: BiometricPerson | null = null;
       let highestSimilarity = 0;
+      let secondHighestSimilarity = 0;
 
       for (const person of candidateList) {
         const enrolledDesc = descriptorsMapRef.current.get(person.id);
-        if (enrolledDesc && (enrolledDesc.length === 128 || enrolledDesc.length === 256)) {
+        if (enrolledDesc && enrolledDesc.length === 128) {
           const sim = compareFaceDescriptors(liveDescriptor, enrolledDesc);
           if (sim > highestSimilarity) {
+            secondHighestSimilarity = highestSimilarity;
             highestSimilarity = sim;
             bestMatch = person;
+          } else if (sim > secondHighestSimilarity) {
+            secondHighestSimilarity = sim;
           }
         }
       }
 
-      // POSITIVE IDENTIFICATION: Similarity >= Threshold (70%)
-      if (bestMatch && highestSimilarity >= BIOMETRIC_MATCH_THRESHOLD) {
+      // STRICT UNAMBIGUOUS VERIFICATION:
+      // Must be >= 75% AND distinguishable from other students (margin >= 4.0% or high confidence >= 85%)
+      const isUnambiguous = highestSimilarity >= 85 || (highestSimilarity - secondHighestSimilarity >= 4.0);
+
+      if (bestMatch && highestSimilarity >= BIOMETRIC_MATCH_THRESHOLD && isUnambiguous) {
         consecutiveUnrecognizedCount = 0;
         const studentRecord = roster.find((s) => s.studentId === bestMatch!.id);
         const isAlreadyMarked =
@@ -715,7 +727,7 @@ export default function FastAttendanceScannerModal({
         biometricStatusRef.current = isAlreadyMarked ? 'ALREADY_MARKED' : 'VERIFIED';
         handleConfirmedVerification(bestMatch, highestSimilarity, isAlreadyMarked);
       } else {
-        // Face is present, but not recognized among enrolled profiles
+        // Face is present, but not recognized with certainty (NEVER guess randomly!)
         consecutiveUnrecognizedCount++;
         if (consecutiveUnrecognizedCount > 2) {
           if (biometricStatusRef.current !== 'UNENROLLED') {

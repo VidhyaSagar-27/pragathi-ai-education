@@ -66,17 +66,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Student ID is required.' }, { status: 400 });
     }
 
-    if (!photoUrl || typeof photoUrl !== 'string') {
-      return NextResponse.json({ error: 'Valid photo data is required.' }, { status: 400 });
+    const cleanPhoto = photoUrl ? photoUrl.trim() : '';
+
+    // 1. Only save photo to student_photos table if it is actual image data (base64)
+    if (cleanPhoto.startsWith('data:image/')) {
+      await saveStudentPhoto(studentId, cleanPhoto);
     }
 
-    const cleanPhoto = photoUrl.trim();
-
-    // 1. Save photo to dedicated high-speed student_photos table
-    await saveStudentPhoto(studentId, cleanPhoto);
-
-    // 2. Set lightweight endpoint URL in db.users so DB row stays small
-    const photoEndpointUrl = `/api/students/photo?id=${studentId}&v=${Date.now()}`;
+    // 2. Set lightweight endpoint URL in db.users only if new image was uploaded
+    const photoEndpointUrl = cleanPhoto.startsWith('data:image/')
+      ? `/api/students/photo?id=${studentId}&v=${Date.now()}`
+      : cleanPhoto;
     let updatedUser: any = null;
 
     await updateDb((db) => {
@@ -93,7 +93,9 @@ export async function POST(req: NextRequest) {
             assignedGroups: [],
           };
         }
-        user.instructorDetails.photoUrl = photoEndpointUrl;
+        if (photoEndpointUrl) {
+          user.instructorDetails.photoUrl = photoEndpointUrl;
+        }
         if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
           user.instructorDetails.faceDescriptor = faceDescriptor;
         }
@@ -107,7 +109,9 @@ export async function POST(req: NextRequest) {
             group: 'Foundation Batch A',
           };
         }
-        user.studentDetails.photoUrl = photoEndpointUrl;
+        if (photoEndpointUrl) {
+          user.studentDetails.photoUrl = photoEndpointUrl;
+        }
         if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
           user.studentDetails.faceDescriptor = faceDescriptor;
         }

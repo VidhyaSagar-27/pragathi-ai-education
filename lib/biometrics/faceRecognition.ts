@@ -1,9 +1,9 @@
 /**
  * Pragathi AI Face Recognition & Biometric Engine
  *
- * Implements high-precision, low-latency face detection and 256-dimensional
- * spatial-gradient biometric feature extraction. Runs 100% in-browser with zero
- * external server dependencies or heavy model downloads.
+ * State-of-the-art client-side biometric face recognition system.
+ * Uses TinyFaceDetector + FaceLandmark68 + FaceRecognitionNet (128-D Deep Metric Embeddings)
+ * with zero-latency in-browser WebGL acceleration, and optical center-of-mass fallback.
  */
 
 export interface FaceBox {
@@ -14,16 +14,56 @@ export interface FaceBox {
   confidence: number;
 }
 
-export const BIOMETRIC_MATCH_THRESHOLD = 72.0; // 72% minimum confidence for positive identification
+export interface BiometricDetectionResult {
+  box: FaceBox;
+  descriptor: number[];
+}
+
+export const BIOMETRIC_MATCH_THRESHOLD = 70.0; // 70% confidence threshold for positive identification
+
+let faceapiInstance: any = null;
+let modelsLoaded = false;
+let modelsLoadingPromise: Promise<boolean> | null = null;
 
 /**
- * Detect human face in video frame or image source.
- * Uses native Hardware FaceDetector if available; falls back to optical facial geometry detection.
+ * Initializes and caches the neural network face recognition models.
  */
-export async function detectFace(
+export async function loadFaceApi(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (modelsLoaded && faceapiInstance) return true;
+  if (modelsLoadingPromise) return modelsLoadingPromise;
+
+  modelsLoadingPromise = (async () => {
+    try {
+      if (!faceapiInstance) {
+        faceapiInstance = await import('@vladmandic/face-api');
+      }
+
+      const MODEL_URL = '/models';
+      await Promise.all([
+        faceapiInstance.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapiInstance.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+        faceapiInstance.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      ]);
+
+      modelsLoaded = true;
+      return true;
+    } catch (err) {
+      console.warn('Neural face-api model initialization, using optical geometry fallback:', err);
+      return false;
+    }
+  })();
+
+  return modelsLoadingPromise;
+}
+
+/**
+ * Detect face and extract biometric descriptor in a single optimized pass.
+ */
+export async function detectAndExtractBiometrics(
   source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
   workCanvas?: HTMLCanvasElement
-): Promise<FaceBox | null> {
+): Promise<BiometricDetectionResult | null> {
   const sourceWidth =
     source instanceof HTMLVideoElement
       ? source.videoWidth || source.clientWidth || 640
@@ -35,30 +75,38 @@ export async function detectFace(
 
   if (sourceWidth === 0 || sourceHeight === 0) return null;
 
-  // 1. Try Native Shape Detection API (Chrome / Edge / Chromium)
-  if (typeof window !== 'undefined' && 'FaceDetector' in window) {
+  // 1. Try Deep Learning Neural Pipeline (face-api.js)
+  if (modelsLoaded && faceapiInstance) {
     try {
-      const nativeDetector = new (window as any).FaceDetector({
-        fastMode: true,
-        maxDetectedFaces: 1,
+      const options = new faceapiInstance.TinyFaceDetectorOptions({
+        inputSize: 224,
+        scoreThreshold: 0.45,
       });
-      const faces = await nativeDetector.detect(source);
-      if (faces && faces.length > 0) {
-        const box = faces[0].boundingBox;
+
+      const detection = await faceapiInstance
+        .detectSingleFace(source, options)
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (detection && detection.descriptor && detection.descriptor.length === 128) {
+        const b = detection.detection.box;
         return {
-          x: Math.max(0, Math.round(box.x)),
-          y: Math.max(0, Math.round(box.y)),
-          width: Math.min(sourceWidth - box.x, Math.round(box.width)),
-          height: Math.min(sourceHeight - box.y, Math.round(box.height)),
-          confidence: 96.5,
+          box: {
+            x: Math.max(0, Math.round(b.x)),
+            y: Math.max(0, Math.round(b.y)),
+            width: Math.min(sourceWidth - b.x, Math.round(b.width)),
+            height: Math.min(sourceHeight - b.y, Math.round(b.height)),
+            confidence: Math.round(detection.detection.score * 100),
+          },
+          descriptor: Array.from(detection.descriptor),
         };
       }
-    } catch {
-      // Fallback gracefully
+    } catch (e) {
+      // Graceful fallback
     }
   }
 
-  // 2. High-Speed Optical Facial Geometry Detection (Pure Canvas & JS)
+  // 2. High-Precision Optical Center-of-Mass & Skin Geometry Fallback
   const canvas = workCanvas || document.createElement('canvas');
   const dw = 160;
   const dh = 120;
@@ -71,179 +119,133 @@ export async function detectFace(
   const imgData = ctx.getImageData(0, 0, dw, dh);
   const data = imgData.data;
 
-  // Compute skin chrominance map in YCbCr color space
-  let minX = dw;
-  let maxX = 0;
-  let minY = dh;
-  let maxY = 0;
-  let skinCount = 0;
-
-  // Center weight bias: faces in kiosk are centered
+  // Central biometric ROI
   const roiMinX = Math.floor(dw * 0.15);
   const roiMaxX = Math.floor(dw * 0.85);
   const roiMinY = Math.floor(dh * 0.1);
-  const roiMaxY = Math.floor(dh * 0.9);
+  const roiMaxY = Math.floor(dh * 0.8);
 
-  for (let y = roiMinY; y < roiMaxY; y++) {
-    for (let x = roiMinX; x < roiMaxX; x++) {
+  let skinCount = 0;
+  let sumX = 0;
+  let sumY = 0;
+  const skinPoints: Array<{ x: number; y: number }> = [];
+
+  for (let y = roiMinY; y < roiMaxY; y += 2) {
+    for (let x = roiMinX; x < roiMaxX; x += 2) {
       const idx = (y * dw + x) * 4;
       const r = data[idx];
       const g = data[idx + 1];
       const b = data[idx + 2];
 
-      // YCbCr skin locus
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      const cb = -0.169 * r - 0.331 * g + 0.5 * b + 128;
-      const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
+      // Universal human skin locus
+      const isSkin =
+        r > 45 &&
+        g > 30 &&
+        b > 20 &&
+        r > g &&
+        g >= b * 0.85 &&
+        r - b >= 12 &&
+        Math.abs(r - g) >= 8;
 
-      if (cb >= 75 && cb <= 135 && cr >= 128 && cr <= 180 && lum >= 30 && lum <= 245) {
+      if (isSkin) {
         skinCount++;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
+        sumX += x;
+        sumY += y;
+        skinPoints.push({ x, y });
       }
     }
   }
 
-  const roiArea = (roiMaxX - roiMinX) * (roiMaxY - roiMinY);
-  const skinDensity = skinCount / roiArea;
+  const sampleArea = ((roiMaxX - roiMinX) / 2) * ((roiMaxY - roiMinY) / 2);
+  const skinDensity = skinCount / sampleArea;
 
-  // Need at least 6% skin pixels in the central area
-  if (skinDensity < 0.06 || maxX <= minX || maxY <= minY) {
+  // Discard empty walls or non-human frames
+  if (skinDensity < 0.07 || skinPoints.length < 40) {
     return null;
   }
 
-  const boxW = maxX - minX;
-  const boxH = maxY - minY;
+  const meanX = sumX / skinCount;
+  const meanY = sumY / skinCount;
 
-  // Face aspect ratio verification (faces are taller than wide, typically 1.1 - 1.6)
-  const aspect = boxH / Math.max(1, boxW);
-  if (aspect < 0.85 || aspect > 2.0 || boxW < 22 || boxH < 26) {
-    return null;
+  let varX = 0;
+  let varY = 0;
+  for (const pt of skinPoints) {
+    varX += (pt.x - meanX) * (pt.x - meanX);
+    varY += (pt.y - meanY) * (pt.y - meanY);
   }
+  const stdX = Math.sqrt(varX / skinCount);
+  const stdY = Math.sqrt(varY / skinCount);
 
-  // Facial geometry structure verification:
-  // Check that the eye region (top 20%-45% of face) has darker horizontal valleys than cheeks
-  const eyeY = Math.floor(minY + boxH * 0.3);
-  let eyeLumSum = 0;
-  let cheekLumSum = 0;
-  let sampleCount = 0;
+  const faceW_small = Math.round(stdX * 2.8);
+  const faceH_small = Math.round(stdY * 3.4);
 
-  for (let x = minX + 5; x < maxX - 5; x++) {
-    const eyeIdx = (eyeY * dw + x) * 4;
-    const cheekY = Math.min(dh - 1, Math.floor(minY + boxH * 0.65));
-    const cheekIdx = (cheekY * dw + x) * 4;
+  const startX_small = Math.max(0, Math.round(meanX - faceW_small / 2));
+  const startY_small = Math.max(0, Math.round(meanY - faceH_small * 0.45));
 
-    const eyeL = 0.299 * data[eyeIdx] + 0.587 * data[eyeIdx + 1] + 0.114 * data[eyeIdx + 2];
-    const cheekL =
-      0.299 * data[cheekIdx] + 0.587 * data[cheekIdx + 1] + 0.114 * data[cheekIdx + 2];
-
-    eyeLumSum += eyeL;
-    cheekLumSum += cheekL;
-    sampleCount++;
-  }
-
-  if (sampleCount === 0) return null;
-  const avgEyeLum = eyeLumSum / sampleCount;
-  const avgCheekLum = cheekLumSum / sampleCount;
-
-  // In real human faces, the eye line is darker or has high contrast compared to cheeks/forehead
-  const contrastRatio = Math.abs(avgEyeLum - avgCheekLum) / (avgCheekLum + 1);
-  if (contrastRatio < 0.02 && avgEyeLum < 20) {
-    return null;
-  }
-
-  // Scale back to source resolution
+  // Scale back to source dimensions
   const scaleX = sourceWidth / dw;
   const scaleY = sourceHeight / dh;
 
-  const padX = Math.round(boxW * 0.08);
-  const padY = Math.round(boxH * 0.08);
-
-  const finalX = Math.max(0, Math.round((minX - padX) * scaleX));
-  const finalY = Math.max(0, Math.round((minY - padY) * scaleY));
-  const finalW = Math.min(sourceWidth - finalX, Math.round((boxW + padX * 2) * scaleX));
-  const finalH = Math.min(sourceHeight - finalY, Math.round((boxH + padY * 2) * scaleY));
-
-  return {
-    x: finalX,
-    y: finalY,
-    width: finalW,
-    height: finalH,
-    confidence: Math.min(99.0, Math.round((0.7 + skinDensity * 0.4) * 1000) / 10),
+  const box: FaceBox = {
+    x: Math.round(startX_small * scaleX),
+    y: Math.round(startY_small * scaleY),
+    width: Math.min(sourceWidth - Math.round(startX_small * scaleX), Math.round(faceW_small * scaleX)),
+    height: Math.min(sourceHeight - Math.round(startY_small * scaleY), Math.round(faceH_small * scaleY)),
+    confidence: Math.min(99, Math.round(skinDensity * 150)),
   };
+
+  const descriptor = extractOpticalDescriptor(source, box, canvas);
+
+  return { box, descriptor };
 }
 
 /**
- * Extracts a robust 256-dimensional spatial-gradient biometric feature vector
- * from the detected face. Normalized via L2-norm for illumination invariance.
+ * Optical 128-dimensional spatial gradient descriptor extractor
  */
-export function extractFaceDescriptor(
+function extractOpticalDescriptor(
   source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
-  faceBox?: FaceBox,
-  workCanvas?: HTMLCanvasElement
+  faceBox: FaceBox,
+  workCanvas: HTMLCanvasElement
 ): number[] {
-  const canvas = workCanvas || document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return new Array(256).fill(0);
+  workCanvas.width = 64;
+  workCanvas.height = 64;
+  const ctx = workCanvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return new Array(128).fill(0);
 
-  if (faceBox && faceBox.width > 0 && faceBox.height > 0) {
-    ctx.drawImage(
-      source,
-      faceBox.x,
-      faceBox.y,
-      faceBox.width,
-      faceBox.height,
-      0,
-      0,
-      64,
-      64
-    );
-  } else {
-    ctx.drawImage(source, 0, 0, 64, 64);
-  }
-
+  ctx.drawImage(source, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, 64, 64);
   const imgData = ctx.getImageData(0, 0, 64, 64);
   const data = imgData.data;
 
-  // Convert to grayscale luminance array
   const gray = new Float32Array(64 * 64);
-  let minVal = 255;
-  let maxVal = 0;
+  let minLum = 255;
+  let maxLum = 0;
 
   for (let i = 0; i < 64 * 64; i++) {
     const idx = i * 4;
     const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
     gray[i] = lum;
-    if (lum < minVal) minVal = lum;
-    if (lum > maxVal) maxVal = lum;
+    if (lum < minLum) minLum = lum;
+    if (lum > maxLum) maxLum = lum;
   }
 
-  // Min-max illumination stretch for lighting robustness
-  const range = Math.max(1, maxVal - minVal);
+  const range = Math.max(1, maxLum - minLum);
   for (let i = 0; i < 64 * 64; i++) {
-    gray[i] = ((gray[i] - minVal) / range) * 255;
+    gray[i] = ((gray[i] - minLum) / range) * 255;
   }
 
-  // Extract 256 features across 8x8 spatial grid (each cell is 8x8 px)
-  const descriptor: number[] = new Array(256).fill(0);
-  let descIdx = 0;
+  // 128 features (8x4 grid of 4 features)
+  const desc = new Float32Array(128);
+  let dIdx = 0;
 
-  for (let cellY = 0; cellY < 8; cellY++) {
-    for (let cellX = 0; cellX < 8; cellX++) {
+  for (let cy = 0; cy < 8; cy++) {
+    for (let cx = 0; cx < 4; cx++) {
       let sumLum = 0;
       let sumDx = 0;
       let sumDy = 0;
       let sumMag = 0;
 
-      const startX = cellX * 8;
-      const startY = cellY * 8;
-
-      for (let y = startY; y < startY + 8; y++) {
-        for (let x = startX; x < startX + 8; x++) {
+      for (let y = cy * 8; y < (cy + 1) * 8; y++) {
+        for (let x = cx * 16; x < (cx + 1) * 16; x++) {
           const idx = y * 64 + x;
           const left = x > 0 ? gray[y * 64 + (x - 1)] : gray[idx];
           const right = x < 63 ? gray[y * 64 + (x + 1)] : gray[idx];
@@ -261,52 +263,73 @@ export function extractFaceDescriptor(
         }
       }
 
-      // 4 features per cell * 64 cells = 256 dimensions
-      descriptor[descIdx++] = sumLum / 64;
-      descriptor[descIdx++] = sumDx / 64;
-      descriptor[descIdx++] = sumDy / 64;
-      descriptor[descIdx++] = sumMag / 64;
+      desc[dIdx++] = sumLum / 128;
+      desc[dIdx++] = sumDx / 128;
+      desc[dIdx++] = sumDy / 128;
+      desc[dIdx++] = sumMag / 128;
     }
   }
 
-  // L2-unit normalization: length of vector = 1.0
-  let sumSq = 0;
-  for (let i = 0; i < 256; i++) {
-    sumSq += descriptor[i] * descriptor[i];
-  }
-  const norm = Math.sqrt(sumSq) || 1.0;
-  for (let i = 0; i < 256; i++) {
-    descriptor[i] = descriptor[i] / norm;
-  }
+  // Mean center
+  let mean = 0;
+  for (let i = 0; i < 128; i++) mean += desc[i];
+  mean /= 128;
+  for (let i = 0; i < 128; i++) desc[i] -= mean;
 
-  return descriptor;
+  // L2-unit normalization
+  let sumSq = 0;
+  for (let i = 0; i < 128; i++) sumSq += desc[i] * desc[i];
+  const norm = Math.sqrt(sumSq) || 1.0;
+  const out = [];
+  for (let i = 0; i < 128; i++) out.push(Number((desc[i] / norm).toFixed(6)));
+  return out;
 }
 
 /**
- * Computes Cosine Similarity between two 256-D descriptors.
- * Returns match score from 0.0% to 100.0%.
+ * Compare two biometric descriptors.
+ * Supports 128-D ResNet neural vectors (Euclidean distance)
+ * and legacy vectors (Cosine correlation).
  */
 export function compareFaceDescriptors(descA: number[], descB: number[]): number {
-  if (!descA || !descB || descA.length !== 256 || descB.length !== 256) {
-    return 0;
+  if (!descA || !descB || descA.length === 0 || descB.length === 0) return 0;
+  if (descA.length !== descB.length) return 0;
+
+  // 128-D Neural Embeddings (FaceRecognitionNet)
+  if (descA.length === 128) {
+    let sumSqDiff = 0;
+    for (let i = 0; i < 128; i++) {
+      const diff = descA[i] - descB[i];
+      sumSqDiff += diff * diff;
+    }
+    const dist = Math.sqrt(sumSqDiff);
+
+    // Standard FaceNet threshold: distance < 0.52 indicates match
+    if (dist <= 0.45) {
+      const confidence = Math.round(99 - (dist / 0.45) * 19);
+      return Math.min(99, Math.max(80, confidence));
+    } else if (dist <= 0.56) {
+      const confidence = Math.round(79 - ((dist - 0.45) / 0.11) * 9);
+      return Math.min(79, Math.max(70, confidence));
+    } else {
+      const confidence = Math.max(0, Math.round(65 - ((dist - 0.56) / 0.4) * 65));
+      return confidence;
+    }
   }
 
+  // 256-D Fallback
   let dotProduct = 0;
-  for (let i = 0; i < 256; i++) {
+  for (let i = 0; i < descA.length; i++) {
     dotProduct += descA[i] * descB[i];
   }
-
-  // Cosine distance maps to intuitive 0% - 100% confidence
-  const confidence = Math.max(0, Math.min(100, Math.round(dotProduct * 1000) / 10));
-  return confidence;
+  return Math.max(0, Math.min(100, Math.round(dotProduct * 1000) / 10));
 }
 
 /**
- * Extract face descriptor from an image URL (supports Data URLs, local API paths, etc.)
+ * Extract face descriptor from an image URL.
  */
 export async function extractDescriptorFromImageUrl(
   url: string,
-  timeoutMs = 5000
+  timeoutMs = 8000
 ): Promise<number[] | null> {
   if (!url || typeof window === 'undefined') return null;
 
@@ -320,26 +343,15 @@ export async function extractDescriptorFromImageUrl(
     }, timeoutMs);
 
     const img = new Image();
-    if (!url.startsWith('data:')) {
-      img.crossOrigin = 'anonymous';
-    }
+    img.crossOrigin = 'anonymous';
 
-    img.onload = () => {
+    img.onload = async () => {
       if (resolved) return;
       resolved = true;
       clearTimeout(timer);
       try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, 64, 64);
-        const desc = extractFaceDescriptor(canvas);
-        resolve(desc);
+        const result = await detectAndExtractBiometrics(img);
+        resolve(result ? result.descriptor : null);
       } catch {
         resolve(null);
       }
@@ -357,8 +369,7 @@ export async function extractDescriptorFromImageUrl(
 }
 
 /**
- * Crops detected face from video/canvas to a clean, square base64 JPEG DataURL
- * suitable for saving as a student profile photo.
+ * Crop detected face to base64 JPEG thumbnail
  */
 export function cropFaceToDataUrl(
   source: HTMLVideoElement | HTMLCanvasElement,
@@ -382,7 +393,7 @@ export function cropFaceToDataUrl(
 }
 
 /**
- * Local cache storage for ultra-fast kiosk boot
+ * Local cache storage for fast kiosk boot
  */
 export function saveLocalBiometricDescriptor(personId: string, descriptor: number[]): void {
   if (typeof window === 'undefined') return;
@@ -397,7 +408,7 @@ export function getLocalBiometricDescriptor(personId: string): number[] | null {
     const raw = localStorage.getItem(`pai_bio_desc_${personId}`);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length === 256) {
+      if (Array.isArray(parsed) && (parsed.length === 128 || parsed.length === 256)) {
         return parsed;
       }
     }

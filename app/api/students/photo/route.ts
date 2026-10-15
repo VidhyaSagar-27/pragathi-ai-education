@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
           'Content-Type': contentType,
           'Content-Length': buffer.length.toString(),
           'Cache-Control': 'public, max-age=604800, stale-while-revalidate=86400',
+          'Access-Control-Allow-Origin': '*',
         },
       });
     }

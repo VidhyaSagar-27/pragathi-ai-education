@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@vladmandic/face-api": "^1.7.15",
     "bcryptjs": "^2.4.3",
+    "jpeg-js": "^0.4.4",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.2",
     "lucide-react": "^0.453.0",

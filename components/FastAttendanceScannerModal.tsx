@@ -30,13 +30,13 @@ import {
   CheckCheck,
 } from 'lucide-react';
 import {
-  detectFace,
-  extractFaceDescriptor,
+  detectAndExtractBiometrics,
   compareFaceDescriptors,
   extractDescriptorFromImageUrl,
   cropFaceToDataUrl,
   saveLocalBiometricDescriptor,
   getLocalBiometricDescriptor,
+  loadFaceApi,
   BIOMETRIC_MATCH_THRESHOLD,
   FaceBox,
 } from '@/lib/biometrics/faceRecognition';
@@ -102,6 +102,8 @@ export default function FastAttendanceScannerModal({
   const [biometricStatus, setBiometricStatus] = useState<
     'SEARCHING' | 'ANALYZING' | 'VERIFIED' | 'ALREADY_MARKED' | 'UNENROLLED'
   >('SEARCHING');
+  const biometricStatusRef = useRef<'SEARCHING' | 'ANALYZING' | 'VERIFIED' | 'ALREADY_MARKED' | 'UNENROLLED'>('SEARCHING');
+  biometricStatusRef.current = biometricStatus;
 
   const [verifiedPerson, setVerifiedPerson] = useState<BiometricPerson | null>(null);
   const [matchScore, setMatchScore] = useState<number>(0);
@@ -143,6 +145,8 @@ export default function FastAttendanceScannerModal({
   // 1. Load Current Auth User and Instructors on Open
   useEffect(() => {
     if (!isOpen) return;
+
+    loadFaceApi().catch(() => {});
 
     scannedIdsRef.current.clear();
     setBiometricStatus('SEARCHING');
@@ -212,7 +216,7 @@ export default function FastAttendanceScannerModal({
 
     roster.forEach(async (student) => {
       // Priority A: Pre-stored in DB
-      if (student.faceDescriptor && student.faceDescriptor.length === 256) {
+      if (student.faceDescriptor && (student.faceDescriptor.length === 128 || student.faceDescriptor.length === 256)) {
         descriptorsMapRef.current.set(student.studentId, student.faceDescriptor);
         count++;
         return;
@@ -220,7 +224,7 @@ export default function FastAttendanceScannerModal({
 
       // Priority B: Stored in localStorage
       const localDesc = getLocalBiometricDescriptor(student.studentId);
-      if (localDesc && localDesc.length === 256) {
+      if (localDesc && (localDesc.length === 128 || localDesc.length === 256)) {
         descriptorsMapRef.current.set(student.studentId, localDesc);
         count++;
         return;
@@ -230,7 +234,7 @@ export default function FastAttendanceScannerModal({
       if (student.photoUrl && !descriptorsMapRef.current.has(student.studentId)) {
         try {
           const extracted = await extractDescriptorFromImageUrl(student.photoUrl);
-          if (mounted && extracted && extracted.length === 256) {
+          if (mounted && extracted && (extracted.length === 128 || extracted.length === 256)) {
             descriptorsMapRef.current.set(student.studentId, extracted);
             saveLocalBiometricDescriptor(student.studentId, extracted);
             setDescriptorsLoadedCount((prev) => prev + 1);
@@ -563,8 +567,9 @@ export default function FastAttendanceScannerModal({
         } catch {}
       }
 
-      // 2. Real Face Detection
-      const faceBox = await detectFace(video, workCanvasRef.current || undefined);
+      // 2. Real Face Detection & Biometric Extraction
+      const result = await detectAndExtractBiometrics(video, workCanvasRef.current || undefined);
+      const faceBox = result ? result.box : null;
       setTrackedFaceBox(faceBox);
 
       // Render Overlay graphics
@@ -580,11 +585,11 @@ export default function FastAttendanceScannerModal({
           // Corner brackets
           overlayCtx.lineWidth = 3.5;
           overlayCtx.strokeStyle =
-            biometricStatus === 'VERIFIED'
+            biometricStatusRef.current === 'VERIFIED'
               ? '#10b981'
-              : biometricStatus === 'ALREADY_MARKED'
+              : biometricStatusRef.current === 'ALREADY_MARKED'
               ? '#38bdf8'
-              : biometricStatus === 'ANALYZING'
+              : biometricStatusRef.current === 'ANALYZING'
               ? '#fbbf24'
               : '#06b6d4';
 
@@ -618,15 +623,21 @@ export default function FastAttendanceScannerModal({
         }
       }
 
-      if (!faceBox) {
-        setBiometricStatus('SEARCHING');
+      if (!result || !faceBox) {
+        if (biometricStatusRef.current !== 'SEARCHING') {
+          biometricStatusRef.current = 'SEARCHING';
+          setBiometricStatus('SEARCHING');
+        }
         consecutiveUnrecognizedCount = 0;
         return;
       }
 
-      // Face is in frame: Extract 256-D descriptor
-      setBiometricStatus('ANALYZING');
-      const liveDescriptor = extractFaceDescriptor(video, faceBox, workCanvasRef.current || undefined);
+      // Face is in frame: Extract descriptor
+      const liveDescriptor = result.descriptor;
+      if (biometricStatusRef.current === 'SEARCHING') {
+        biometricStatusRef.current = 'ANALYZING';
+        setBiometricStatus('ANALYZING');
+      }
 
       // Build Pool of Candidate People to match
       const candidateList: BiometricPerson[] = [];
@@ -657,7 +668,7 @@ export default function FastAttendanceScannerModal({
 
       for (const person of candidateList) {
         const enrolledDesc = descriptorsMapRef.current.get(person.id);
-        if (enrolledDesc && enrolledDesc.length === 256) {
+        if (enrolledDesc && (enrolledDesc.length === 128 || enrolledDesc.length === 256)) {
           const sim = compareFaceDescriptors(liveDescriptor, enrolledDesc);
           if (sim > highestSimilarity) {
             highestSimilarity = sim;
@@ -666,23 +677,27 @@ export default function FastAttendanceScannerModal({
         }
       }
 
-      // POSITIVE IDENTIFICATION: Similarity >= Threshold (72%)
+      // POSITIVE IDENTIFICATION: Similarity >= Threshold (70%)
       if (bestMatch && highestSimilarity >= BIOMETRIC_MATCH_THRESHOLD) {
         consecutiveUnrecognizedCount = 0;
         const studentRecord = roster.find((s) => s.studentId === bestMatch!.id);
         const isAlreadyMarked =
           (studentRecord && studentRecord.status === 'PRESENT') || scannedIdsRef.current.has(bestMatch.id);
 
+        biometricStatusRef.current = isAlreadyMarked ? 'ALREADY_MARKED' : 'VERIFIED';
         handleConfirmedVerification(bestMatch, highestSimilarity, isAlreadyMarked);
       } else {
         // Face is present, but not recognized among enrolled profiles
         consecutiveUnrecognizedCount++;
-        if (consecutiveUnrecognizedCount > 3) {
-          setBiometricStatus('UNENROLLED');
+        if (consecutiveUnrecognizedCount > 2) {
+          if (biometricStatusRef.current !== 'UNENROLLED') {
+            biometricStatusRef.current = 'UNENROLLED';
+            setBiometricStatus('UNENROLLED');
+          }
           setMatchScore(highestSimilarity);
         }
       }
-    }, 85);
+    }, 100);
 
     return () => {
       isScanning = false;
@@ -696,7 +711,6 @@ export default function FastAttendanceScannerModal({
     targetAudience,
     currentStaffUser,
     facultyList,
-    biometricStatus,
     handleConfirmedVerification,
   ]);
 
@@ -708,8 +722,8 @@ export default function FastAttendanceScannerModal({
 
     try {
       const video = videoRef.current;
-      // 1. Detect face
-      const faceBox = await detectFace(video, workCanvasRef.current || undefined);
+      // 1. Detect face & extract biometric descriptor
+      const result = await detectAndExtractBiometrics(video, workCanvasRef.current || undefined);
       const fallbackBox: FaceBox = {
         x: Math.round(video.videoWidth * 0.25) || 120,
         y: Math.round(video.videoHeight * 0.15) || 60,
@@ -717,12 +731,10 @@ export default function FastAttendanceScannerModal({
         height: Math.round(video.videoHeight * 0.6) || 280,
         confidence: 90,
       };
-      const activeBox = faceBox || fallbackBox;
+      const activeBox = result ? result.box : fallbackBox;
+      const descriptor = result ? result.descriptor : new Array(128).fill(0);
 
-      // 2. Extract 256-D Descriptor
-      const descriptor = extractFaceDescriptor(video, activeBox, workCanvasRef.current || undefined);
-
-      // 3. Crop face thumbnail
+      // 2. Crop face thumbnail
       const thumbnailDataUrl = cropFaceToDataUrl(video, activeBox, 320);
       setEnrollLastThumbnail(thumbnailDataUrl);
 

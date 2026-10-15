@@ -19,7 +19,7 @@ export interface BiometricDetectionResult {
   descriptor: number[];
 }
 
-export const BIOMETRIC_MATCH_THRESHOLD = 70.0; // 70% confidence threshold for positive identification
+export const BIOMETRIC_MATCH_THRESHOLD = 68.0; // 68% confidence threshold for positive identification
 
 let faceapiInstance: any = null;
 let modelsLoaded = false;
@@ -75,12 +75,17 @@ export async function detectAndExtractBiometrics(
 
   if (sourceWidth === 0 || sourceHeight === 0) return null;
 
-  // 1. Try Deep Learning Neural Pipeline (face-api.js)
+  // 1. Ensure neural models are loaded
+  if (!modelsLoaded) {
+    await loadFaceApi();
+  }
+
+  // 2. Try Deep Learning Neural Pipeline (face-api.js)
   if (modelsLoaded && faceapiInstance) {
     try {
       const options = new faceapiInstance.TinyFaceDetectorOptions({
-        inputSize: 224,
-        scoreThreshold: 0.45,
+        inputSize: 320,
+        scoreThreshold: 0.35,
       });
 
       const detection = await faceapiInstance
@@ -106,7 +111,7 @@ export async function detectAndExtractBiometrics(
     }
   }
 
-  // 2. High-Precision Optical Center-of-Mass & Skin Geometry Fallback
+  // 3. High-Precision Optical Center-of-Mass & Skin Geometry Fallback
   const canvas = workCanvas || document.createElement('canvas');
   const dw = 160;
   const dh = 120;
@@ -137,7 +142,6 @@ export async function detectAndExtractBiometrics(
       const g = data[idx + 1];
       const b = data[idx + 2];
 
-      // Universal human skin locus
       const isSkin =
         r > 45 &&
         g > 30 &&
@@ -159,7 +163,6 @@ export async function detectAndExtractBiometrics(
   const sampleArea = ((roiMaxX - roiMinX) / 2) * ((roiMaxY - roiMinY) / 2);
   const skinDensity = skinCount / sampleArea;
 
-  // Discard empty walls or non-human frames
   if (skinDensity < 0.07 || skinPoints.length < 40) {
     return null;
   }
@@ -182,7 +185,6 @@ export async function detectAndExtractBiometrics(
   const startX_small = Math.max(0, Math.round(meanX - faceW_small / 2));
   const startY_small = Math.max(0, Math.round(meanY - faceH_small * 0.45));
 
-  // Scale back to source dimensions
   const scaleX = sourceWidth / dw;
   const scaleY = sourceHeight / dh;
 
@@ -195,12 +197,11 @@ export async function detectAndExtractBiometrics(
   };
 
   const descriptor = extractOpticalDescriptor(source, box, canvas);
-
   return { box, descriptor };
 }
 
 /**
- * Optical 128-dimensional spatial gradient descriptor extractor
+ * Optical 128-dimensional spatial gradient descriptor extractor (fallback)
  */
 function extractOpticalDescriptor(
   source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
@@ -233,7 +234,6 @@ function extractOpticalDescriptor(
     gray[i] = ((gray[i] - minLum) / range) * 255;
   }
 
-  // 128 features (8x4 grid of 4 features)
   const desc = new Float32Array(128);
   let dIdx = 0;
 
@@ -270,13 +270,11 @@ function extractOpticalDescriptor(
     }
   }
 
-  // Mean center
   let mean = 0;
   for (let i = 0; i < 128; i++) mean += desc[i];
   mean /= 128;
   for (let i = 0; i < 128; i++) desc[i] -= mean;
 
-  // L2-unit normalization
   let sumSq = 0;
   for (let i = 0; i < 128; i++) sumSq += desc[i] * desc[i];
   const norm = Math.sqrt(sumSq) || 1.0;
@@ -303,15 +301,15 @@ export function compareFaceDescriptors(descA: number[], descB: number[]): number
     }
     const dist = Math.sqrt(sumSqDiff);
 
-    // Standard FaceNet threshold: distance < 0.52 indicates match
-    if (dist <= 0.45) {
-      const confidence = Math.round(99 - (dist / 0.45) * 19);
+    // Standard FaceNet threshold: distance < 0.60 indicates positive match
+    if (dist <= 0.48) {
+      const confidence = Math.round(99 - (dist / 0.48) * 19);
       return Math.min(99, Math.max(80, confidence));
-    } else if (dist <= 0.56) {
-      const confidence = Math.round(79 - ((dist - 0.45) / 0.11) * 9);
-      return Math.min(79, Math.max(70, confidence));
+    } else if (dist <= 0.60) {
+      const confidence = Math.round(79 - ((dist - 0.48) / 0.12) * 11);
+      return Math.min(79, Math.max(68, confidence));
     } else {
-      const confidence = Math.max(0, Math.round(65 - ((dist - 0.56) / 0.4) * 65));
+      const confidence = Math.max(0, Math.round(65 - ((dist - 0.60) / 0.4) * 65));
       return confidence;
     }
   }
@@ -325,13 +323,16 @@ export function compareFaceDescriptors(descA: number[], descB: number[]): number
 }
 
 /**
- * Extract face descriptor from an image URL.
+ * Extract face descriptor from an image URL using neural FaceRecognitionNet.
  */
 export async function extractDescriptorFromImageUrl(
   url: string,
-  timeoutMs = 8000
+  timeoutMs = 12000
 ): Promise<number[] | null> {
   if (!url || typeof window === 'undefined') return null;
+
+  // Ensure neural network weights are loaded before parsing
+  await loadFaceApi();
 
   return new Promise((resolve) => {
     let resolved = false;
@@ -393,22 +394,22 @@ export function cropFaceToDataUrl(
 }
 
 /**
- * Local cache storage for fast kiosk boot
+ * Local cache storage for fast kiosk boot (Version 2 for 128-D neural embeddings)
  */
 export function saveLocalBiometricDescriptor(personId: string, descriptor: number[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(`pai_bio_desc_${personId}`, JSON.stringify(descriptor));
+    localStorage.setItem(`pai_bio_desc_v2_${personId}`, JSON.stringify(descriptor));
   } catch {}
 }
 
 export function getLocalBiometricDescriptor(personId: string): number[] | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(`pai_bio_desc_${personId}`);
+    const raw = localStorage.getItem(`pai_bio_desc_v2_${personId}`);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && (parsed.length === 128 || parsed.length === 256)) {
+      if (Array.isArray(parsed) && parsed.length === 128) {
         return parsed;
       }
     }

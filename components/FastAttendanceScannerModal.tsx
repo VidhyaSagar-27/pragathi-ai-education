@@ -212,40 +212,68 @@ export default function FastAttendanceScannerModal({
     if (!isOpen) return;
 
     let mounted = true;
-    let count = 0;
 
-    roster.forEach(async (student) => {
-      // Priority A: Pre-stored in DB
-      if (student.faceDescriptor && (student.faceDescriptor.length === 128 || student.faceDescriptor.length === 256)) {
-        descriptorsMapRef.current.set(student.studentId, student.faceDescriptor);
-        count++;
-        return;
+    const syncBiometrics = async () => {
+      // Step 1: Ensure neural face-api models are 100% loaded
+      await loadFaceApi();
+      if (!mounted) return;
+
+      // Step 2: Index immediate DB descriptors & local cached descriptors
+      const pendingStudents: StudentItem[] = [];
+
+      for (const student of roster) {
+        // Priority A: Stored in DB
+        if (student.faceDescriptor && student.faceDescriptor.length === 128) {
+          descriptorsMapRef.current.set(student.studentId, student.faceDescriptor);
+          continue;
+        }
+
+        // Priority B: Stored in localStorage (v2 neural embedding)
+        const localDesc = getLocalBiometricDescriptor(student.studentId);
+        if (localDesc && localDesc.length === 128) {
+          descriptorsMapRef.current.set(student.studentId, localDesc);
+          continue;
+        }
+
+        // Priority C: Has existing photo in DB, needs automatic neural descriptor extraction
+        if (student.photoUrl && !descriptorsMapRef.current.has(student.studentId)) {
+          pendingStudents.push(student);
+        }
       }
 
-      // Priority B: Stored in localStorage
-      const localDesc = getLocalBiometricDescriptor(student.studentId);
-      if (localDesc && (localDesc.length === 128 || localDesc.length === 256)) {
-        descriptorsMapRef.current.set(student.studentId, localDesc);
-        count++;
-        return;
+      if (mounted) {
+        setDescriptorsLoadedCount(descriptorsMapRef.current.size);
       }
 
-      // Priority C: Extract from photoUrl if available
-      if (student.photoUrl && !descriptorsMapRef.current.has(student.studentId)) {
+      // Step 3: Automatically process existing student photos from the database
+      for (const student of pendingStudents) {
+        if (!mounted) break;
+        if (!student.photoUrl) continue;
         try {
-          const extracted = await extractDescriptorFromImageUrl(student.photoUrl);
-          if (mounted && extracted && (extracted.length === 128 || extracted.length === 256)) {
-            descriptorsMapRef.current.set(student.studentId, extracted);
-            saveLocalBiometricDescriptor(student.studentId, extracted);
-            setDescriptorsLoadedCount((prev) => prev + 1);
-          }
-        } catch {}
-      }
-    });
+          const desc = await extractDescriptorFromImageUrl(student.photoUrl);
+          if (mounted && desc && desc.length === 128) {
+            descriptorsMapRef.current.set(student.studentId, desc);
+            saveLocalBiometricDescriptor(student.studentId, desc);
+            setDescriptorsLoadedCount(descriptorsMapRef.current.size);
 
-    if (mounted) {
-      setDescriptorsLoadedCount(descriptorsMapRef.current.size);
-    }
+            // Automatically persist to DB so future scans are instant
+            fetch('/api/students/photo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                studentId: student.studentId,
+                photoUrl: student.photoUrl,
+                faceDescriptor: desc,
+              }),
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn('Auto-extract biometric error for', student.name, e);
+        }
+      }
+    };
+
+    syncBiometrics();
 
     return () => {
       mounted = false;

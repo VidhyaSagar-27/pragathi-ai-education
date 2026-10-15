@@ -90,7 +90,7 @@ export async function detectAndExtractBiometrics(
         .detectSingleFace(
           source,
           new faceapiInstance.TinyFaceDetectorOptions({
-            inputSize: isStaticImage ? 416 : 320,
+            inputSize: isStaticImage ? 416 : 224,
             scoreThreshold: 0.35,
           })
         )

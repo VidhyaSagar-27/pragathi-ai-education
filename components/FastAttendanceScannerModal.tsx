@@ -275,6 +275,9 @@ export default function FastAttendanceScannerModal({
             }
           })
         );
+        if (mounted && i + CHUNK_SIZE < pendingStudents.length) {
+          await new Promise((r) => setTimeout(r, 60));
+        }
       }
     };
 
@@ -515,7 +518,7 @@ export default function FastAttendanceScannerModal({
           setVerifiedPerson(null);
           setBiometricStatus('SEARCHING');
           cooldownRef.current = false;
-        }, 1800);
+        }, 1100);
       } else {
         scannedIdsRef.current.add(person.id);
         setBiometricStatus('VERIFIED');
@@ -544,64 +547,32 @@ export default function FastAttendanceScannerModal({
           setVerifiedPerson(null);
           setBiometricStatus('SEARCHING');
           cooldownRef.current = false;
-        }, 1200);
+        }, 750);
       }
     },
     [onMarkStudent, persistAttendanceRecord, playSoundChime, speakAnnouncement]
   );
 
-  // 9. Real-Time Face Recognition Loop (every 85ms)
+  // 9. Real-Time Face Recognition Loop (non-blocking 50ms ticker)
   useEffect(() => {
     if (!isOpen || scanMode !== 'BIOMETRIC' || !cameraActive) return;
 
     let isScanning = true;
+    let isProcessing = false;
     let consecutiveUnrecognizedCount = 0;
 
     const interval = setInterval(async () => {
-      if (!isScanning || !videoRef.current || cooldownRef.current) return;
+      if (isProcessing || !isScanning || !videoRef.current || cooldownRef.current) return;
       const video = videoRef.current;
       if (video.readyState < 2 || video.paused) return;
 
-      const overlayCanvas = overlayCanvasRef.current;
-      const overlayCtx = overlayCanvas?.getContext('2d');
+      isProcessing = true;
+      try {
+        const overlayCanvas = overlayCanvasRef.current;
+        const overlayCtx = overlayCanvas?.getContext('2d');
 
-      // 1. Check for QR Code / Barcode ID badges via BarcodeDetector API (if present)
-      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        try {
-          const barcodeDetector = new (window as any).BarcodeDetector({
-            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix'],
-          });
-          const barcodes = await barcodeDetector.detect(video);
-          if (barcodes && barcodes.length > 0) {
-            const rawVal = barcodes[0].rawValue?.trim().toUpperCase();
-            if (rawVal) {
-              const matchedStudent = roster.find((s) => {
-                const r = s.rollNumber.toUpperCase();
-                return r === rawVal || r.endsWith(rawVal) || rawVal.includes(r);
-              });
-              if (matchedStudent) {
-                const isAlready = matchedStudent.status === 'PRESENT' || scannedIdsRef.current.has(matchedStudent.studentId);
-                handleConfirmedVerification(
-                  {
-                    id: matchedStudent.studentId,
-                    name: matchedStudent.name,
-                    identifier: matchedStudent.rollNumber,
-                    role: 'STUDENT',
-                    photoUrl: matchedStudent.photoUrl,
-                    subtitle: `Class ${matchedStudent.classGrade || 'N/A'}`,
-                  },
-                  100,
-                  isAlready
-                );
-                return;
-              }
-            }
-          }
-        } catch {}
-      }
-
-      // 2. Real Face Detection & Biometric Extraction
-      const result = await detectAndExtractBiometrics(video, workCanvasRef.current || undefined);
+        // Real Face Detection & Biometric Extraction
+        const result = await detectAndExtractBiometrics(video, workCanvasRef.current || undefined);
       const faceBox = result ? result.box : null;
       setTrackedFaceBox(faceBox);
 
@@ -737,7 +708,10 @@ export default function FastAttendanceScannerModal({
           setMatchScore(highestSimilarity);
         }
       }
-    }, 100);
+    } finally {
+      isProcessing = false;
+    }
+  }, 50);
 
     return () => {
       isScanning = false;

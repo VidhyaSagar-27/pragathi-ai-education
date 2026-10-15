@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   XCircle,
   QrCode,
+  ScanFace,
   Trash2,
   UserPlus,
   Phone,
@@ -28,6 +29,7 @@ interface StudentRosterItem {
   schoolName?: string;
   phone: string;
   photoUrl: string;
+  faceDescriptor?: number[];
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
   remarks: string;
   isRecorded: boolean;
@@ -293,10 +295,11 @@ export default function InstructorAttendancePage() {
           <button
             type="button"
             onClick={() => setFastScanOpen(true)}
-            className="p-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition cursor-pointer"
-            title="Fast QR/Barcode Scanner"
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-slate-900 text-white hover:from-teal-500 hover:to-slate-800 transition shadow-xs cursor-pointer"
+            title="Face Recognition & QR Attendance Terminal"
           >
-            <QrCode className="w-4 h-4 text-teal-300" />
+            <ScanFace className="w-4 h-4 text-teal-300" />
+            <span className="text-xs font-bold hidden sm:inline">Face Scan</span>
           </button>
 
           <button

@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { studentId, photoUrl } = body;
+    const { studentId, photoUrl, faceDescriptor } = body;
 
     if (!studentId || typeof studentId !== 'string') {
       return NextResponse.json({ error: 'Student ID is required.' }, { status: 400 });
@@ -81,20 +81,36 @@ export async function POST(req: NextRequest) {
     await updateDb((db) => {
       const user = db.users.find((u) => u.id === studentId);
       if (!user) {
-        throw new Error('Student account not found.');
+        throw new Error('User account not found.');
       }
 
-      if (!user.studentDetails) {
-        user.studentDetails = {
-          classGrade: 'N/A',
-          schoolName: 'N/A',
-          parentName: 'N/A',
-          location: 'N/A',
-          group: 'Foundation Batch A',
-        };
+      if (user.role === 'INSTRUCTOR' || user.role === 'ADMIN') {
+        if (!user.instructorDetails) {
+          user.instructorDetails = {
+            designation: user.role === 'ADMIN' ? 'System Administrator' : 'Faculty Member',
+            assignedModules: [],
+            assignedGroups: [],
+          };
+        }
+        user.instructorDetails.photoUrl = photoEndpointUrl;
+        if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
+          user.instructorDetails.faceDescriptor = faceDescriptor;
+        }
+      } else {
+        if (!user.studentDetails) {
+          user.studentDetails = {
+            classGrade: 'N/A',
+            schoolName: 'N/A',
+            parentName: 'N/A',
+            location: 'N/A',
+            group: 'Foundation Batch A',
+          };
+        }
+        user.studentDetails.photoUrl = photoEndpointUrl;
+        if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
+          user.studentDetails.faceDescriptor = faceDescriptor;
+        }
       }
-
-      user.studentDetails.photoUrl = photoEndpointUrl;
       user.updatedAt = new Date().toISOString();
       updatedUser = user;
 

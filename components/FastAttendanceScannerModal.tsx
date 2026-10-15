@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   QrCode,
   Camera,
@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Eye,
   Scan,
+  ScanFace,
   Zap,
   Mic,
   Maximize2,
@@ -23,26 +24,44 @@ import {
   UserCheck,
   GraduationCap,
   ShieldCheck,
-  Award,
+  UserPlus,
+  FlipHorizontal,
+  Search,
+  CheckCheck,
 } from 'lucide-react';
+import {
+  detectFace,
+  extractFaceDescriptor,
+  compareFaceDescriptors,
+  extractDescriptorFromImageUrl,
+  cropFaceToDataUrl,
+  saveLocalBiometricDescriptor,
+  getLocalBiometricDescriptor,
+  BIOMETRIC_MATCH_THRESHOLD,
+  FaceBox,
+} from '@/lib/biometrics/faceRecognition';
 
-interface StudentItem {
+export interface StudentItem {
   studentId: string;
   name: string;
   rollNumber: string;
   photoUrl?: string;
+  faceDescriptor?: number[];
   classGrade?: string;
+  section?: string;
+  schoolName?: string;
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
   remarks?: string;
 }
 
-interface BiometricPerson {
+export interface BiometricPerson {
   id: string;
   name: string;
   identifier: string; // Roll number, Employee code, or Role label
   role: 'STUDENT' | 'FACULTY' | 'ADMIN';
   photoUrl?: string;
   subtitle?: string;
+  faceDescriptor?: number[];
 }
 
 interface FastAttendanceScannerModalProps {
@@ -53,44 +72,6 @@ interface FastAttendanceScannerModalProps {
   onMarkStudent: (studentId: string, status: 'PRESENT' | 'ABSENT', remarks?: string) => void;
 }
 
-// Compute fast 64-bin color/luminance descriptor
-function extractDescriptorFromImageData(data: Uint8ClampedArray): number[] {
-  const descriptor: number[] = new Array(64).fill(0);
-  const totalPixels = data.length / 4;
-  if (totalPixels === 0) return descriptor;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    const y = Math.floor((0.299 * r + 0.587 * g + 0.114 * b) / 16);
-    const cb = Math.floor((-0.169 * r - 0.331 * g + 0.5 * b + 128) / 64);
-    const cr = Math.floor((0.5 * r - 0.419 * g - 0.081 * b + 128) / 64);
-
-    const binIndex = Math.min(63, (y & 0x0f) + (cb << 4) + (cr << 5));
-    descriptor[binIndex] = (descriptor[binIndex] || 0) + 1;
-  }
-
-  for (let j = 0; j < 64; j++) {
-    descriptor[j] = descriptor[j] / totalPixels;
-  }
-
-  return descriptor;
-}
-
-// Compute Euclidean similarity distance between two descriptors
-function calculateSimilarity(descA: number[], descB: number[]): number {
-  if (descA.length !== descB.length) return 0;
-  let sumDiff = 0;
-  for (let i = 0; i < descA.length; i++) {
-    const diff = descA[i] - descB[i];
-    sumDiff += diff * diff;
-  }
-  const dist = Math.sqrt(sumDiff);
-  return Math.max(70, Math.min(99.8, (1 - dist) * 100));
-}
-
 export default function FastAttendanceScannerModal({
   isOpen,
   onClose,
@@ -98,30 +79,33 @@ export default function FastAttendanceScannerModal({
   roster,
   onMarkStudent,
 }: FastAttendanceScannerModalProps) {
-  // Mode: BIOMETRIC (Continuous Hands-Free Kiosk) or KEYPAD (Barcode Gun)
-  const [scanMode, setScanMode] = useState<'BIOMETRIC' | 'KEYPAD'>('BIOMETRIC');
+  // Mode: BIOMETRIC (Continuous Hands-Free Kiosk), ENROLL (Register Face), or KEYPAD (Barcode Gun)
+  const [scanMode, setScanMode] = useState<'BIOMETRIC' | 'ENROLL' | 'KEYPAD'>('BIOMETRIC');
 
   // Target audience: UNIVERSAL (Students + Faculty + Admin), STUDENTS, or FACULTY
   const [targetAudience, setTargetAudience] = useState<'UNIVERSAL' | 'STUDENTS' | 'FACULTY'>('UNIVERSAL');
 
   // Camera stream state
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [mirrorVideo, setMirrorVideo] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const workCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Biometric state: SEARCHING | LOCKING | VERIFIED
+  // Biometric status: SEARCHING | ANALYZING | VERIFIED | ALREADY_MARKED | UNENROLLED
   const [biometricStatus, setBiometricStatus] = useState<
-    'SEARCHING' | 'LOCKING' | 'VERIFIED'
+    'SEARCHING' | 'ANALYZING' | 'VERIFIED' | 'ALREADY_MARKED' | 'UNENROLLED'
   >('SEARCHING');
 
   const [verifiedPerson, setVerifiedPerson] = useState<BiometricPerson | null>(null);
-  const [matchScore, setMatchScore] = useState<number>(99.2);
+  const [matchScore, setMatchScore] = useState<number>(0);
+  const [trackedFaceBox, setTrackedFaceBox] = useState<FaceBox | null>(null);
   const cooldownRef = useRef(false);
 
   // Audio / Speech Feedback
@@ -132,29 +116,42 @@ export default function FastAttendanceScannerModal({
   const [currentStaffUser, setCurrentStaffUser] = useState<BiometricPerson | null>(null);
   const [facultyList, setFacultyList] = useState<BiometricPerson[]>([]);
 
-  // Track people scanned in the current session
+  // Cache of indexed 256-D descriptors: Map<personId, number[]>
+  const descriptorsMapRef = useRef<Map<string, number[]>>(new Map());
+  const [descriptorsLoadedCount, setDescriptorsLoadedCount] = useState<number>(0);
+
+  // Track people scanned in this kiosk session
   const scannedIdsRef = useRef<Set<string>>(new Set());
 
   // List of recently verified people (live ticker)
   const [recentVerifiedList, setRecentVerifiedList] = useState<
-    Array<{ person: BiometricPerson; timeStr: string }>
+    Array<{ person: BiometricPerson; timeStr: string; matchScore: number; status: 'PRESENT' | 'ALREADY_MARKED' }>
   >([]);
 
-  // Manual input state
+  // Manual barcode/numpad input state
   const [inputCode, setInputCode] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Pre-indexed facial descriptors
-  const personDescriptorsRef = useRef<Map<string, number[]>>(new Map());
+  // Face Enrollment State
+  const [enrollSelectedPersonId, setEnrollSelectedPersonId] = useState<string>('');
+  const [enrollSearch, setEnrollSearch] = useState<string>('');
+  const [isEnrolling, setIsEnrolling] = useState<boolean>(false);
+  const [enrollSuccessMessage, setEnrollSuccessMessage] = useState<string | null>(null);
+  const [enrollLastThumbnail, setEnrollLastThumbnail] = useState<string | null>(null);
 
-  // Load current auth user and instructors on open
+  // 1. Load Current Auth User and Instructors on Open
   useEffect(() => {
     if (!isOpen) return;
 
     scannedIdsRef.current.clear();
+    setBiometricStatus('SEARCHING');
+    setVerifiedPerson(null);
+    setTrackedFaceBox(null);
+    setErrorMsg(null);
+    setEnrollSuccessMessage(null);
 
-    // Fetch current user (Admin or Instructor)
+    // Fetch current user
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -165,91 +162,173 @@ export default function FastAttendanceScannerModal({
             name: u.name || 'System Admin',
             identifier: u.role === 'ADMIN' ? 'Admin Master' : u.rollNumber || 'Faculty ID',
             role: u.role === 'ADMIN' ? 'ADMIN' : 'FACULTY',
-            photoUrl: u.studentDetails?.photoUrl || '',
-            subtitle: u.role === 'ADMIN' ? 'Master Authority' : 'Faculty Member',
+            photoUrl: u.studentDetails?.photoUrl || u.instructorDetails?.photoUrl || '',
+            subtitle: u.role === 'ADMIN' ? 'Administrator' : 'Faculty Member',
+            faceDescriptor: u.studentDetails?.faceDescriptor || u.instructorDetails?.faceDescriptor,
           };
           setCurrentStaffUser(staff);
+
+          // If descriptor in user profile or localStorage, index it
+          if (staff.faceDescriptor) {
+            descriptorsMapRef.current.set(staff.id, staff.faceDescriptor);
+          } else {
+            const local = getLocalBiometricDescriptor(staff.id);
+            if (local) descriptorsMapRef.current.set(staff.id, local);
+          }
         }
       })
       .catch(() => {});
 
-    // Fetch instructors list
+    // Fetch instructors
     fetch('/api/admin/users?role=INSTRUCTOR')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.users) {
-          const list: BiometricPerson[] = data.users.map((inst: any) => ({
-            id: inst.id,
-            name: inst.name,
-            identifier: inst.email || 'Faculty Staff',
-            role: 'FACULTY',
-            subtitle: 'Faculty Instructor',
-          }));
+          const list: BiometricPerson[] = data.users.map((inst: any) => {
+            const desc = inst.instructorDetails?.faceDescriptor || getLocalBiometricDescriptor(inst.id);
+            if (desc) descriptorsMapRef.current.set(inst.id, desc);
+            return {
+              id: inst.id,
+              name: inst.name,
+              identifier: inst.email || 'Faculty Staff',
+              role: 'FACULTY' as const,
+              subtitle: 'Faculty Instructor',
+              photoUrl: inst.instructorDetails?.photoUrl || '',
+              faceDescriptor: desc,
+            };
+          });
           setFacultyList(list);
         }
       })
       .catch(() => {});
   }, [isOpen]);
 
-  // Index enrolled students' profile photos quickly
+  // 2. Index Enrolled Students' Descriptors
   useEffect(() => {
     if (!isOpen) return;
 
-    roster.forEach((student) => {
-      if (student.photoUrl && !personDescriptorsRef.current.has(student.studentId)) {
+    let mounted = true;
+    let count = 0;
+
+    roster.forEach(async (student) => {
+      // Priority A: Pre-stored in DB
+      if (student.faceDescriptor && student.faceDescriptor.length === 256) {
+        descriptorsMapRef.current.set(student.studentId, student.faceDescriptor);
+        count++;
+        return;
+      }
+
+      // Priority B: Stored in localStorage
+      const localDesc = getLocalBiometricDescriptor(student.studentId);
+      if (localDesc && localDesc.length === 256) {
+        descriptorsMapRef.current.set(student.studentId, localDesc);
+        count++;
+        return;
+      }
+
+      // Priority C: Extract from photoUrl if available
+      if (student.photoUrl && !descriptorsMapRef.current.has(student.studentId)) {
         try {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = 32;
-              canvas.height = 32;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(img, 0, 0, 32, 32);
-                const data = ctx.getImageData(0, 0, 32, 32).data;
-                const desc = extractDescriptorFromImageData(data);
-                personDescriptorsRef.current.set(student.studentId, desc);
-              }
-            } catch {}
-          };
-          img.src = student.photoUrl;
+          const extracted = await extractDescriptorFromImageUrl(student.photoUrl);
+          if (mounted && extracted && extracted.length === 256) {
+            descriptorsMapRef.current.set(student.studentId, extracted);
+            saveLocalBiometricDescriptor(student.studentId, extracted);
+            setDescriptorsLoadedCount((prev) => prev + 1);
+          }
         } catch {}
       }
     });
+
+    if (mounted) {
+      setDescriptorsLoadedCount(descriptorsMapRef.current.size);
+    }
+
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, roster]);
 
-  // Ultra-Fast Crisp Audio Chime (40ms blip for zero lag)
-  const playRapidChime = useCallback(() => {
-    if (!soundEnabled || typeof window === 'undefined') return;
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
+  // Set default student for enrollment if none selected
+  useEffect(() => {
+    if (!enrollSelectedPersonId && roster.length > 0) {
+      // Pick first student that doesn't have an enrolled descriptor yet, or first student
+      const unenrolled = roster.find((s) => !descriptorsMapRef.current.has(s.studentId));
+      setEnrollSelectedPersonId(unenrolled ? unenrolled.studentId : roster[0].studentId);
+    }
+  }, [roster, enrollSelectedPersonId]);
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-      osc.frequency.setValueAtTime(1320, audioCtx.currentTime + 0.04); // E6
-      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.12);
-    } catch {}
-  }, [soundEnabled]);
+  // 3. Audio Chimes via Web Audio API
+  const playSoundChime = useCallback(
+    (type: 'SUCCESS' | 'ALREADY' | 'ALERT') => {
+      if (!soundEnabled || typeof window === 'undefined') return;
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
 
-  // Non-blocking rapid voice announcement
-  const speakPersonName = useCallback(
-    (person: BiometricPerson) => {
+        if (type === 'SUCCESS') {
+          // Melodic dual-tone chime (A5 -> E6)
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc1.type = 'sine';
+          osc2.type = 'triangle';
+          osc1.frequency.setValueAtTime(880, ctx.currentTime);
+          osc2.frequency.setValueAtTime(1320, ctx.currentTime + 0.05);
+
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start();
+          osc2.start(ctx.currentTime + 0.05);
+          osc1.stop(ctx.currentTime + 0.35);
+          osc2.stop(ctx.currentTime + 0.35);
+        } else if (type === 'ALREADY') {
+          // Soft dual low-high blip
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.25);
+        } else {
+          // Alert low tone
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(320, ctx.currentTime);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.2);
+        }
+      } catch {}
+    },
+    [soundEnabled]
+  );
+
+  // 4. Voice Announcements via Web Speech Synthesis
+  const speakAnnouncement = useCallback(
+    (text: string) => {
       if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
       try {
         window.speechSynthesis.cancel();
-        const suffix = person.role === 'ADMIN' ? 'Verified' : 'Present';
-        const text = `${person.name}, ${suffix}`;
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.35; // Fast and snappy
+        utterance.rate = 1.25;
         utterance.pitch = 1.05;
         utterance.volume = 1.0;
         window.speechSynthesis.speak(utterance);
@@ -258,47 +337,80 @@ export default function FastAttendanceScannerModal({
     [voiceEnabled]
   );
 
-  // Start Camera Stream
+  // 5. Start Camera Stream with progressive fallback
   const startCamera = useCallback(async () => {
     setCameraError(null);
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setCameraError('Camera access is not supported on this browser or device.');
       return;
     }
 
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
+    // Try high resolution, then medium, then basic video: true
+    const constraintTiers: MediaStreamConstraints[] = [
+      {
         video: {
           facingMode: facingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
-      });
+      },
+      {
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      },
+      {
+        video: true,
+        audio: false,
+      },
+    ];
 
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-        setBiometricStatus('SEARCHING');
+    let stream: MediaStream | null = null;
+    let lastErr: any = null;
+
+    for (const constraints of constraintTiers) {
+      try {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+        }
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stream) break;
+      } catch (err) {
+        lastErr = err;
       }
-    } catch (err: any) {
-      console.error('Camera stream error:', err);
+    }
+
+    if (!stream) {
+      console.error('All camera constraint tiers failed:', lastErr);
       setCameraError(
-        err.name === 'NotAllowedError'
-          ? 'Camera permission denied. Please allow camera in browser settings.'
-          : 'Unable to start camera stream. You can switch to Barcode Gun mode.'
+        lastErr?.name === 'NotAllowedError'
+          ? 'Camera permission denied. Please allow camera access in your browser.'
+          : 'Unable to open camera stream. Please check camera connections or try manual mode.'
       );
       setCameraActive(false);
+      return;
+    }
+
+    streamRef.current = stream;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current
+        .play()
+        .then(() => {
+          setCameraActive(true);
+          setBiometricStatus('SEARCHING');
+        })
+        .catch((e) => {
+          console.warn('Video play interrupted:', e);
+        });
     }
   }, [facingMode]);
 
-  // Stop Camera Stream
+  // 6. Stop Camera Stream
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -307,94 +419,117 @@ export default function FastAttendanceScannerModal({
     setCameraActive(false);
   }, []);
 
-  // Handle Camera switch (Front / Back)
-  const toggleCameraFacing = () => {
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
-  };
-
-  // Toggle fullscreen kiosk
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      modalContainerRef.current?.requestFullscreen?.().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  // Mount/Unmount Camera Lifecycle
+  // Lifecycle for camera
   useEffect(() => {
-    if (isOpen && scanMode === 'BIOMETRIC') {
+    if (isOpen && (scanMode === 'BIOMETRIC' || scanMode === 'ENROLL')) {
       startCamera();
     } else {
       stopCamera();
     }
-
     return () => {
       stopCamera();
     };
   }, [isOpen, scanMode, facingMode, startCamera, stopCamera]);
 
-  // SUB-SECOND RAPID ATTENDANCE CONFIRMATION (< 0.5s)
-  const markPersonVerifiedAutomatically = useCallback(
-    (person: BiometricPerson, confidence: number = 99.4) => {
+  // 7. Auto-Save Attendance to Server API
+  const persistAttendanceRecord = useCallback(
+    async (studentId: string) => {
+      try {
+        await fetch('/api/admin/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: dateStr,
+            records: [{ studentId, status: 'PRESENT' }],
+          }),
+        });
+      } catch (e) {
+        console.warn('Attendance background auto-save sync:', e);
+      }
+    },
+    [dateStr]
+  );
+
+  // 8. Confirm Verified Person
+  const handleConfirmedVerification = useCallback(
+    (person: BiometricPerson, confidence: number, isAlreadyMarked: boolean) => {
       if (cooldownRef.current) return;
       cooldownRef.current = true;
 
-      scannedIdsRef.current.add(person.id);
-      setBiometricStatus('VERIFIED');
       setVerifiedPerson(person);
       setMatchScore(confidence);
 
-      // If it's a student, mark their attendance directly in parent state
-      if (person.role === 'STUDENT') {
-        onMarkStudent(person.id, 'PRESENT');
+      if (isAlreadyMarked) {
+        setBiometricStatus('ALREADY_MARKED');
+        playSoundChime('ALREADY');
+        speakAnnouncement(`${person.name}, already marked present.`);
+
+        setRecentVerifiedList((prev) => [
+          {
+            person,
+            timeStr: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            matchScore: confidence,
+            status: 'ALREADY_MARKED',
+          },
+          ...prev.filter((p) => p.person.id !== person.id).slice(0, 5),
+        ]);
+
+        setTimeout(() => {
+          setVerifiedPerson(null);
+          setBiometricStatus('SEARCHING');
+          cooldownRef.current = false;
+        }, 1800);
+      } else {
+        scannedIdsRef.current.add(person.id);
+        setBiometricStatus('VERIFIED');
+
+        // Mark student in parent state and auto-save to API
+        if (person.role === 'STUDENT') {
+          onMarkStudent(person.id, 'PRESENT');
+          persistAttendanceRecord(person.id);
+        }
+
+        playSoundChime('SUCCESS');
+        const roleGreeting = person.role === 'ADMIN' ? 'Admin Verified' : `${person.name}, Present!`;
+        speakAnnouncement(roleGreeting);
+
+        setRecentVerifiedList((prev) => [
+          {
+            person,
+            timeStr: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            matchScore: confidence,
+            status: 'PRESENT',
+          },
+          ...prev.filter((p) => p.person.id !== person.id).slice(0, 5),
+        ]);
+
+        setTimeout(() => {
+          setVerifiedPerson(null);
+          setBiometricStatus('SEARCHING');
+          cooldownRef.current = false;
+        }, 1200);
       }
-
-      // Add to recent live stream ticker
-      setRecentVerifiedList((prev) => [
-        {
-          person,
-          timeStr: new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          }),
-        },
-        ...prev.filter((p) => p.person.id !== person.id).slice(0, 5),
-      ]);
-
-      // Instant chime and rapid voice announcement
-      playRapidChime();
-      speakPersonName(person);
-
-      // RAPID SHIFT: Reset in 550ms (<1 second turnaround!) so the next student/staff can be scanned immediately
-      setTimeout(() => {
-        setVerifiedPerson(null);
-        setBiometricStatus('SEARCHING');
-        cooldownRef.current = false;
-      }, 550);
     },
-    [onMarkStudent, playRapidChime, speakPersonName]
+    [onMarkStudent, persistAttendanceRecord, playSoundChime, speakAnnouncement]
   );
 
-  // CONTINUOUS ULTRA-FAST LIVE FRAME RECOGNITION LOOP (Runs every 70ms)
+  // 9. Real-Time Face Recognition Loop (every 85ms)
   useEffect(() => {
     if (!isOpen || scanMode !== 'BIOMETRIC' || !cameraActive) return;
 
     let isScanning = true;
+    let consecutiveUnrecognizedCount = 0;
+
     const interval = setInterval(async () => {
-      if (!isScanning || !videoRef.current || !canvasRef.current || cooldownRef.current) return;
+      if (!isScanning || !videoRef.current || cooldownRef.current) return;
       const video = videoRef.current;
-      if (video.readyState < 2) return;
+      if (video.readyState < 2 || video.paused) return;
 
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      const overlayCanvas = overlayCanvasRef.current;
+      const overlayCtx = overlayCanvas?.getContext('2d');
 
-      // 1. Check for Barcode / QR ID badge in 15ms
-      if ('BarcodeDetector' in window) {
+      // 1. Check for QR Code / Barcode ID badges via BarcodeDetector API (if present)
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
         try {
           const barcodeDetector = new (window as any).BarcodeDetector({
             formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix'],
@@ -403,21 +538,23 @@ export default function FastAttendanceScannerModal({
           if (barcodes && barcodes.length > 0) {
             const rawVal = barcodes[0].rawValue?.trim().toUpperCase();
             if (rawVal) {
-              const matched = roster.find((s) => {
+              const matchedStudent = roster.find((s) => {
                 const r = s.rollNumber.toUpperCase();
                 return r === rawVal || r.endsWith(rawVal) || rawVal.includes(r);
               });
-              if (matched) {
-                markPersonVerifiedAutomatically(
+              if (matchedStudent) {
+                const isAlready = matchedStudent.status === 'PRESENT' || scannedIdsRef.current.has(matchedStudent.studentId);
+                handleConfirmedVerification(
                   {
-                    id: matched.studentId,
-                    name: matched.name,
-                    identifier: matched.rollNumber,
+                    id: matchedStudent.studentId,
+                    name: matchedStudent.name,
+                    identifier: matchedStudent.rollNumber,
                     role: 'STUDENT',
-                    photoUrl: matched.photoUrl,
-                    subtitle: `Grade ${matched.classGrade || 'N/A'}`,
+                    photoUrl: matchedStudent.photoUrl,
+                    subtitle: `Class ${matchedStudent.classGrade || 'N/A'}`,
                   },
-                  100
+                  100,
+                  isAlready
                 );
                 return;
               }
@@ -426,121 +563,215 @@ export default function FastAttendanceScannerModal({
         } catch {}
       }
 
-      // 2. High-Speed Optical Human Face Presence Detection (< 20ms)
-      canvas.width = 80;
-      canvas.height = 60;
-      ctx.drawImage(video, 0, 0, 80, 60);
+      // 2. Real Face Detection
+      const faceBox = await detectFace(video, workCanvasRef.current || undefined);
+      setTrackedFaceBox(faceBox);
 
-      // Central Reticle ROI: 30x30 pixels in the center
-      const centerData = ctx.getImageData(25, 15, 30, 30);
-      const data = centerData.data;
+      // Render Overlay graphics
+      if (overlayCanvas && overlayCtx) {
+        overlayCanvas.width = video.videoWidth || 640;
+        overlayCanvas.height = video.videoHeight || 480;
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-      let humanPixels = 0;
-      let totalLuminance = 0;
-      let varianceSum = 0;
+        if (faceBox) {
+          const { x, y, width, height } = faceBox;
+          const cornerLength = Math.min(width, height) * 0.22;
 
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+          // Corner brackets
+          overlayCtx.lineWidth = 3.5;
+          overlayCtx.strokeStyle =
+            biometricStatus === 'VERIFIED'
+              ? '#10b981'
+              : biometricStatus === 'ALREADY_MARKED'
+              ? '#38bdf8'
+              : biometricStatus === 'ANALYZING'
+              ? '#fbbf24'
+              : '#06b6d4';
 
-        // Standard YCbCr skin & facial chrominance
-        const y = 0.299 * r + 0.587 * g + 0.114 * b;
-        const cb = -0.169 * r - 0.331 * g + 0.5 * b + 128;
-        const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
+          // Top-Left
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(x, y + cornerLength);
+          overlayCtx.lineTo(x, y);
+          overlayCtx.lineTo(x + cornerLength, y);
+          overlayCtx.stroke();
 
-        totalLuminance += y;
+          // Top-Right
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(x + width - cornerLength, y);
+          overlayCtx.lineTo(x + width, y);
+          overlayCtx.lineTo(x + width, y + cornerLength);
+          overlayCtx.stroke();
 
-        // Universal skin chrominance + luminance range
-        if (cb >= 70 && cb <= 135 && cr >= 125 && cr <= 180 && y > 25 && y < 245) {
-          humanPixels++;
+          // Bottom-Left
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(x, y + height - cornerLength);
+          overlayCtx.lineTo(x, y + height);
+          overlayCtx.lineTo(x + cornerLength, y + height);
+          overlayCtx.stroke();
+
+          // Bottom-Right
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(x + width - cornerLength, y + height);
+          overlayCtx.lineTo(x + width, y + height);
+          overlayCtx.lineTo(x + width, y + height - cornerLength);
+          overlayCtx.stroke();
         }
       }
 
-      const pixelCount = data.length / 4;
-      const avgLum = totalLuminance / pixelCount;
-      const humanRatio = humanPixels / pixelCount;
-
-      for (let i = 0; i < data.length; i += 4) {
-        const y = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        varianceSum += Math.abs(y - avgLum);
-      }
-      const avgVariance = varianceSum / pixelCount;
-
-      // Face confirmed in reticle: Has human color + facial structure variance
-      const isFaceDetected = humanRatio > 0.06 || (avgLum > 30 && avgLum < 240 && avgVariance > 10);
-
-      if (isFaceDetected) {
-        if (cooldownRef.current) return;
-        setBiometricStatus('LOCKING');
-
-        // Extract live descriptor
-        const liveDesc = extractDescriptorFromImageData(data);
-
-        // A. If Faculty / Admin Mode or User is Staff testing the scanner:
-        if (targetAudience === 'FACULTY' || (targetAudience === 'UNIVERSAL' && currentStaffUser && !scannedIdsRef.current.has(currentStaffUser.id))) {
-          markPersonVerifiedAutomatically(currentStaffUser!, 99.4);
-          return;
-        }
-
-        // B. Student Matching
-        if (roster.length > 0) {
-          let bestMatch: StudentItem | null = null;
-          let bestConfidence = 0;
-
-          // Priority 1: Unscanned students in this kiosk session
-          const unscannedStudents = roster.filter((s) => !scannedIdsRef.current.has(s.studentId));
-          const candidatePool = unscannedStudents.length > 0 ? unscannedStudents : roster;
-
-          // Match against enrolled profile photos
-          for (const student of candidatePool) {
-            const enrolledDesc = personDescriptorsRef.current.get(student.studentId);
-            if (enrolledDesc) {
-              const conf = calculateSimilarity(liveDesc, enrolledDesc);
-              if (conf > bestConfidence) {
-                bestConfidence = conf;
-                bestMatch = student;
-              }
-            }
-          }
-
-          // Pick matched student or next student in queue
-          const targetStudent = (bestMatch && bestConfidence > 70) ? bestMatch : candidatePool[0];
-          const finalConfidence = bestConfidence > 70 ? Math.round(bestConfidence * 10) / 10 : 98.8;
-
-          if (targetStudent) {
-            markPersonVerifiedAutomatically(
-              {
-                id: targetStudent.studentId,
-                name: targetStudent.name,
-                identifier: targetStudent.rollNumber,
-                role: 'STUDENT',
-                photoUrl: targetStudent.photoUrl,
-                subtitle: `Grade ${targetStudent.classGrade || 'N/A'}`,
-              },
-              finalConfidence
-            );
-            return;
-          }
-        }
-
-        // C. Fallback: If no students in roster, match logged-in Admin/Staff
-        if (currentStaffUser) {
-          markPersonVerifiedAutomatically(currentStaffUser, 99.6);
-        }
-      } else {
+      if (!faceBox) {
         setBiometricStatus('SEARCHING');
+        consecutiveUnrecognizedCount = 0;
+        return;
       }
-    }, 70); // 70ms loop (14 checks per second)
+
+      // Face is in frame: Extract 256-D descriptor
+      setBiometricStatus('ANALYZING');
+      const liveDescriptor = extractFaceDescriptor(video, faceBox, workCanvasRef.current || undefined);
+
+      // Build Pool of Candidate People to match
+      const candidateList: BiometricPerson[] = [];
+
+      // A. Students
+      if (targetAudience === 'UNIVERSAL' || targetAudience === 'STUDENTS') {
+        roster.forEach((s) => {
+          candidateList.push({
+            id: s.studentId,
+            name: s.name,
+            identifier: s.rollNumber,
+            role: 'STUDENT',
+            photoUrl: s.photoUrl,
+            subtitle: `Grade ${s.classGrade || 'N/A'}`,
+          });
+        });
+      }
+
+      // B. Faculty & Admin
+      if (targetAudience === 'UNIVERSAL' || targetAudience === 'FACULTY') {
+        if (currentStaffUser) candidateList.push(currentStaffUser);
+        facultyList.forEach((f) => candidateList.push(f));
+      }
+
+      // Compare with all enrolled descriptors
+      let bestMatch: BiometricPerson | null = null;
+      let highestSimilarity = 0;
+
+      for (const person of candidateList) {
+        const enrolledDesc = descriptorsMapRef.current.get(person.id);
+        if (enrolledDesc && enrolledDesc.length === 256) {
+          const sim = compareFaceDescriptors(liveDescriptor, enrolledDesc);
+          if (sim > highestSimilarity) {
+            highestSimilarity = sim;
+            bestMatch = person;
+          }
+        }
+      }
+
+      // POSITIVE IDENTIFICATION: Similarity >= Threshold (72%)
+      if (bestMatch && highestSimilarity >= BIOMETRIC_MATCH_THRESHOLD) {
+        consecutiveUnrecognizedCount = 0;
+        const studentRecord = roster.find((s) => s.studentId === bestMatch!.id);
+        const isAlreadyMarked =
+          (studentRecord && studentRecord.status === 'PRESENT') || scannedIdsRef.current.has(bestMatch.id);
+
+        handleConfirmedVerification(bestMatch, highestSimilarity, isAlreadyMarked);
+      } else {
+        // Face is present, but not recognized among enrolled profiles
+        consecutiveUnrecognizedCount++;
+        if (consecutiveUnrecognizedCount > 3) {
+          setBiometricStatus('UNENROLLED');
+          setMatchScore(highestSimilarity);
+        }
+      }
+    }, 85);
 
     return () => {
       isScanning = false;
       clearInterval(interval);
     };
-  }, [isOpen, scanMode, cameraActive, roster, currentStaffUser, targetAudience, markPersonVerifiedAutomatically]);
+  }, [
+    isOpen,
+    scanMode,
+    cameraActive,
+    roster,
+    targetAudience,
+    currentStaffUser,
+    facultyList,
+    biometricStatus,
+    handleConfirmedVerification,
+  ]);
 
-  // Handle Manual Scan Form Submit
-  const handleScanSubmit = (e: React.FormEvent) => {
+  // 10. Enroll Face Handler
+  const handleEnrollFace = async () => {
+    if (!videoRef.current || !enrollSelectedPersonId || isEnrolling) return;
+    setIsEnrolling(true);
+    setEnrollSuccessMessage(null);
+
+    try {
+      const video = videoRef.current;
+      // 1. Detect face
+      const faceBox = await detectFace(video, workCanvasRef.current || undefined);
+      const fallbackBox: FaceBox = {
+        x: Math.round(video.videoWidth * 0.25) || 120,
+        y: Math.round(video.videoHeight * 0.15) || 60,
+        width: Math.round(video.videoWidth * 0.5) || 240,
+        height: Math.round(video.videoHeight * 0.6) || 280,
+        confidence: 90,
+      };
+      const activeBox = faceBox || fallbackBox;
+
+      // 2. Extract 256-D Descriptor
+      const descriptor = extractFaceDescriptor(video, activeBox, workCanvasRef.current || undefined);
+
+      // 3. Crop face thumbnail
+      const thumbnailDataUrl = cropFaceToDataUrl(video, activeBox, 320);
+      setEnrollLastThumbnail(thumbnailDataUrl);
+
+      // 4. Save locally
+      descriptorsMapRef.current.set(enrollSelectedPersonId, descriptor);
+      saveLocalBiometricDescriptor(enrollSelectedPersonId, descriptor);
+      setDescriptorsLoadedCount((prev) => prev + 1);
+
+      // 5. Send to Server API
+      const res = await fetch('/api/students/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: enrollSelectedPersonId,
+          photoUrl: thumbnailDataUrl,
+          faceDescriptor: descriptor,
+        }),
+      });
+
+      const matchedStudent = roster.find((s) => s.studentId === enrollSelectedPersonId);
+      const matchedFaculty = facultyList.find((f) => f.id === enrollSelectedPersonId);
+      const matchedStaff = currentStaffUser?.id === enrollSelectedPersonId ? currentStaffUser : null;
+      const personName = matchedStudent
+        ? matchedStudent.name
+        : matchedFaculty
+        ? matchedFaculty.name
+        : matchedStaff
+        ? matchedStaff.name
+        : 'User';
+
+      if (res.ok) {
+        setEnrollSuccessMessage(`Face biometric enrolled successfully for ${personName}!`);
+        playSoundChime('SUCCESS');
+        speakAnnouncement(`Face biometric enrolled for ${personName}`);
+      } else {
+        // Even if server photo table was unreachable, local biometric is active!
+        setEnrollSuccessMessage(`Face enrolled locally for ${personName}. Ready to scan!`);
+        playSoundChime('SUCCESS');
+      }
+    } catch (err: any) {
+      console.error('Enroll face error:', err);
+      setErrorMsg('Failed to enroll face. Please ensure your face is well lit and visible.');
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
+
+  // 11. Handle Manual Scan Form Submit
+  const handleManualScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     const query = inputCode.trim().toUpperCase();
@@ -556,16 +787,18 @@ export default function FastAttendanceScannerModal({
     });
 
     if (matched) {
-      markPersonVerifiedAutomatically(
+      const isAlready = matched.status === 'PRESENT' || scannedIdsRef.current.has(matched.studentId);
+      handleConfirmedVerification(
         {
           id: matched.studentId,
           name: matched.name,
           identifier: matched.rollNumber,
           role: 'STUDENT',
           photoUrl: matched.photoUrl,
-          subtitle: `Grade ${matched.classGrade || 'N/A'}`,
+          subtitle: `Class ${matched.classGrade || 'N/A'}`,
         },
-        100
+        100,
+        isAlready
       );
       setInputCode('');
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -574,13 +807,36 @@ export default function FastAttendanceScannerModal({
 
     // Check staff
     if (currentStaffUser && (query === 'ADMIN' || query.includes('ADMIN') || query === currentStaffUser.name.toUpperCase())) {
-      markPersonVerifiedAutomatically(currentStaffUser, 100);
+      handleConfirmedVerification(currentStaffUser, 100, false);
       setInputCode('');
       return;
     }
 
     setErrorMsg(`No person found matching "${query}". Check roll number or name.`);
   };
+
+  // Toggle fullscreen kiosk
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      modalContainerRef.current?.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  // Filtered students for enrollment picker
+  const filteredStudentsForEnroll = useMemo(() => {
+    if (!enrollSearch.trim()) return roster;
+    const q = enrollSearch.toLowerCase().trim();
+    return roster.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.rollNumber.toLowerCase().includes(q) ||
+        (s.classGrade && s.classGrade.toLowerCase().includes(q))
+    );
+  }, [roster, enrollSearch]);
 
   const presentCount = roster.filter((s) => s.status === 'PRESENT' || s.status === 'LATE').length;
   const totalCount = roster.length;
@@ -593,29 +849,29 @@ export default function FastAttendanceScannerModal({
       <div
         ref={modalContainerRef}
         className={`bg-slate-900 text-white rounded-3xl max-w-xl w-full shadow-2xl border border-teal-500/30 overflow-hidden flex flex-col ${
-          isFullscreen ? 'h-screen max-w-none rounded-none' : 'max-h-[95vh]'
+          isFullscreen ? 'h-screen max-w-none rounded-none' : 'max-h-[96vh]'
         }`}
       >
-        {/* Hidden Canvas for Frame Processing */}
-        <canvas ref={canvasRef} className="hidden" />
+        {/* Hidden Canvas for Internal Image Operations */}
+        <canvas ref={workCanvasRef} className="hidden" />
 
         {/* 1. KIOSK HEADER */}
         <div className="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-950 px-4 sm:px-6 py-3 border-b border-teal-500/20 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-teal-500/10 border border-teal-400/40 rounded-xl shadow-[0_0_12px_rgba(20,184,166,0.3)]">
-              <Eye className="w-5 h-5 text-teal-300 animate-pulse" />
+              <ScanFace className="w-5 h-5 text-teal-300 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] uppercase tracking-widest font-black text-teal-400">
-                  Universal Biometric Kiosk
+                  AI Biometric Attendance Terminal
                 </span>
                 <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   {dateStr}
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center space-x-1.5">
-                <span>Instant Face & Iris Recognition</span>
+                <span>Face Recognition & QR Kiosk</span>
                 <Sparkles className="w-4 h-4 text-teal-400 inline" />
               </h2>
             </div>
@@ -639,48 +895,49 @@ export default function FastAttendanceScannerModal({
           </div>
         </div>
 
-        {/* 2. TARGET AUDIENCE SELECTOR (UNIVERSAL / STUDENTS / FACULTY) */}
+        {/* 2. MODE SELECTOR (FACE KIOSK | ENROLL FACE | BARCODE/KEYPAD) */}
         <div className="px-4 sm:px-6 py-2 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
-          {/* Audience Filter Pills */}
+          {/* Main 3 Modes */}
           <div className="flex items-center bg-slate-800/90 p-0.5 rounded-xl border border-slate-700/80">
             <button
               type="button"
-              onClick={() => setTargetAudience('UNIVERSAL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
-                targetAudience === 'UNIVERSAL'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+              onClick={() => {
+                setScanMode('BIOMETRIC');
+                setErrorMsg(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                scanMode === 'BIOMETRIC' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Recognize both Students, Faculty & Admin"
             >
-              <Users className="w-3.5 h-3.5" />
-              <span>All / Universal</span>
+              <ScanFace className="w-3.5 h-3.5" />
+              <span>Face Kiosk</span>
             </button>
             <button
               type="button"
-              onClick={() => setTargetAudience('STUDENTS')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
-                targetAudience === 'STUDENTS'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+              onClick={() => {
+                setScanMode('ENROLL');
+                setErrorMsg(null);
+                setEnrollSuccessMessage(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                scanMode === 'ENROLL' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Students Only"
             >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Students</span>
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Enroll Face</span>
             </button>
             <button
               type="button"
-              onClick={() => setTargetAudience('FACULTY')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer ${
-                targetAudience === 'FACULTY'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+              onClick={() => {
+                setScanMode('KEYPAD');
+                setErrorMsg(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                scanMode === 'KEYPAD' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Faculty & Admin Staff Check-in"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Faculty & Admin</span>
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Barcode / Roll</span>
             </button>
           </div>
 
@@ -694,10 +951,10 @@ export default function FastAttendanceScannerModal({
                   ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
                   : 'bg-slate-800 border-slate-700 text-slate-500'
               }`}
-              title={voiceEnabled ? 'Voice Name Announcement ON' : 'Voice Name Announcement OFF'}
+              title={voiceEnabled ? 'Voice Announcements ON' : 'Voice Announcements OFF'}
             >
               <Mic className="w-3.5 h-3.5" />
-              <span className="text-[11px]">{voiceEnabled ? 'Voice: ON' : 'Voice: OFF'}</span>
+              <span className="text-[11px]">{voiceEnabled ? 'Voice ON' : 'Voice OFF'}</span>
             </button>
 
             <button
@@ -708,7 +965,7 @@ export default function FastAttendanceScannerModal({
                   ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
                   : 'bg-slate-800 border-slate-700 text-slate-500'
               }`}
-              title={soundEnabled ? 'Chime Sound ON' : 'Chime Sound OFF'}
+              title={soundEnabled ? 'Chime ON' : 'Chime OFF'}
             >
               {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
             </button>
@@ -717,14 +974,20 @@ export default function FastAttendanceScannerModal({
 
         {/* 3. MODAL BODY */}
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
-          {/* Live Progress Bar */}
+          {/* Progress Bar & Enrolled Count Indicator */}
           <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
             <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
-              <span className="flex items-center space-x-1.5">
-                <Users className="w-3.5 h-3.5 text-teal-400" />
-                <span>Marked Present: {presentCount} / {totalCount}</span>
+              <span className="flex items-center space-x-2">
+                <span className="flex items-center space-x-1 text-teal-400">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Marked Present: {presentCount} / {totalCount}</span>
+                </span>
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-400 text-[11px]">
+                  Enrolled Faces: <span className="text-amber-400 font-bold">{descriptorsLoadedCount}</span>
+                </span>
               </span>
-              <span className="text-teal-400 font-mono font-black">{progressPercent}% Attendance</span>
+              <span className="text-teal-400 font-mono font-black">{progressPercent}%</span>
             </div>
             <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
               <div
@@ -734,9 +997,57 @@ export default function FastAttendanceScannerModal({
             </div>
           </div>
 
-          {/* REAL-TIME BIOMETRIC CAMERA VIEW */}
+          {/* MODE 1: BIOMETRIC FACE RECOGNITION KIOSK */}
           {scanMode === 'BIOMETRIC' && (
             <div className="space-y-3">
+              {/* Audience Selector Sub-Pills */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center bg-slate-950/70 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setTargetAudience('UNIVERSAL')}
+                    className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                      targetAudience === 'UNIVERSAL' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Universal (All)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetAudience('STUDENTS')}
+                    className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                      targetAudience === 'STUDENTS' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Students Only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetAudience('FACULTY')}
+                    className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                      targetAudience === 'FACULTY' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Faculty Only
+                  </button>
+                </div>
+
+                {/* Mirror Video Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setMirrorVideo(!mirrorVideo)}
+                  className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer flex items-center space-x-1 ${
+                    mirrorVideo
+                      ? 'bg-slate-800 border-teal-500/40 text-teal-300'
+                      : 'bg-slate-900 border-slate-800 text-slate-500'
+                  }`}
+                  title="Toggle Selfie Mirror View"
+                >
+                  <FlipHorizontal className="w-3 h-3" />
+                  <span>Mirror {mirrorVideo ? 'ON' : 'OFF'}</span>
+                </button>
+              </div>
+
               {cameraError ? (
                 <div className="p-6 bg-rose-950/40 border-2 border-rose-500/50 rounded-2xl text-center space-y-3">
                   <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
@@ -744,144 +1055,135 @@ export default function FastAttendanceScannerModal({
                   <button
                     type="button"
                     onClick={() => startCamera()}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition"
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition cursor-pointer"
                   >
                     Retry Camera
                   </button>
                 </div>
               ) : (
                 <div className="relative aspect-[4/3] sm:aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-teal-500/40 shadow-2xl flex items-center justify-center">
-                  {/* The Live Video Feed */}
+                  {/* Live Video Feed */}
                   <video
                     ref={videoRef}
                     autoPlay
                     playsInline
                     muted
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover ${mirrorVideo && facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+                  />
+
+                  {/* Real-Time Holographic Tracking Canvas */}
+                  <canvas
+                    ref={overlayCanvasRef}
+                    className={`absolute inset-0 w-full h-full pointer-events-none ${
+                      mirrorVideo && facingMode === 'user' ? 'scale-x-[-1]' : ''
+                    }`}
                   />
 
                   {/* High-Tech Holographic HUD Scan Overlay */}
                   <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-4">
                     {/* Top Status & Camera Flip */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-lg border border-teal-500/30">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                      <div className="flex items-center space-x-2 bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-lg border border-teal-500/30">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            biometricStatus === 'VERIFIED'
+                              ? 'bg-emerald-400 animate-ping'
+                              : biometricStatus === 'ALREADY_MARKED'
+                              ? 'bg-sky-400'
+                              : biometricStatus === 'ANALYZING'
+                              ? 'bg-amber-400 animate-pulse'
+                              : biometricStatus === 'UNENROLLED'
+                              ? 'bg-orange-400'
+                              : 'bg-teal-400'
+                          }`}
+                        />
                         <span className="text-[10px] font-mono font-bold tracking-wider text-teal-300">
                           {biometricStatus === 'VERIFIED'
-                            ? 'MATCH CONFIRMED (< 0.5s)'
-                            : biometricStatus === 'LOCKING'
-                            ? 'INSTANT RECOGNITION...'
+                            ? `VERIFIED: ${verifiedPerson?.name}`
+                            : biometricStatus === 'ALREADY_MARKED'
+                            ? `ALREADY PRESENT: ${verifiedPerson?.name}`
+                            : biometricStatus === 'ANALYZING'
+                            ? 'MATCHING FACIAL BIOMETRICS...'
+                            : biometricStatus === 'UNENROLLED'
+                            ? 'FACE DETECTED (NOT ENROLLED)'
                             : `SCANNING: ${targetAudience}`}
                         </span>
                       </div>
 
-                      {/* Camera Flip Button (Front / Rear) */}
+                      {/* Camera Flip Button */}
                       <button
                         type="button"
-                        onClick={toggleCameraFacing}
-                        className="pointer-events-auto px-2.5 py-1 bg-slate-950/80 hover:bg-slate-900 border border-teal-500/40 rounded-lg text-teal-300 text-xs font-bold transition flex items-center space-x-1.5 shadow-md"
-                        title="Switch between Front and Rear Camera"
+                        onClick={() => setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'))}
+                        className="pointer-events-auto px-2.5 py-1 bg-slate-950/80 hover:bg-slate-900 border border-teal-500/40 rounded-lg text-teal-300 text-xs font-bold transition flex items-center space-x-1.5 shadow-md cursor-pointer"
+                        title="Switch Front/Rear Camera"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-mono">
-                          {facingMode === 'user' ? 'Front' : 'Rear'} Camera
-                        </span>
+                        <span className="text-[11px] font-mono">{facingMode === 'user' ? 'Front' : 'Rear'}</span>
                       </button>
                     </div>
 
-                    {/* Central Face Holographic Reticle */}
-                    <div className="relative mx-auto my-auto w-48 h-48 sm:w-60 sm:h-60 flex items-center justify-center">
-                      {/* 4 Corner Targeting Brackets */}
-                      <div
-                        className={`absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 transition-colors duration-150 ${
-                          biometricStatus === 'VERIFIED'
-                            ? 'border-emerald-400'
-                            : biometricStatus === 'LOCKING'
-                            ? 'border-amber-400'
-                            : 'border-cyan-400'
-                        }`}
-                      />
-                      <div
-                        className={`absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 transition-colors duration-150 ${
-                          biometricStatus === 'VERIFIED'
-                            ? 'border-emerald-400'
-                            : biometricStatus === 'LOCKING'
-                            ? 'border-amber-400'
-                            : 'border-cyan-400'
-                        }`}
-                      />
-                      <div
-                        className={`absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 transition-colors duration-150 ${
-                          biometricStatus === 'VERIFIED'
-                            ? 'border-emerald-400'
-                            : biometricStatus === 'LOCKING'
-                            ? 'border-amber-400'
-                            : 'border-cyan-400'
-                        }`}
-                      />
-                      <div
-                        className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 transition-colors duration-150 ${
-                          biometricStatus === 'VERIFIED'
-                            ? 'border-emerald-400'
-                            : biometricStatus === 'LOCKING'
-                            ? 'border-amber-400'
-                            : 'border-cyan-400'
-                        }`}
-                      />
+                    {/* Central Face Holographic Reticle (when no face is tracked) */}
+                    {!trackedFaceBox && (
+                      <div className="relative mx-auto my-auto w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+                        <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-cyan-400/80" />
+                        <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-cyan-400/80" />
+                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-cyan-400/80" />
+                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-cyan-400/80" />
 
-                      {/* Concentric Iris Targeting Rings */}
-                      <div
-                        className={`w-36 h-36 rounded-full border border-dashed transition-all duration-200 flex items-center justify-center ${
-                          biometricStatus === 'VERIFIED'
-                            ? 'border-emerald-400 ring-8 ring-emerald-500/30 scale-105'
-                            : biometricStatus === 'LOCKING'
-                            ? 'border-amber-400 animate-spin'
-                            : 'border-cyan-400/60 animate-[spin_8s_linear_infinite]'
-                        }`}
-                      >
-                        <div
-                          className={`w-24 h-24 rounded-full border transition-colors ${
-                            biometricStatus === 'VERIFIED'
-                              ? 'border-emerald-400 bg-emerald-500/20'
-                              : 'border-cyan-400/40'
-                          } flex items-center justify-center`}
-                        >
-                          <Scan className="w-8 h-8 text-cyan-300/80" />
+                        <div className="w-36 h-36 rounded-full border border-dashed border-cyan-400/50 animate-[spin_10s_linear_infinite] flex items-center justify-center">
+                          <Scan className="w-10 h-10 text-cyan-300/60" />
                         </div>
                       </div>
-
-                      {/* Animated Sweeping Laser Beam */}
-                      <div className="absolute inset-x-2 top-0 bottom-0 overflow-hidden pointer-events-none">
-                        <div className="w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] animate-pulse" />
-                      </div>
-                    </div>
+                    )}
 
                     {/* Bottom HUD Instruction Pill */}
                     <div className="text-center">
-                      <span className="inline-block bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-mono font-bold text-teal-300 border border-teal-500/30">
-                        {biometricStatus === 'VERIFIED'
-                          ? `✅ ${verifiedPerson?.name || 'VERIFIED'} • ATTENDANCE RECORDED`
-                          : biometricStatus === 'LOCKING'
-                          ? '⚡ RECOGNIZED IN < 0.5s • SAVING...'
-                          : '👀 WALK UP TO CAMERA • AUTOMATIC RECOGNITION'}
-                      </span>
+                      {biometricStatus === 'UNENROLLED' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScanMode('ENROLL');
+                            setEnrollSuccessMessage(null);
+                          }}
+                          className="pointer-events-auto inline-flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-full text-xs font-black shadow-lg transition cursor-pointer animate-pulse"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Unrecognized Face • Click to Enroll</span>
+                        </button>
+                      ) : (
+                        <span className="inline-block bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-mono font-bold text-teal-300 border border-teal-500/30">
+                          {biometricStatus === 'VERIFIED'
+                            ? `✅ ${verifiedPerson?.name} • ATTENDANCE RECORDED`
+                            : biometricStatus === 'ALREADY_MARKED'
+                            ? `ℹ️ ${verifiedPerson?.name} • ALREADY RECORDED TODAY`
+                            : biometricStatus === 'ANALYZING'
+                            ? '⚡ MATCHING 256-D BIOMETRIC VECTOR...'
+                            : '👀 STAND IN FRONT OF CAMERA TO MARK ATTENDANCE'}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* FLASH POPUP WHEN PERSON IS RECOGNIZED */}
+                  {/* FLASH POPUP WHEN PERSON IS VERIFIED OR ALREADY MARKED */}
                   {verifiedPerson && (
-                    <div className="absolute inset-x-3 bottom-3 bg-slate-900/95 backdrop-blur-md border-2 border-emerald-400 rounded-2xl p-3.5 shadow-2xl flex items-center space-x-3.5 animate-in zoom-in-95 duration-100">
+                    <div
+                      className={`absolute inset-x-3 bottom-3 bg-slate-900/95 backdrop-blur-md border-2 ${
+                        biometricStatus === 'ALREADY_MARKED'
+                          ? 'border-sky-400'
+                          : 'border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                      } rounded-2xl p-3.5 shadow-2xl flex items-center space-x-3.5 animate-in zoom-in-95 duration-100 z-10`}
+                    >
                       <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-slate-800 border-2 border-emerald-400 flex items-center justify-center font-black text-emerald-400 text-lg shrink-0 shadow-md">
                         {verifiedPerson.photoUrl ? (
-                          <img
-                            src={verifiedPerson.photoUrl}
-                            alt={verifiedPerson.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={verifiedPerson.photoUrl} alt={verifiedPerson.name} className="w-full h-full object-cover" />
                         ) : (
                           <span>{verifiedPerson.name.charAt(0)}</span>
                         )}
-                        <div className="absolute bottom-0 right-0 bg-emerald-500 text-slate-950 p-1 rounded-tl">
+                        <div
+                          className={`absolute bottom-0 right-0 ${
+                            biometricStatus === 'ALREADY_MARKED' ? 'bg-sky-500' : 'bg-emerald-500'
+                          } text-slate-950 p-1 rounded-tl`}
+                        >
                           <Check className="w-3.5 h-3.5 font-black" />
                         </div>
                       </div>
@@ -903,21 +1205,22 @@ export default function FastAttendanceScannerModal({
                               : verifiedPerson.identifier}
                           </span>
                           <span className="text-[11px] text-emerald-300 font-mono font-bold">
-                            {matchScore}% Match
+                            {matchScore}% Biometric Match
                           </span>
                         </div>
-                        <h4 className="text-base font-black text-white truncate mt-0.5">
-                          {verifiedPerson.name}
-                        </h4>
-                        <p className="text-xs text-emerald-400 font-bold flex items-center space-x-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
-                          <span>
-                            {verifiedPerson.role === 'ADMIN'
-                              ? 'Admin Check-in Verified!'
-                              : verifiedPerson.role === 'FACULTY'
-                              ? 'Faculty Attendance Recorded!'
-                              : 'Marked Present! Next student...'}
-                          </span>
+                        <h4 className="text-base font-black text-white truncate mt-0.5">{verifiedPerson.name}</h4>
+                        <p className="text-xs font-bold flex items-center space-x-1 mt-0.5">
+                          {biometricStatus === 'ALREADY_MARKED' ? (
+                            <span className="text-sky-300 flex items-center space-x-1">
+                              <CheckCheck className="w-3.5 h-3.5 inline" />
+                              <span>Already marked present today!</span>
+                            </span>
+                          ) : (
+                            <span className="text-emerald-300 flex items-center space-x-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
+                              <span>Attendance Recorded & Saved to Database!</span>
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -939,14 +1242,18 @@ export default function FastAttendanceScannerModal({
 
                 {recentVerifiedList.length === 0 ? (
                   <p className="text-xs text-slate-500 italic px-1">
-                    Ready for students, faculty & admin to step in front of the camera...
+                    Waiting for students or faculty to step in front of the camera...
                   </p>
                 ) : (
                   <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none py-1">
                     {recentVerifiedList.map((item, idx) => (
                       <div
                         key={`${item.person.id}-${idx}`}
-                        className="flex-shrink-0 flex items-center space-x-2 px-3 py-1.5 rounded-xl border bg-emerald-950/60 border-emerald-500/80 text-emerald-200 animate-in fade-in"
+                        className={`flex-shrink-0 flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs animate-in fade-in ${
+                          item.status === 'ALREADY_MARKED'
+                            ? 'bg-sky-950/60 border-sky-500/80 text-sky-200'
+                            : 'bg-emerald-950/60 border-emerald-500/80 text-emerald-200'
+                        }`}
                       >
                         <div className="w-6 h-6 rounded-lg overflow-hidden bg-emerald-900 flex items-center justify-center font-bold text-xs shrink-0">
                           {item.person.photoUrl ? (
@@ -956,14 +1263,10 @@ export default function FastAttendanceScannerModal({
                           )}
                         </div>
                         <div className="text-left">
-                          <p className="font-mono text-[11px] font-black leading-none">
-                            {item.person.identifier}
-                          </p>
-                          <p className="text-[10px] text-emerald-300 font-semibold truncate max-w-[85px] mt-0.5">
-                            {item.person.name}
-                          </p>
+                          <p className="font-mono text-[11px] font-black leading-none">{item.person.identifier}</p>
+                          <p className="text-[10px] font-semibold truncate max-w-[85px] mt-0.5">{item.person.name}</p>
                         </div>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold">{item.matchScore}%</span>
                       </div>
                     ))}
                   </div>
@@ -972,32 +1275,181 @@ export default function FastAttendanceScannerModal({
             </div>
           )}
 
-          {/* BARCODE GUN / MANUAL NUMPAD */}
+          {/* MODE 2: ENROLL FACE BIOMETRICS */}
+          {scanMode === 'ENROLL' && (
+            <div className="space-y-4">
+              <div className="bg-amber-950/30 border border-amber-500/40 p-3 rounded-2xl flex items-start space-x-2.5">
+                <UserPlus className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <h4 className="font-black text-amber-200">1-Click Face Biometric Enrollment</h4>
+                  <p className="text-amber-300/80">
+                    Select a student or faculty member below, align their face inside the camera oval, and click
+                    &quot;Capture &amp; Enroll&quot;. The 256-D biometric vector is saved instantly for automatic attendance.
+                  </p>
+                </div>
+              </div>
+
+              {/* Student Selector with Quick Search */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <label>Select Person to Enroll:</label>
+                  <span className="text-[11px] text-slate-400">
+                    {descriptorsMapRef.current.has(enrollSelectedPersonId) ? (
+                      <span className="text-emerald-400 font-bold">✅ Already Enrolled (Can Re-enroll)</span>
+                    ) : (
+                      <span className="text-amber-400 font-bold">⚠️ Needs Enrollment</span>
+                    )}
+                  </span>
+                </div>
+
+                {/* Search input for students */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or roll number..."
+                    value={enrollSearch}
+                    onChange={(e) => setEnrollSearch(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 pl-9 text-xs text-white focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+
+                {/* Dropdown list */}
+                <select
+                  value={enrollSelectedPersonId}
+                  onChange={(e) => {
+                    setEnrollSelectedPersonId(e.target.value);
+                    setEnrollSuccessMessage(null);
+                  }}
+                  className="w-full bg-slate-800 border-2 border-teal-500/50 rounded-xl px-3 py-2.5 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <optgroup label="Enrolled Students">
+                    {filteredStudentsForEnroll.map((s) => {
+                      const isEnrolled = descriptorsMapRef.current.has(s.studentId);
+                      return (
+                        <option key={s.studentId} value={s.studentId}>
+                          {isEnrolled ? '✅' : '⚪'} {s.rollNumber} - {s.name} ({s.classGrade || 'N/A'})
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                  {(currentStaffUser || facultyList.length > 0) && (
+                    <optgroup label="Faculty & Staff">
+                      {currentStaffUser && (
+                        <option value={currentStaffUser.id}>
+                          {descriptorsMapRef.current.has(currentStaffUser.id) ? '✅' : '⚪'} {currentStaffUser.name} ({currentStaffUser.role === 'ADMIN' ? 'Admin' : 'Faculty'})
+                        </option>
+                      )}
+                      {facultyList
+                        .filter((f) => !currentStaffUser || f.id !== currentStaffUser.id)
+                        .map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {descriptorsMapRef.current.has(f.id) ? '✅' : '⚪'} {f.name} (Faculty)
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              {/* Live Camera View with Oval Silhouette */}
+              <div className="relative aspect-[4/3] sm:aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-amber-500/40 shadow-xl flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${mirrorVideo && facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+                />
+
+                {/* Oval Guide Overlay */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div
+                    className={`w-44 h-56 sm:w-52 sm:h-64 rounded-[50%] border-2 border-dashed transition-colors ${
+                      trackedFaceBox ? 'border-emerald-400 bg-emerald-500/10' : 'border-amber-400/80'
+                    } flex items-center justify-center`}
+                  >
+                    <div className="text-center px-4">
+                      <p className="text-[11px] font-bold text-white/90 drop-shadow-md">
+                        {trackedFaceBox ? 'Face Aligned & Ready' : 'Align Face in Oval'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Flip camera button */}
+                <div className="absolute top-3 right-3">
+                  <button
+                    type="button"
+                    onClick={() => setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'))}
+                    className="px-2.5 py-1 bg-slate-950/80 hover:bg-slate-900 border border-amber-500/40 rounded-lg text-amber-300 text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Flip Camera</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Success Notification Banner */}
+              {enrollSuccessMessage && (
+                <div className="flex items-center space-x-3 p-3.5 bg-emerald-950/70 border border-emerald-500/60 rounded-2xl text-emerald-200 text-xs font-bold animate-in fade-in">
+                  {enrollLastThumbnail ? (
+                    <img src={enrollLastThumbnail} alt="" className="w-10 h-10 rounded-xl object-cover border border-emerald-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-emerald-100 font-bold">{enrollSuccessMessage}</p>
+                    <button
+                      type="button"
+                      onClick={() => setScanMode('BIOMETRIC')}
+                      className="text-emerald-400 underline font-bold mt-1 text-[11px] cursor-pointer"
+                    >
+                      Return to Face Kiosk to test auto-recognition →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Capture Action Button */}
+              <button
+                type="button"
+                onClick={handleEnrollFace}
+                disabled={isEnrolling}
+                className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-lg transition active:scale-[0.99] flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <Camera className="w-5 h-5" />
+                <span>{isEnrolling ? 'Extracting 256-D Biometrics...' : 'Capture & Enroll Face Biometrics'}</span>
+              </button>
+            </div>
+          )}
+
+          {/* MODE 3: BARCODE GUN / MANUAL NUMPAD */}
           {scanMode === 'KEYPAD' && (
             <div className="space-y-4">
-              <form onSubmit={handleScanSubmit} className="space-y-3">
+              <form onSubmit={handleManualScanSubmit} className="space-y-3">
                 <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
-                  Scan Barcode / Type Roll Number or Staff Name
+                  Scan Barcode Gun / Type Roll Number or Staff Name
                 </label>
                 <div className="relative flex items-center">
                   <input
                     ref={inputRef}
                     type="text"
                     autoFocus
-                    placeholder="Scan or type roll no. and hit Enter..."
+                    placeholder="Scan or type roll no. (e.g., PRG001 or 1) and press Enter..."
                     value={inputCode}
                     onChange={(e) => setInputCode(e.target.value)}
-                    className="w-full text-base sm:text-lg font-mono font-bold px-4 py-3.5 bg-slate-800 border-2 border-teal-500 rounded-2xl focus:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-teal-500/20 text-white pr-24 shadow-inner"
+                    className="w-full text-base sm:text-lg font-mono font-bold px-4 py-3.5 bg-slate-800 border-2 border-indigo-500 rounded-2xl focus:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 text-white pr-24 shadow-inner"
                   />
                   <button
                     type="submit"
-                    className="absolute right-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-black shadow-xs transition cursor-pointer"
+                    className="absolute right-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black shadow-xs transition cursor-pointer"
                   >
                     Mark
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Compatible with handheld barcode scanners, QR scanners, and numeric entry.
+                  Compatible with handheld USB/Bluetooth barcode guns, QR scanners, and rapid numeric entry.
                 </p>
               </form>
 
@@ -1016,7 +1468,13 @@ export default function FastAttendanceScannerModal({
         <div className="bg-slate-950/80 px-4 sm:px-6 py-3 border-t border-slate-800 flex items-center justify-between">
           <p className="text-xs text-slate-400 flex items-center space-x-1.5">
             <Zap className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-            <span className="truncate">Universal Biometric: Students, Faculty & Admin instant check-in.</span>
+            <span className="truncate">
+              {scanMode === 'BIOMETRIC'
+                ? 'AI Biometric Kiosk: Step into frame for zero-click automatic check-in.'
+                : scanMode === 'ENROLL'
+                ? 'Enroll Mode: Captures and saves facial biometrics permanently.'
+                : 'Barcode Mode: Fast scan or manual roll number entry.'}
+            </span>
           </p>
           <button
             type="button"

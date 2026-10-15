@@ -121,6 +121,7 @@ export async function GET(req: NextRequest) {
           schoolName: s.studentDetails?.schoolName || '',
           phone: s.phone || '',
           photoUrl: s.studentDetails?.photoUrl || '',
+          faceDescriptor: s.studentDetails?.faceDescriptor || null,
           status: existing ? existing.status : ('PRESENT' as AttendanceStatus),
           remarks: existing?.remarks || '',
           isRecorded: !!existing,

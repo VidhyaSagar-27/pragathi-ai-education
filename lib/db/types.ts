@@ -17,7 +17,6 @@ export interface StudentDetails {
   parentPhone?: string;
   parentEmail?: string;
   feeRecord?: StudentFeeRecord;
-  faceDescriptor?: number[];
 }
 
 export interface InstructorDetails {
@@ -25,7 +24,6 @@ export interface InstructorDetails {
   assignedModules: number[];
   assignedGroups: string[];
   photoUrl?: string;
-  faceDescriptor?: number[];
 }
 
 export interface User {

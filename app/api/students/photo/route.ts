@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { studentId, photoUrl, faceDescriptor } = body;
+    const { studentId, photoUrl } = body;
 
     if (!studentId || typeof studentId !== 'string') {
       return NextResponse.json({ error: 'Student ID is required.' }, { status: 400 });
@@ -96,9 +96,6 @@ export async function POST(req: NextRequest) {
         if (photoEndpointUrl) {
           user.instructorDetails.photoUrl = photoEndpointUrl;
         }
-        if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
-          user.instructorDetails.faceDescriptor = faceDescriptor;
-        }
       } else {
         if (!user.studentDetails) {
           user.studentDetails = {
@@ -111,9 +108,6 @@ export async function POST(req: NextRequest) {
         }
         if (photoEndpointUrl) {
           user.studentDetails.photoUrl = photoEndpointUrl;
-        }
-        if (Array.isArray(faceDescriptor) && faceDescriptor.length > 0) {
-          user.studentDetails.faceDescriptor = faceDescriptor;
         }
       }
       user.updatedAt = new Date().toISOString();

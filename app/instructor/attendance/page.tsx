@@ -6,7 +6,6 @@ import {
   Calendar as CalendarIcon,
   CheckCircle2,
   XCircle,
-  QrCode,
   Trash2,
   UserPlus,
   Phone,
@@ -16,7 +15,6 @@ import {
   List,
   X,
 } from 'lucide-react';
-import FastAttendanceScannerModal from '@/components/FastAttendanceScannerModal';
 import FastRegisterStudentModal from '@/components/FastRegisterStudentModal';
 
 interface StudentRosterItem {
@@ -28,7 +26,6 @@ interface StudentRosterItem {
   schoolName?: string;
   phone: string;
   photoUrl: string;
-  faceDescriptor?: number[];
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
   remarks: string;
   isRecorded: boolean;
@@ -60,7 +57,6 @@ export default function InstructorAttendancePage() {
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [absenteeModalOpen, setAbsenteeModalOpen] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [fastScanOpen, setFastScanOpen] = useState<boolean>(false);
   const [addStudentOpen, setAddStudentOpen] = useState<boolean>(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -290,16 +286,6 @@ export default function InstructorAttendancePage() {
             onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
             className="absolute opacity-0 pointer-events-none w-0 h-0"
           />
-
-          <button
-            type="button"
-            onClick={() => setFastScanOpen(true)}
-            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-slate-900 text-white hover:from-teal-500 hover:to-slate-800 transition shadow-xs cursor-pointer"
-            title="Fast QR & Barcode Attendance Terminal"
-          >
-            <QrCode className="w-4 h-4 text-teal-300" />
-            <span className="text-xs font-bold hidden sm:inline">Fast Scan</span>
-          </button>
 
           <button
             type="button"
@@ -668,17 +654,6 @@ export default function InstructorAttendancePage() {
           </div>
         </div>
       )}
-
-      {/* Fast QR / Barcode Scanner Modal */}
-      <FastAttendanceScannerModal
-        isOpen={fastScanOpen}
-        onClose={() => setFastScanOpen(false)}
-        dateStr={selectedDate}
-        roster={roster}
-        onMarkStudent={(studentId, status) => {
-          setStudentExplicitStatus(studentId, status);
-        }}
-      />
 
       {/* Fast Register Student Modal */}
       <FastRegisterStudentModal

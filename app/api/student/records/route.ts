@@ -45,12 +45,15 @@ export async function GET(req: NextRequest) {
   const totalFee = student.studentDetails?.feeRecord?.totalFee !== undefined
     ? student.studentDetails.feeRecord.totalFee
     : 1350;
+  const concessionAmount = student.studentDetails?.feeRecord?.concessionAmount || 0;
+  const concessionReason = student.studentDetails?.feeRecord?.concessionReason || '';
+  const netFee = Math.max(0, totalFee - concessionAmount);
 
   const amountPaid = studentPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const amountPending = Math.max(0, totalFee - amountPaid);
+  const amountPending = Math.max(0, netFee - amountPaid);
 
   let feeStatus = 'PENDING';
-  if (totalFee > 0 && amountPaid >= totalFee) {
+  if (netFee === 0 || (netFee > 0 && amountPaid >= netFee)) {
     feeStatus = 'PAID';
   } else if (amountPaid > 0) {
     feeStatus = 'PARTIALLY_PAID';
@@ -75,6 +78,9 @@ export async function GET(req: NextRequest) {
       },
       fees: {
         totalFee,
+        concessionAmount,
+        concessionReason,
+        netFee,
         amountPaid,
         amountPending,
         status: feeStatus,

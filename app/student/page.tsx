@@ -24,6 +24,11 @@ import {
   CreditCard,
   AlertTriangle,
   Receipt,
+  QrCode,
+  Printer,
+  X,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export default function StudentDashboardPage() {
@@ -51,6 +56,12 @@ export default function StudentDashboardPage() {
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
+
+  // Student Fee UPI & Receipt View State
+  const [studentUpiModalOpen, setStudentUpiModalOpen] = useState(false);
+  const [studentReceiptsModalOpen, setStudentReceiptsModalOpen] = useState(false);
+  const [activeStudentReceipt, setActiveStudentReceipt] = useState<any>(null);
+  const [copiedStudentUpi, setCopiedStudentUpi] = useState(false);
 
   // Forced First-Login Password Change State
   const [changePwModalOpen, setChangePwModalOpen] = useState(false);
@@ -317,6 +328,11 @@ export default function StudentDashboardPage() {
                 <p className="text-lg font-black text-slate-800 mt-0.5">
                   ₹{(records?.fees?.totalFee ?? 1350).toLocaleString('en-IN')}
                 </p>
+                {(records?.fees?.concessionAmount ?? 0) > 0 && (
+                  <span className="text-[10px] font-bold text-amber-700 block mt-0.5">
+                    -₹{records?.fees?.concessionAmount} disc.
+                  </span>
+                )}
               </div>
               <div className="p-2.5 bg-emerald-50 rounded-xl">
                 <span className="text-[10px] uppercase font-bold text-emerald-700">Amount Paid</span>
@@ -330,6 +346,31 @@ export default function StudentDashboardPage() {
                   ₹{(records?.fees?.amountPending ?? 1350).toLocaleString('en-IN')}
                 </p>
               </div>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2 mt-4">
+              {(records?.fees?.amountPending ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStudentUpiModalOpen(true)}
+                  className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>Pay via UPI QR</span>
+                </button>
+              )}
+
+              {records?.fees?.payments && records.fees.payments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStudentReceiptsModalOpen(true)}
+                  className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <Receipt className="w-4 h-4 text-teal-600" />
+                  <span>Receipts ({records.fees.payments.length})</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -628,6 +669,250 @@ export default function StudentDashboardPage() {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDENT UPI PAYMENT MODAL */}
+      {studentUpiModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center animate-scaleIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center space-x-2 text-left">
+                <div className="p-2 bg-indigo-50 rounded-xl text-indigo-700">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Scan & Pay via UPI</h3>
+                  <p className="text-[11px] text-slate-500">Google Pay • PhonePe • Paytm</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setStudentUpiModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=4&data=${encodeURIComponent(
+                    `upi://pay?pa=9618611522@ybl&pn=${encodeURIComponent('PRAGATHI AI EDUCATION')}&am=${records?.fees?.amountPending || 1350}&cu=INR&tn=${encodeURIComponent(`Fee for ${data.user?.name || 'Student'}`)}`
+                  )}`}
+                  alt="UPI QR Code"
+                  className="w-48 h-48 mx-auto rounded-xl shadow-xs"
+                />
+                <div className="mt-2.5 text-base font-black text-slate-900">
+                  Pending: ₹{(records?.fees?.amountPending || 1350).toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs font-mono font-bold text-indigo-800">9618611522@ybl</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+                  PRAGATHI AI EDUCATION
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const upiString = `upi://pay?pa=9618611522@ybl&pn=${encodeURIComponent('PRAGATHI AI EDUCATION')}&am=${records?.fees?.amountPending || 1350}&cu=INR&tn=${encodeURIComponent(`Fee for ${data.user?.name || 'Student'}`)}`;
+                    navigator.clipboard.writeText(upiString);
+                    setCopiedStudentUpi(true);
+                    setTimeout(() => setCopiedStudentUpi(false), 2000);
+                  }}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                >
+                  {copiedStudentUpi ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedStudentUpi ? 'Copied!' : 'Copy UPI Link'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentUpiModalOpen(false)}
+                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDENT RECEIPTS MODAL */}
+      {studentReceiptsModalOpen && records?.fees?.payments && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-scaleIn max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-teal-50 rounded-xl text-teal-700">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Your Fee Receipts</h3>
+                  <p className="text-xs text-slate-500">Official proof of payment records</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setStudentReceiptsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2.5">
+              {records?.fees?.payments?.map((p: any) => (
+                <div
+                  key={p.id}
+                  className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-2"
+                >
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs font-black text-teal-800">
+                        {p.receiptNumber || p.id}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                        {p.paymentMethod}
+                      </span>
+                    </div>
+                    <p className="text-sm font-black text-slate-900 mt-1">
+                      ₹{Number(p.amount).toLocaleString('en-IN')}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Paid on: {p.paymentDate}
+                    </p>
+                    {p.transactionId && (
+                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                        Ref: {p.transactionId}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveStudentReceipt(p);
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1 cursor-pointer shrink-0"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 mt-4">
+              <button
+                type="button"
+                onClick={() => setStudentReceiptsModalOpen(false)}
+                className="px-5 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INDIVIDUAL PRINTABLE RECEIPT MODAL FOR STUDENT */}
+      {activeStudentReceipt && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scaleIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 no-print">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Official Fee Receipt
+              </span>
+              <button
+                onClick={() => setActiveStudentReceipt(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 border-2 border-dashed border-slate-300 rounded-2xl bg-white space-y-4">
+              <div className="text-center pb-4 border-b border-slate-200">
+                <img
+                  src="/images/logo.png"
+                  alt="PRAGATHI AI"
+                  className="h-12 w-auto mx-auto object-contain mb-1"
+                />
+                <h2 className="text-lg font-black text-slate-900 tracking-tight">PRAGATHI AI EDUCATION</h2>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                  Official Fee Payment Receipt
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold">Receipt Number</span>
+                  <p className="font-mono font-bold text-slate-900">
+                    {activeStudentReceipt.receiptNumber || activeStudentReceipt.id}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold">Payment Date</span>
+                  <p className="font-bold text-slate-900">{activeStudentReceipt.paymentDate}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold">Student Name</span>
+                  <p className="font-bold text-slate-900 text-sm">
+                    {activeStudentReceipt.studentName || data.user?.name}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold">Roll Number</span>
+                  <p className="font-mono font-black text-teal-800 text-sm">
+                    {activeStudentReceipt.studentRollNumber || data.user?.rollNumber}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-teal-800 uppercase">Amount Paid</span>
+                  <p className="text-xs text-teal-600 font-medium">
+                    {activeStudentReceipt.paymentMethod} Payment
+                  </p>
+                </div>
+                <p className="text-2xl font-black text-teal-900">
+                  ₹{Number(activeStudentReceipt.amount).toLocaleString('en-IN')}
+                </p>
+              </div>
+
+              {activeStudentReceipt.transactionId && (
+                <div className="text-xs">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold">Transaction / UTR Reference</span>
+                  <p className="font-mono text-slate-700">{activeStudentReceipt.transactionId}</p>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Recorded By: {activeStudentReceipt.recordedByName || 'Finance Office'}</span>
+                <span className="font-bold text-emerald-700">✓ Verified Official</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 mt-5 no-print">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-slate-800 transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Receipt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveStudentReceipt(null)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

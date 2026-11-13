@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   XCircle,
   QrCode,
-  ScanFace,
   Trash2,
   Phone,
   MessageSquare,
@@ -329,10 +328,10 @@ export default function AdminAttendancePage() {
             type="button"
             onClick={() => setFastScanOpen(true)}
             className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-slate-900 text-white hover:from-teal-500 hover:to-slate-800 transition shadow-xs cursor-pointer"
-            title="Face Recognition & QR Attendance Terminal"
+            title="Fast QR & Barcode Attendance Terminal"
           >
-            <ScanFace className="w-4 h-4 text-teal-300" />
-            <span className="text-xs font-bold hidden sm:inline">Face Scan</span>
+            <QrCode className="w-4 h-4 text-teal-300" />
+            <span className="text-xs font-bold hidden sm:inline">Fast Scan</span>
           </button>
 
           {/* Marking / History View Toggle */}
